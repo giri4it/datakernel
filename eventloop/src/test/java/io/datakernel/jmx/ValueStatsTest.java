@@ -291,6 +291,33 @@ public class ValueStatsTest {
 		assertEquals(expected, stats.getHistogram());
 	}
 
+	@Test
+	public void itShouldBuildHistogramWithPercents() {
+		ValueStats stats = ValueStats.create(SMOOTHING_WINDOW).withHistogram(new int[]{5, 15, 500});
+
+		// first interval
+		stats.recordValue(2);
+		stats.recordValue(3);
+		stats.recordValue(4);
+
+		// second interval
+		stats.recordValue(10);
+
+		// no data for third interval
+
+		// fourth interval
+		stats.recordValue(600);
+		stats.recordValue(1000);
+
+		List<String> expected = asList(
+				"( -∞,   5)  :   50.0 %",
+				"[  5,  15)  :   16.7 %",
+				"[ 15, 500)  :    0.0 %",
+				"[500,  +∞)  :   33.3 %"
+		);
+		assertEquals(expected, stats.getHistogramPercentage());
+	}
+
 	public static int uniformRandom(int min, int max) {
 		return min + (Math.abs(RANDOM.nextInt()) % (max - min + 1));
 	}

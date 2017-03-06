@@ -465,6 +465,16 @@ public final class ValueStats implements JmxRefreshableStats<ValueStats> {
 
 	@JmxAttribute(optional = true)
 	public List<String> getHistogram() {
+		return formatHistogram(HistogramType.ABSOLUTE);
+	}
+
+	@JmxAttribute(name = "histogram(%)", optional = true)
+	public List<String> getHistogramPercentage() {
+		return formatHistogram(HistogramType.PERCENTAGE);
+	}
+
+	// region histograms
+	private List<String> formatHistogram(HistogramType type) {
 		if (histogramLevels == null) {
 			return null;
 		}
@@ -476,9 +486,24 @@ public final class ValueStats implements JmxRefreshableStats<ValueStats> {
 		int left = findLeftHistogramLimit();
 		int right = findRightHistogramLimit();
 
-		String[] lines = new String[right - left + 1];
 		String[] labels = createHistogramLabels(histogramLevels, left, right - 1);
 		long[] values = Arrays.copyOfRange(histogramValues, left, right + 1);
+
+		List<String> histogram = null;
+		switch (type) {
+			case ABSOLUTE:
+				histogram = formatAbsoluteHistogram(labels, values);
+				break;
+			case PERCENTAGE:
+				histogram = formatPercentageHistogram(labels, values);
+				break;
+		}
+
+		return histogram;
+	}
+
+	private List<String> formatAbsoluteHistogram(String[] labels, long[] values) {
+		String[] lines = new String[labels.length];
 
 		int maxValueStrLen = 0;
 		for (long value : histogramValues) {
@@ -494,6 +519,25 @@ public final class ValueStats implements JmxRefreshableStats<ValueStats> {
 		}
 
 		return asList(lines);
+	}
+
+	private List<String> formatPercentageHistogram(String[] labels, long[] values) {
+		String[] lines = new String[labels.length];
+		long total = sum(values);
+		String pattern = "  :  %5.1f %%";
+		for (int i = 0; i < values.length; i++) {
+			lines[i] = labels[i] + String.format(pattern, (values[i] / (double) total) * 100.0);
+		}
+
+		return asList(lines);
+	}
+
+	private static long sum(long[] values) {
+		long sum = 0;
+		for (long value : values) {
+			sum += value;
+		}
+		return sum;
 	}
 
 	private boolean histogramContainsValues() {
@@ -560,6 +604,7 @@ public final class ValueStats implements JmxRefreshableStats<ValueStats> {
 
 		return labels.toArray(new String[labels.size()]);
 	}
+	// endregion
 
 	@JmxAttribute
 	public String get() {
@@ -571,5 +616,9 @@ public final class ValueStats implements JmxRefreshableStats<ValueStats> {
 		return String.format("%.2f±%.3f [%.2f...%.2f]  last: %d  values: %d @ %.3f/s",
 				getSmoothedAverage(), getSmoothedStandardDeviation(), getSmoothedMin(), getSmoothedMax(), getLastValue(),
 				getCount(), getSmoothedRate());
+	}
+
+	private enum HistogramType {
+		ABSOLUTE, PERCENTAGE
 	}
 }
