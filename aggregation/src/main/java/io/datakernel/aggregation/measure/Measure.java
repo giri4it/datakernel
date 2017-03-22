@@ -20,6 +20,9 @@ import io.datakernel.aggregation.fieldtype.FieldType;
 import io.datakernel.codegen.Expression;
 import io.datakernel.codegen.VarField;
 
+/**
+ * Represents some metric, often numerical with logic for aggregating values of this metric .
+ */
 public abstract class Measure {
 	protected final FieldType fieldType;
 

@@ -25,6 +25,9 @@ import java.util.List;
 
 import static java.lang.System.arraycopy;
 
+/**
+ * A composite primary key for aggregation entries
+ */
 public class PrimaryKey implements Comparable<PrimaryKey> {
 	private final Object[] values;
 

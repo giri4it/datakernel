@@ -25,6 +25,10 @@ import java.util.Objects;
 import static io.datakernel.aggregation.AggregationPredicates.*;
 import static java.util.Collections.unmodifiableList;
 
+/**
+ * Represents an aggregation chunk  of some revision with a list of fields
+ * containing in it.
+ */
 public class AggregationChunk {
 	public static AggregationChunk create(int revisionId, long chunkId,
 	                                      List<String> fields,

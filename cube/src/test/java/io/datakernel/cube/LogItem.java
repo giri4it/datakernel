@@ -28,7 +28,7 @@ import static com.google.common.collect.Lists.newArrayList;
 /**
  * Represents a log item (or fact).
  *
- * @Serialize annotation is used to mark fields that are to be serialized.
+ *{@literal @}Serialize annotation is used to mark fields that are to be serialized.
  * Such fields must also be declared 'public' for serializer to work.
  */
 public class LogItem {

@@ -78,6 +78,12 @@ public final class CubeHttpClient implements ICube {
 		return measureTypes;
 	}
 
+	/**
+	 * Sends a query to remote cube
+	 *
+	 * @param query 	a query to a cube
+	 * @param callback	result callback
+	 */
 	@Override
 	public void query(CubeQuery query, final ResultCallback<QueryResult> callback) {
 		httpClient.send(buildRequest(query), new ForwardingResultCallback<HttpResponse>(callback) {
@@ -103,6 +109,12 @@ public final class CubeHttpClient implements ICube {
 		});
 	}
 
+	/**
+	 * Converts given query to HTTP GET request
+	 *
+	 * @param	query a query to a cube
+	 * @return	HTTP request, representing cube query
+	 */
 	private HttpRequest buildRequest(CubeQuery query) {
 		Map<String, String> urlParams = newLinkedHashMap();
 

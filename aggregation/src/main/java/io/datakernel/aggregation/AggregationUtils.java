@@ -309,6 +309,16 @@ public class AggregationUtils {
 				.buildClassAndCreateNewInstance();
 	}
 
+	/**
+	 * Scans an input class, searches key class members (fields/methods). Such members are
+	 * annotated with <code>{@literal @}Key</code>. If annotation value is not specified,
+	 * corresponding key will be equal to an annotated field name.
+	 *
+	 * @param inputClass	a class to be scanned for existence of key fields/methods
+	 * @param <T>			a type of an input class
+	 * @return 				a map, containing 'key_name' -> 'field_name' pairs
+	 * @throws IllegalArgumentException	if key class members not found in inputClass
+	 */
 	public static <T> Map<String, String> scanKeyFields(Class<T> inputClass) {
 		Map<String, String> keyFields = new LinkedHashMap<>();
 		for (Field field : inputClass.getFields()) {
@@ -331,6 +341,15 @@ public class AggregationUtils {
 		return keyFields;
 	}
 
+	/**
+	 * Scans an input class, searches measures (fields/methods). Such methods are ones,
+	 * annotated with <code>{@literal @}Measure</code> or <code>{@literal @}Measures</code>.
+	 *
+	 * @param inputClass	a class to be scanned for existence of key fields/methods
+	 * @param <T>			a type of an input class
+	 * @return				a map, containing 'key_name' -> 'measure_name'
+	 * @throws
+	 */
 	public static <T> Map<String, String> scanMeasureFields(Class<T> inputClass) {
 		Map<String, String> measureFields = new LinkedHashMap<>();
 		for (Annotation annotation : inputClass.getAnnotations()) {

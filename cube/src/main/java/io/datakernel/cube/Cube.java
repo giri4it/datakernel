@@ -1,4 +1,4 @@
-/*
+ /*
  * Copyright (C) 2015 SoftIndex LLC.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -126,6 +126,9 @@ public final class Cube implements ICube, EventloopJmxMBean {
 	private int maxOverlappingChunksToProcessLogs = Cube.DEFAULT_OVERLAPPING_CHUNKS_THRESHOLD;
 	private int maxIncrementalReloadPeriodMillis = Aggregation.DEFAULT_MAX_INCREMENTAL_RELOAD_PERIOD_MILLIS;
 
+	/**
+	 * Stores an aggregation with measure names, contained in it,
+	 */
 	private static final class AggregationContainer {
 		private final Aggregation aggregation;
 		private final List<String> measures;
@@ -231,6 +234,12 @@ public final class Cube implements ICube, EventloopJmxMBean {
 		return this;
 	}
 
+	/**
+	 *
+	 *
+	 * @param dimensions	data dimensions of specific type, contained in a cube
+	 * @return				a cube, having given dimensions
+	 */
 	public Cube withDimensions(Map<String, FieldType> dimensions) {
 		Cube self = this;
 		for (String dimension : dimensions.keySet()) {
@@ -239,6 +248,12 @@ public final class Cube implements ICube, EventloopJmxMBean {
 		return self;
 	}
 
+	/**
+	 * Creates a cube, containing provided measure
+	 * @param measureId	a name of a measure
+	 * @param measure
+	 * @return			cube with given measure
+	 */
 	public Cube withMeasure(String measureId, Measure measure) {
 		checkState(aggregations.isEmpty());
 		measures.put(measureId, measure);
@@ -280,6 +295,9 @@ public final class Cube implements ICube, EventloopJmxMBean {
 		return this;
 	}
 
+	/**
+	 * Describes an aggregation.
+	 */
 	public static final class AggregationConfig {
 		private final String id;
 		private List<String> dimensions = new ArrayList<>();
@@ -578,10 +596,12 @@ public final class Cube implements ICube, EventloopJmxMBean {
 	                                            Class<T> resultClass, DefiningClassLoader queryClassLoader) throws QueryException {
 		where = where.simplify();
 		storedMeasures = newArrayList(storedMeasures);
+		//List<String> allDimensions = newArrayList(concat(dimensions, filter(where.getDimensions(), not(in(dimensions)))));;
 		List<String> allDimensions = newArrayList(concat(dimensions, where.getDimensions()));
 
 		final Map<AggregationContainer, Double> scores = new HashMap<>();
 		List<AggregationContainer> compatibleAggregations = new ArrayList<>();
+		//search for aggregations, compatible with requested set of dimensions
 		for (AggregationContainer aggregationContainer : aggregations.values()) {
 			if (!all(allDimensions, in(aggregationContainer.aggregation.getKeys())))
 				continue;
@@ -594,7 +614,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 			double score = aggregationContainer.aggregation.estimateCost(aggregationQuery);
 			scores.put(aggregationContainer, score);
 		}
-
+		// TODO: 22.03.17 describe why sorting is needed
 		Collections.sort(compatibleAggregations, new Comparator<AggregationContainer>() {
 			@Override
 			public int compare(AggregationContainer aggregation1, AggregationContainer aggregation2) {
@@ -613,6 +633,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 			List<String> compatibleMeasures = newArrayList(filter(storedMeasures, in(aggregationContainer.measures)));
 			if (compatibleMeasures.isEmpty())
 				continue;
+			//remove
 			storedMeasures.removeAll(compatibleMeasures);
 
 			queryPlan.addAggregationMeasures(aggregationContainer.aggregation, compatibleMeasures);

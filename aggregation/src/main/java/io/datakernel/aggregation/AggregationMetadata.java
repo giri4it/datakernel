@@ -452,6 +452,7 @@ public final class AggregationMetadata {
 		RangeScan rangeScan = toRangeScan(predicate, aggregation.getKeys(), aggregation.getKeyTypes());
 
 		List<AggregationChunk> chunks = new ArrayList<>();
+		//find chunk'ss fields, containing field(s), matching requested
 		for (AggregationChunk chunk : rangeQuery(rangeScan.getFrom(), rangeScan.getTo())) {
 			if (intersection(newHashSet(chunk.getMeasures()), requestedFields).isEmpty())
 				continue;
@@ -462,6 +463,9 @@ public final class AggregationMetadata {
 		return chunks;
 	}
 
+	/*
+	Aggregation chunks
+	 */
 	private List<AggregationChunk> rangeQuery(PrimaryKey minPrimaryKey, PrimaryKey maxPrimaryKey) {
 		checkArgument(minPrimaryKey.size() == maxPrimaryKey.size());
 		int size = minPrimaryKey.size();

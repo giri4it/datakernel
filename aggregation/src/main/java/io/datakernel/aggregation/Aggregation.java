@@ -81,8 +81,10 @@ public class Aggregation implements IAggregation, AggregationOperationTracker, E
 	private final AggregationMetadata metadata;
 
 	private final Map<String, FieldType> keyTypes = new LinkedHashMap<>();
+	// Represents name and data type of measure
 	private final Map<String, FieldType> measureTypes = new LinkedHashMap<>();
 	private final List<String> partitioningKey = new ArrayList<>();
+	// Represents measure name and metric
 	private final Map<String, Measure> measures = new LinkedHashMap<>();
 
 	// settings
@@ -278,8 +280,10 @@ public class Aggregation implements IAggregation, AggregationOperationTracker, E
 
 		logger.info("Started consuming data in aggregation {}. Keys: {} Measures: {}", this, keyFields.keySet(), measureFields.keySet());
 
+		//a class for key. this classed are cached in DefiningClassloader
 		Class<?> keyClass = createKeyClass(this, getKeys(), classLoader);
 		List<String> measures = newArrayList(filter(this.measures.keySet(), in(measureFields.keySet())));
+		//a class, representing record
 		Class<?> accumulatorClass = createRecordClass(this, getKeys(),
 				measures, classLoader);
 
@@ -296,10 +300,25 @@ public class Aggregation implements IAggregation, AggregationOperationTracker, E
 				keyFunction, aggregate, chunkSize, classLoader, callback);
 	}
 
+	/**
+	 * Provides a {@link StreamConsumer} for streaming data to this aggregation. The data
+	 * is represented by a class.
+	 *
+	 * @param inputClass	class of input records
+	 * @param callback		callback which is called when chunks are created
+	 * @param <T>			data records type
+	 * @return consumer for streaming data to aggregation
+	 */
 	public <T> StreamConsumer<T> consumer(Class<T> inputClass, ResultCallback<List<AggregationChunk.NewChunk>> callback) {
 		return consumer(inputClass, scanKeyFields(inputClass), scanMeasureFields(inputClass), callback);
 	}
 
+	/**
+	 * Counts a size of
+	 *
+	 * @param query	a query, representing a conditions to be met by aggregation chunks
+	 * @return		size of chunks, satisfying a query
+	 */
 	public double estimateCost(AggregationQuery query) {
 		List<String> aggregationFields = newArrayList(filter(query.getMeasures(), in(getMeasures())));
 		return metadata.findChunks(query.getPredicate(), aggregationFields).size();
