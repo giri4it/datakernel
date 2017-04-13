@@ -191,6 +191,6 @@ public final class JmxModule extends AbstractModule {
 		return JmxRegistry.create(
 				ManagementFactory.getPlatformMBeanServer(),
 				mbeanFactory
-		).withRefreshPeriod(refreshPeriod);
+		);
 	}
 }

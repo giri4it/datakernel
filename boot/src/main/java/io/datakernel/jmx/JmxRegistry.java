@@ -33,6 +33,10 @@ import static io.datakernel.util.Preconditions.checkNotNull;
 import static java.lang.String.format;
 import static java.util.Arrays.asList;
 
+/**
+ * Properly registers MBeans in MBeanServer. Registers both object pools with
+ * an aggregating bean for pool and singletons.
+ */
 public final class JmxRegistry implements JmxRegistryMXBean {
 	private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
@@ -45,21 +49,14 @@ public final class JmxRegistry implements JmxRegistryMXBean {
 	private int registeredSingletons;
 	private int registeredPools;
 	private int totallyRegisteredMBeans;
-	private double refreshPeriod;
 
 	private JmxRegistry(MBeanServer mbs, DynamicMBeanFactory mbeanFactory) {
 		this.mbs = checkNotNull(mbs);
 		this.mbeanFactory = checkNotNull(mbeanFactory);
-		this.refreshPeriod = 0.0;
 	}
 
 	public static JmxRegistry create(MBeanServer mbs, DynamicMBeanFactory mbeanFactory) {
 		return new JmxRegistry(mbs, mbeanFactory);
-	}
-
-	public JmxRegistry withRefreshPeriod(double refreshPeriod) {
-		this.refreshPeriod = refreshPeriod;
-		return this;
 	}
 
 	public void registerSingleton(Key<?> key, Object singletonInstance, MBeanSettings settings) {
@@ -137,6 +134,13 @@ public final class JmxRegistry implements JmxRegistryMXBean {
 		}
 	}
 
+	/**
+	 * Registers workers pool.
+	 *
+	 * @param key			Guice's binding key
+	 * @param poolInstances	workers of the same type
+	 * @param settings		bean settings
+	 */
 	public void registerWorkers(Key<?> key, List<?> poolInstances, MBeanSettings settings) {
 		checkNotNull(poolInstances);
 		checkNotNull(key);
@@ -146,6 +150,7 @@ public final class JmxRegistry implements JmxRegistryMXBean {
 			return;
 		}
 
+		// all pool instances must be homogeneous
 		if (!allInstancesAreOfSameType(poolInstances)) {
 			logger.info(format("Pool of instances with key %s was not registered to jmx " +
 					"because their types differ", key.toString()));
@@ -159,6 +164,7 @@ public final class JmxRegistry implements JmxRegistryMXBean {
 			return;
 		}
 
+		// create name for key
 		String commonName;
 		try {
 			commonName = createNameForKey(key);
@@ -219,6 +225,7 @@ public final class JmxRegistry implements JmxRegistryMXBean {
 			return;
 		}
 
+		// all pool instances must be homogeneous
 		if (!allInstancesAreOfSameType(poolInstances)) {
 			return;
 		}
@@ -259,7 +266,7 @@ public final class JmxRegistry implements JmxRegistryMXBean {
 		}
 	}
 
-	private boolean allInstancesAreOfSameType(List<?> instances) {
+	private static boolean allInstancesAreOfSameType(List<?> instances) {
 		int last = instances.size() - 1;
 		for (int i = 0; i < last; i++) {
 			if (!instances.get(i).getClass().equals(instances.get(i + 1).getClass())) {
