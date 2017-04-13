@@ -143,9 +143,9 @@ final class AttributeNodeForMap extends AttributeNodeForLeafAbstract {
 		return new CompositeDataSupport(tabularType.getRowType(), allAttributes);
 	}
 
-	private Map<Object, List<Object>> fetchMapsAndGroupEntriesByKey(List<?> pojos) {
+	private Map<Object, List<Object>> fetchMapsAndGroupEntriesByKey(List<?> sources) {
 		List<Map<?, ?>> listOfMaps = new ArrayList<>();
-		for (Object pojo : pojos) {
+		for (Object pojo : sources) {
 			Map<?, ?> map = (Map<?, ?>) fetcher.fetchFrom(pojo);
 			if (map != null && map.size() > 0) {
 				listOfMaps.add(map);

@@ -87,13 +87,23 @@ final class AttributeNodeForList extends AttributeNodeForLeafAbstract {
 		return Collections.<String, OpenType<?>>singletonMap(name, arrayType);
 	}
 
+	/**
+	 * Gathers all attributes from all child nodes into single array.
+	 *
+	 * @param attrName
+	 * @param sources	list of pojos, in which current attribute is declared
+	 * @return			array of objects
+	 */
 	@Override
 	public Object aggregateAttribute(String attrName, List<?> sources) {
+		//each map represents attributes of actual_list elements
 		List<Map<String, Object>> attributesFromAllElements = new ArrayList<>();
+		//names of attributes
 		Set<String> visibleSubAttrs = subNode.getVisibleAttributes();
 		for (Object source : sources) {
 			List<?> currentList = (List<?>) fetcher.fetchFrom(source);
 			if (currentList != null) {
+				//traversing through values in attribute (list)
 				for (Object element : currentList) {
 					Map<String, Object> attributesFromElement =
 							subNode.aggregateAttributes(visibleSubAttrs, singletonList(element));
@@ -106,6 +116,12 @@ final class AttributeNodeForList extends AttributeNodeForLeafAbstract {
 		return attributesFromAllElements.size() > 0 ? createArrayFrom(attributesFromAllElements) : null;
 	}
 
+	/**
+	 * Creates an array of type of objects in list.
+	 *
+	 * @param attributesFromAllElements	attributes, contained in all elements
+	 * @return							array of objects
+	 */
 	private Object[] createArrayFrom(List<Map<String, Object>> attributesFromAllElements) {
 		OpenType<?> arrayElementOpenType = arrayType.getElementOpenType();
 		if (arrayElementOpenType instanceof ArrayType) {
@@ -125,6 +141,14 @@ final class AttributeNodeForList extends AttributeNodeForLeafAbstract {
 		}
 	}
 
+	/**
+	 * Creates a jmx-compatible object, which corresponds to attribute's type.
+	 *
+	 * @param openType		type of jmx object, contained in this list
+	 * @param attributes
+	 * @return				jmx-compatible object
+	 * @throws OpenDataException
+	 */
 	private static Object jmxCompatibleObjectOf(OpenType<?> openType, Map<String, Object> attributes)
 			throws OpenDataException {
 		if (openType instanceof SimpleType || openType instanceof TabularType) {
@@ -138,6 +162,13 @@ final class AttributeNodeForList extends AttributeNodeForLeafAbstract {
 		}
 	}
 
+	/**
+	 * Returns list of refreshed MBeans if this list is a list of refreshables,
+	 * empty list otherwise.
+	 *
+	 * @param source	pojo, in which list is declared
+	 * @return			refreshables, contained in list
+	 */
 	@Override
 	@SuppressWarnings("unchecked")
 	public List<JmxRefreshable> getAllRefreshables(final Object source) {

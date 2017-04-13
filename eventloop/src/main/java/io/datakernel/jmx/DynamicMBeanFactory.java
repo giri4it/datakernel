@@ -19,6 +19,10 @@ package io.datakernel.jmx;
 import javax.management.DynamicMBean;
 import java.util.List;
 
+/**
+ * Implementations of this interface are able to create DynamicMBeans based on monitorable
+ * objects and provided settings.
+ */
 public interface DynamicMBeanFactory {
 	DynamicMBean createFor(List<?> monitorables, MBeanSettings setting, boolean enableRefresh);
 }

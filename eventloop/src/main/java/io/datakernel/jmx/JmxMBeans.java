@@ -38,6 +38,10 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
 
+/**
+ * It's a factory class, responsible for creating DynamicMBean implementations,
+ * aggregating/refreshing statistics.
+ */
 public final class JmxMBeans implements DynamicMBeanFactory {
 	private static final Logger logger = LoggerFactory.getLogger(JmxMBeans.class);
 
@@ -45,9 +49,13 @@ public final class JmxMBeans implements DynamicMBeanFactory {
 	public static final double DEFAULT_REFRESH_PERIOD_IN_SECONDS = 1.0;  // one second
 	public static final int MAX_JMX_REFRESHES_PER_ONE_CYCLE_DEFAULT = 500;
 	private int maxJmxRefreshesPerOneCycle;
+	// period of updating distinct jmx refreshable
 	private long specifiedRefreshPeriod;
+	// stores a list fo refreshables for evenloops
 	private final Map<Eventloop, List<JmxRefreshable>> eventloopToJmxRefreshables = new ConcurrentHashMap<>();
+	// stores an amount of refreshable tasks for eventloops
 	private final Map<Eventloop, Integer> refreshableStatsCounts = new ConcurrentHashMap<>();
+	// stores calculated effective refresh period for each worker (eventloop and it's services)
 	private final Map<Eventloop, Integer> effectiveRefreshPeriods = new ConcurrentHashMap<>();
 
 	private static final JmxReducer<?> DEFAULT_REDUCER = new JmxReducers.JmxReducerDistinct();
@@ -79,10 +87,21 @@ public final class JmxMBeans implements DynamicMBeanFactory {
 		return refreshableStatsCounts;
 	}
 
+	/**
+	 * Returns map, storing effective refresh periods for each worker (eventloop and services,
+	 * running on it).
+	 *
+	 * @return map, representing effective refresh periods for each worker
+	 */
 	public Map<Eventloop, Integer> getEffectiveRefreshPeriods() {
 		return effectiveRefreshPeriods;
 	}
 
+	/**
+	 * Returns refresh period of distinct task.
+	 *
+	 * @return refresh period of distinct task
+	 */
 	public double getSpecifiedRefreshPeriod() {
 		return (specifiedRefreshPeriod / 1000.0);
 	}
@@ -91,6 +110,12 @@ public final class JmxMBeans implements DynamicMBeanFactory {
 		this.specifiedRefreshPeriod = secondsToMillis(refreshPeriod);
 	}
 
+	/**
+	 * Max number of stats, that allowed to be refreshed per one
+	 * eventloop cycle
+	 *
+	 * @return
+	 */
 	public int getMaxJmxRefreshesPerOneCycle() {
 		return maxJmxRefreshesPerOneCycle;
 	}
@@ -100,6 +125,16 @@ public final class JmxMBeans implements DynamicMBeanFactory {
 	}
 	// endregion
 
+	/**
+	 * Creates a DynamicMBean for monitorable objects of the same type. Supports either
+	 * ConcurrentJmxMBeans or EventloopJmxMBeans. Refreshes {@link JmxRefreshable}s.
+	 *
+	 * @param monitorables  a list of homogeneous objects (e.g. list of {@code Eventloops}/
+	 *                      list of {@code AsyncHttpServers})
+	 * @param setting
+	 * @param enableRefresh is refresh enabled
+	 * @return an instance of DynamicMBean
+	 */
 	@Override
 	public DynamicMBean createFor(List<?> monitorables, MBeanSettings setting, boolean enableRefresh) {
 		checkNotNull(monitorables);
@@ -116,6 +151,7 @@ public final class JmxMBeans implements DynamicMBeanFactory {
 		if (ConcurrentJmxMBean.class.isAssignableFrom(mbeanClass)) {
 			checkArgument(monitorables.size() == 1, "ConcurrentJmxMBeans cannot be used in pool. " +
 					"Only EventloopJmxMBeans can be used in pool");
+			//concurrent MBean is not refreshable
 			isRefreshEnabled = false;
 			mbeanWrappers.add(new ConcurrentJmxMBeanWrapper((ConcurrentJmxMBean) monitorables.get(0)));
 		} else if (EventloopJmxMBean.class.isAssignableFrom(mbeanClass)) {
@@ -135,6 +171,7 @@ public final class JmxMBeans implements DynamicMBeanFactory {
 		}
 
 		// TODO(vmykhalko): check in JmxRegistry that modifiers are applied only once in case of workers and pool registartion
+		//apply modifiers
 		for (String attrName : setting.getModifiers().keySet()) {
 			AttributeModifier<?> modifier = setting.getModifiers().get(attrName);
 			try {
@@ -145,6 +182,7 @@ public final class JmxMBeans implements DynamicMBeanFactory {
 			}
 		}
 
+		//
 		MBeanInfo mBeanInfo = createMBeanInfo(rootNode, mbeanClass, isRefreshEnabled);
 		Map<OperationKey, Method> opkeyToMethod = fetchOpkeyToMethod(mbeanClass);
 
@@ -162,9 +200,10 @@ public final class JmxMBeans implements DynamicMBeanFactory {
 	}
 
 	// region building tree of AttributeNodes
-	private static List<AttributeNode> createNodesFor(Class<?> clazz, Class<?> mbeanClass,
-	                                                  String[] includedOptionalAttrs, Method getter) {
 
+	private static List<AttributeNode> createNodesFor(Class<?> clazz, Class<?> mbeanClass,
+													  String[] includedOptionalAttrs, Method getter) {
+		//nodes for optional attributes
 		Set<String> includedOptionals = new HashSet<>(asList(includedOptionalAttrs));
 		List<AttributeDescriptor> attrDescriptors = fetchAttributeDescriptors(clazz);
 		List<AttributeNode> attrNodes = new ArrayList<>();
@@ -208,6 +247,15 @@ public final class JmxMBeans implements DynamicMBeanFactory {
 		return attrNodes;
 	}
 
+	/**
+	 * Searches for attribute members of a class, annotated with @JmxAttribute.
+	 * <p>
+	 * The attributes method names should start with get... or set... by convention.
+	 *
+	 * @param clazz	a class, containing attributes
+	 * @return		a list of
+	 * @throws	RuntimeException if a method annotated with @JmxAttribute neither getter nor setter
+	 */
 	private static List<AttributeDescriptor> fetchAttributeDescriptors(Class<?> clazz) {
 		Map<String, AttributeDescriptor> nameToAttr = new HashMap<>();
 		for (Method method : clazz.getMethods()) {
@@ -226,6 +274,19 @@ public final class JmxMBeans implements DynamicMBeanFactory {
 		return new ArrayList<>(nameToAttr.values());
 	}
 
+	/**
+	 * Adds provided getter method to provided map of field_name to
+	 * attribute_descriptor.
+	 * <p>
+	 * When adding a getter to the map, several constraints are checked:
+	 * <ol>
+	 *     <li>a getter name must differ from getter names, already contained in a map</li>
+	 *     <li>a getter must have a return type of corresponding setter's parameter type</li>
+	 * </ol>
+	 *
+	 * @param nameToAttr	a map of field_name <-> attribute_descriptor
+	 * @param getter		a method to be added
+	 */
 	private static void processGetter(Map<String, AttributeDescriptor> nameToAttr, Method getter) {
 		String name = extractFieldNameFromGetter(getter);
 		Type attrType = getter.getReturnType();
@@ -244,6 +305,15 @@ public final class JmxMBeans implements DynamicMBeanFactory {
 		}
 	}
 
+	/**
+	 * Adds provided getter method to provided map of field_name to
+	 * attribute_descriptor.
+	 * <p>
+	 * Checked constraints are similar to {@link #processGetter(Map, Method)}
+	 *
+	 * @param nameToAttr	a map of field_name <-> attribute_descriptor
+	 * @param setter		a method to be added
+	 */
 	private static void processSetter(Map<String, AttributeDescriptor> nameToAttr, Method setter) {
 		checkArgument(isSimpleType(setter.getParameterTypes()[0]), "Setters are allowed only on SimpleType attributes."
 				+ " But setter \"%s\" is not SimpleType setter", setter.getName());
@@ -267,14 +337,15 @@ public final class JmxMBeans implements DynamicMBeanFactory {
 
 	@SuppressWarnings("unchecked")
 	private static AttributeNode createAttributeNodeFor(String attrName, String attrDescription, Type attrType,
-	                                                    boolean included,
-	                                                    JmxAttribute attrAnnotation,
-	                                                    Method getter, Method setter, Class<?> mbeanClass) {
+														boolean included,
+														JmxAttribute attrAnnotation,
+														Method getter, Method setter, Class<?> mbeanClass) {
 		ValueFetcher defaultFetcher = getter != null ? new ValueFetcherFromGetter(getter) : new ValueFetcherDirect();
 		if (attrType instanceof Class) {
 			// 3 cases: simple-type, JmxRefreshableStats, POJO
 			Class<?> returnClass = (Class<?>) attrType;
 			if (isSimpleType(returnClass)) {
+				// case for primitive, wrapper or String type
 				JmxReducer<?> reducer;
 				try {
 					reducer = fetchReducerFrom(getter);
@@ -386,6 +457,14 @@ public final class JmxMBeans implements DynamicMBeanFactory {
 		}
 	}
 
+	/**
+	 * Returns an instance of a attribute's JMX reducer class
+	 *
+	 * @param getter	getter, representing an attribute
+	 * @return			instance of reducer class, used in jmx attribute
+	 * @throws IllegalAccessException
+	 * @throws InstantiationException
+	 */
 	private static JmxReducer<?> fetchReducerFrom(Method getter) throws IllegalAccessException, InstantiationException {
 		if (getter == null) {
 			return DEFAULT_REDUCER;
@@ -436,8 +515,8 @@ public final class JmxMBeans implements DynamicMBeanFactory {
 	}
 
 	private static AttributeNode createNodeForParametrizedType(String attrName, String attrDescription,
-	                                                           ParameterizedType pType, boolean included,
-	                                                           Method getter, Class<?> mbeanClass) {
+															   ParameterizedType pType, boolean included,
+															   Method getter, Class<?> mbeanClass) {
 		ValueFetcher fetcher = createAppropriateFetcher(getter);
 		Class<?> rawType = (Class<?>) pType.getRawType();
 		if (rawType == List.class) {
@@ -453,9 +532,9 @@ public final class JmxMBeans implements DynamicMBeanFactory {
 	}
 
 	private static AttributeNodeForList createListAttributeNodeFor(String attrName, String attrDescription,
-	                                                               boolean included,
-	                                                               ValueFetcher fetcher,
-	                                                               Type listElementType, Class<?> mbeanClass) {
+																   boolean included,
+																   ValueFetcher fetcher,
+																   Type listElementType, Class<?> mbeanClass) {
 		if (listElementType instanceof Class<?>) {
 			Class<?> listElementClass = (Class<?>) listElementType;
 			boolean isListOfJmxRefreshable = (JmxRefreshable.class.isAssignableFrom(listElementClass));
@@ -485,9 +564,9 @@ public final class JmxMBeans implements DynamicMBeanFactory {
 	}
 
 	private static AttributeNodeForMap createMapAttributeNodeFor(String attrName, String attrDescription,
-	                                                             boolean included,
-	                                                             ValueFetcher fetcher,
-	                                                             Type valueType, Class<?> mbeanClass) {
+																 boolean included,
+																 ValueFetcher fetcher,
+																 Type valueType, Class<?> mbeanClass) {
 		if (valueType instanceof Class<?>) {
 			Class<?> valueClass = (Class<?>) valueType;
 			boolean isMapOfJmxRefreshable = (JmxRefreshable.class.isAssignableFrom(valueClass));
@@ -526,7 +605,15 @@ public final class JmxMBeans implements DynamicMBeanFactory {
 	// endregion
 
 	// region refreshing jmx
+
+	/**
+	 * Adds list of refreshables to evenloops, stored in provided wrappers.
+	 *
+	 * @param mbeanWrappers list of mbean wrappers
+	 * @param rootNode root node, representing pojo
+	 */
 	private void handleJmxRefreshables(List<MBeanWrapper> mbeanWrappers, AttributeNodeForPojo rootNode) {
+		//loop through homogeneous services
 		for (MBeanWrapper mbeanWrapper : mbeanWrappers) {
 			Eventloop eventloop = mbeanWrapper.getEventloop();
 			List<JmxRefreshable> currentRefreshables = rootNode.getAllRefreshables(mbeanWrapper.getMBean());
@@ -547,9 +634,22 @@ public final class JmxMBeans implements DynamicMBeanFactory {
 		}
 	}
 
+	/**
+	 * Creates a task for refreshing provided eventloop's stats for allowed
+	 * amount of refreshes at once. If amount of refreshes exceeded before all eventloop's
+	 * refreshables are refreshed, the next task will start from next refreshable,
+	 * following after last
+	 *
+	 * @param eventloop         eventloop with refreshables
+	 * @param previousList      a list with refreshables, which haven't been completely refreshed in
+	 *                          previous refreshing task
+	 * @param previousRefreshes
+	 * @return					task, which updates eventloop's stats and stats of services, which work
+	 * 							in this eventloop
+	 */
 	private Runnable createRefreshTask(final Eventloop eventloop,
-	                                   final List<JmxRefreshable> previousList,
-	                                   final int previousRefreshes) {
+									   final List<JmxRefreshable> previousList,
+									   final int previousRefreshes) {
 		return new Runnable() {
 			@Override
 			public void run() {
@@ -563,6 +663,7 @@ public final class JmxMBeans implements DynamicMBeanFactory {
 				}
 
 				int currentRefreshes = 0;
+				//refresh stats of provided eventloop
 				while (currentRefreshes < maxJmxRefreshesPerOneCycle) {
 					int index = currentRefreshes + previousRefreshes;
 					if (index == jmxRefreshableList.size()) {
@@ -600,9 +701,18 @@ public final class JmxMBeans implements DynamicMBeanFactory {
 	// endregion
 
 	// region creating jmx metadata - MBeanInfo
+
+	/**
+	 * Creates an info
+	 *
+	 * @param rootNode
+	 * @param monitorableClass
+	 * @param enableRefresh
+	 * @return info for
+	 */
 	private static MBeanInfo createMBeanInfo(AttributeNodeForPojo rootNode,
-	                                         Class<?> monitorableClass,
-	                                         boolean enableRefresh) {
+											 Class<?> monitorableClass,
+											 boolean enableRefresh) {
 		String monitorableName = "";
 		String monitorableDescription = "";
 		MBeanAttributeInfo[] attributes = rootNode != null ?
@@ -656,6 +766,13 @@ public final class JmxMBeans implements DynamicMBeanFactory {
 		return totalDescription.toString();
 	}
 
+	/**
+	 * Returns info about @JmxOperation annotated methods.
+	 *
+	 * @param monitorableClass class to fetch info from
+	 * @param enableRefresh
+	 * @return an array, containing entries with info about each operation
+	 */
 	private static MBeanOperationInfo[] fetchOperationsInfo(Class<?> monitorableClass, boolean enableRefresh) {
 		List<MBeanOperationInfo> operations = new ArrayList<>();
 		Method[] methods = monitorableClass.getMethods();
@@ -705,6 +822,14 @@ public final class JmxMBeans implements DynamicMBeanFactory {
 	// endregion
 
 	// region jmx operations fetching
+
+	/**
+	 * Scans given mbean class for existing @JmxOperation annotated methods.
+	 * Wraps annotated methods into OperationKey class and adds them to a map.
+	 *
+	 * @param mbeanClass class, containing jmx operations
+	 * @return a map of operation key to method, represented by this key
+	 */
 	private static Map<OperationKey, Method> fetchOpkeyToMethod(Class<?> mbeanClass) {
 		Map<OperationKey, Method> opkeyToMethod = new HashMap<>();
 		Method[] methods = mbeanClass.getMethods();
@@ -758,6 +883,10 @@ public final class JmxMBeans implements DynamicMBeanFactory {
 	// endregion
 
 	// region helper classes
+
+	/**
+	 * Metadata about attribute, including name, type, getter and setter
+	 */
 	private static final class AttributeDescriptor {
 		private final String name;
 		private final Type type;
@@ -788,6 +917,9 @@ public final class JmxMBeans implements DynamicMBeanFactory {
 		}
 	}
 
+	/**
+	 * Represents function signature
+	 */
 	private static final class OperationKey {
 		private final String name;
 		private final String[] argTypes;
@@ -829,16 +961,21 @@ public final class JmxMBeans implements DynamicMBeanFactory {
 		}
 	}
 
+	/**
+	 * Implementation of DynamicMBean, which represents an aggregation of pool stats.
+	 */
 	private static final class DynamicMBeanAggregator implements DynamicMBean {
 		private final MBeanInfo mBeanInfo;
 		private final List<? extends MBeanWrapper> mbeanWrappers;
+		//list of pool instances
 		private final List<?> mbeans;
+		//tree, representing metadata about attributes structure of instance from pool
 		private final AttributeNodeForPojo rootNode;
 		private final Map<OperationKey, Method> opkeyToMethod;
 
 		public DynamicMBeanAggregator(MBeanInfo mBeanInfo, List<? extends MBeanWrapper> mbeanWrappers,
-		                              AttributeNodeForPojo rootNode, Map<OperationKey, Method> opkeyToMethod,
-		                              boolean refreshEnabled) {
+									  AttributeNodeForPojo rootNode, Map<OperationKey, Method> opkeyToMethod,
+									  boolean refreshEnabled) {
 			this.mBeanInfo = mBeanInfo;
 			this.mbeanWrappers = mbeanWrappers;
 
@@ -949,6 +1086,7 @@ public final class JmxMBeans implements DynamicMBeanFactory {
 			final Object[] args = params != null ? params : new Object[0];
 			OperationKey opkey = new OperationKey(actionName, argTypes);
 			final Method opMethod = opkeyToMethod.get(opkey);
+			//call of operation which is not present
 			if (opMethod == null) {
 				String operationName = prettyOperationName(actionName, argTypes);
 				String errorMsg = "There is no operation \"" + operationName + "\"";
@@ -991,6 +1129,12 @@ public final class JmxMBeans implements DynamicMBeanFactory {
 			return mbeanWrappers.size() == 1 ? lastValue.get() : null;
 		}
 
+		/**
+		 * Converts exceptions into MBeanException and throws it
+		 *
+		 * @param throwable			exception to be thrown
+		 * @throws MBeanException	converted exception
+		 */
 		private void propagate(Throwable throwable) throws MBeanException {
 			if (throwable instanceof InvocationTargetException) {
 				Throwable targetException = ((InvocationTargetException) throwable).getTargetException();
@@ -1038,6 +1182,10 @@ public final class JmxMBeans implements DynamicMBeanFactory {
 		}
 	}
 
+	/**
+	 * Used to abstract ConcurrentJmxBean and EventloopJmxBean and enable
+	 * task execution regardless of actual mbean type
+	 */
 	private interface MBeanWrapper {
 		void execute(Runnable command);
 

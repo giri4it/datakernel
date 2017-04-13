@@ -21,6 +21,10 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+/**
+ * Used to mark that getter or setter should be treated as a jmx attribute.
+ * It also allows to configure marked attribute.
+ */
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
 public @interface JmxAttribute {
@@ -34,6 +38,10 @@ public @interface JmxAttribute {
 
 	Class<? extends JmxReducer<?>> reducer() default JmxReducers.JmxReducerDistinct.class;
 
+	/**
+	 * True if this attribute should be excluded by default.
+	 * Default value is false
+	 */
 	boolean optional() default false;
 
 	String[] extraSubAttributes() default {};

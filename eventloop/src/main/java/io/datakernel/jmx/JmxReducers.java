@@ -21,9 +21,16 @@ import java.util.Objects;
 
 import static io.datakernel.jmx.Utils.filterNulls;
 
+/**
+ * Contains implementations of JmxReducers
+ */
 public final class JmxReducers {
 	private JmxReducers() {}
 
+	/**
+	 * Reduces a list of values to a single value, if all values are equal.
+	 * Returns null if list is empty or contains non-equals values.
+	 */
 	public static final class JmxReducerDistinct implements JmxReducer<Object> {
 		@Override
 		public Object reduce(List<?> input) {
@@ -42,6 +49,10 @@ public final class JmxReducers {
 		}
 	}
 
+	/**
+	 * Reduces list of {@code Number} values, counting sum of elements in list.
+	 * Returns null if provided list is empty.
+	 */
 	public static final class JmxReducerSum implements JmxReducer<Number> {
 
 		@Override
@@ -76,6 +87,10 @@ public final class JmxReducers {
 
 	}
 
+	/**
+	 * Reduces provided list, returns min value, contained in list.
+	 * Returns null if provided list is empty.
+	 */
 	public static final class JmxReducerMin implements JmxReducer<Number> {
 
 		@Override
@@ -113,6 +128,10 @@ public final class JmxReducers {
 		}
 	}
 
+	/**
+	 * Reduces provided list, returns max value, contained in list.
+	 * Returns null if provided list is empty.
+	 */
 	public static final class JmxReducerMax implements JmxReducer<Number> {
 
 		@Override

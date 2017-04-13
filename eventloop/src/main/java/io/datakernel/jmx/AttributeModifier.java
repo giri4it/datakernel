@@ -16,6 +16,11 @@
 
 package io.datakernel.jmx;
 
+/**
+ * Implementations of this interface are used to modify DynamicMBean settings.
+ *
+ * @param <T> type of class, containing modified attribute
+ */
 public interface AttributeModifier<T> {
 	void apply(T attribute);
 }

@@ -73,6 +73,7 @@ abstract class AttributeNodeForLeafAbstract implements AttributeNode {
 	}
 
 	// It's guaranteed that list of sources is not empty and it doesn't contain null values
+	// TODO: 28.03.17 (ekravchuk)  remove unused param "attrName"?
 	protected abstract Object aggregateAttribute(String attrName, List<?> sources);
 
 	@Override

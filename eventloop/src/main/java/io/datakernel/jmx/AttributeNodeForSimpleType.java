@@ -50,12 +50,20 @@ final class AttributeNodeForSimpleType extends AttributeNodeForLeafAbstract {
 		return Collections.<String, OpenType<?>>singletonMap(name, simpleTypeOf(type));
 	}
 
+	/**
+	 * Fetches attribute values from sources and reduces them using specified
+	 * reducer.
+	 *
+	 * @param attrName
+	 * @param sources	list of pojos, in which current attribute is declared
+	 * @return			reduced value
+	 */
 	@Override
 	@SuppressWarnings("unchecked")
 	public Object aggregateAttribute(String attrName, List<?> sources) {
 		List<Object> values = new ArrayList<>(sources.size());
-		for (Object notNullSource : sources) {
-			Object currentValue = fetcher.fetchFrom(notNullSource);
+		for (Object source : sources) {
+			Object currentValue = fetcher.fetchFrom(source);
 			values.add(currentValue);
 		}
 

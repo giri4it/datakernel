@@ -64,6 +64,12 @@ final class ReflectionUtils {
 		return Throwable.class.isAssignableFrom(clazz);
 	}
 
+	/**
+	 * Checks whether provided method is accessor
+	 *
+	 * @param method	a method to be checked
+	 * @return			true if provided method's name starts with "is" or "get", false otherwise
+	 */
 	public static boolean isGetter(Method method) {
 		boolean returnsBoolean = method.getReturnType() == boolean.class || method.getReturnType() == Boolean.class;
 		boolean isIsGetter = method.getName().length() > 2 && method.getName().startsWith("is") && returnsBoolean;
@@ -74,6 +80,13 @@ final class ReflectionUtils {
 		return isIsGetter || isGetGetter;
 	}
 
+	/**
+	 * Returns a name of variable, which accessed from given method
+	 *
+	 * @param getter	an accessor for some class field
+	 * @return			a name of variable, accessed by provided method
+	 * @throws			RuntimeException if methods starting with neither "get" nor "is" found
+	 */
 	public static String extractFieldNameFromGetter(Method getter) {
 		checkArgument(isGetter(getter));
 
@@ -96,6 +109,14 @@ final class ReflectionUtils {
 		}
 	}
 
+	/**
+	 * Checks whether provided method is a mutator.
+	 * <p>
+	 * A method, treated as mutator, is one that starts with "set" and has return type of void
+	 *
+	 * @param method	a method to be checked
+	 * @return			true if provided method is a mutator
+	 */
 	public static boolean isSetter(Method method) {
 		boolean hasSingleParameter = method.getParameterTypes().length == 1;
 		return method.getName().length() > 3 && method.getName().startsWith("set")

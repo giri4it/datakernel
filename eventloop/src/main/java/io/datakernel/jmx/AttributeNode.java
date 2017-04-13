@@ -21,17 +21,35 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * A node in attribute metadata tree.
+ */
 interface AttributeNode {
 	String getName();
 
 	Set<String> getAllAttributes();
 
+	/**
+	 * Returns a set of attribute names, which are visible.
+	 * <p>
+	 * A visible attribute is one, which annotated with {@link JmxAttribute}
+	 * with optional = false
+	 *
+	 * @return set of attribute names
+	 */
 	Set<String> getVisibleAttributes();
 
 	Map<String, Map<String, String>> getDescriptions();
 
 	Map<String, OpenType<?>> getOpenTypes();
 
+	/**
+	 * Fetches and aggregates requested attributes from given sources
+	 *
+	 * @param attrNames desired attributes
+	 * @param sources	sources, from which desired attributes are retrieved
+	 * @return			aggregated attributes
+	 */
 	Map<String, Object> aggregateAttributes(Set<String> attrNames, List<?> sources);
 
 	List<JmxRefreshable> getAllRefreshables(Object source);

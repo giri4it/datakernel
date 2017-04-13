@@ -23,15 +23,20 @@ import static io.datakernel.jmx.Utils.filterNulls;
 import static io.datakernel.util.Preconditions.checkNotNull;
 import static java.util.Collections.singletonList;
 
+/**
+ * Represents attributes tree, which serves as pojo class metadata.
+ */
 final class AttributeNodeForPojo implements AttributeNode {
 	private static final char ATTRIBUTE_NAME_SEPARATOR = '_';
 
 	private final String name;
 	private final String description;
+	//a fetcher for a value of this attribute (e.g. array/getter/direct object)
 	private final ValueFetcher fetcher;
 	private final JmxReducer reducer;
 	private final Map<String, AttributeNode> fullNameToNode;
 	private final List<? extends AttributeNode> subNodes;
+	//determines whether an attribute appears in MBeanInfo (visible in jconsole)
 	private boolean visible;
 
 	public AttributeNodeForPojo(String name, String description, boolean visible,
@@ -139,10 +144,12 @@ final class AttributeNodeForPojo implements AttributeNode {
 		Map<AttributeNode, Set<String>> groupedAttrs = groupBySubnode(attrNames);
 
 		List<Object> subsources;
+		// when current pojo is not JmxStats
 		if (notNullSources.size() == 1 || reducer == null) {
-			subsources = fetchInnerPojos(notNullSources);
+			// single object doesn't need to be reduced (notNullSources.size() == 1)
+			subsources = fetchPojos(notNullSources);
 		} else {
-			Object reduced = reducer.reduce(fetchInnerPojos(sources));
+			Object reduced = reducer.reduce(fetchPojos(sources));
 			subsources = singletonList(reduced);
 		}
 
@@ -169,15 +176,21 @@ final class AttributeNodeForPojo implements AttributeNode {
 		return aggregatedAttrs;
 	}
 
-	private List<Object> fetchInnerPojos(List<?> outerPojos) {
-		List<Object> innerPojos = new ArrayList<>(outerPojos.size());
-		for (Object outerPojo : outerPojos) {
+	/**
+	 * Fetches pojos represented by this node.
+	 *
+	 * @param sources
+	 * @return
+	 */
+	private List<Object> fetchPojos(List<?> sources) {
+		List<Object> pojos = new ArrayList<>(sources.size());
+		for (Object outerPojo : sources) {
 			Object pojo = fetcher.fetchFrom(outerPojo);
 			if (pojo != null) {
-				innerPojos.add(pojo);
+				pojos.add(pojo);
 			}
 		}
-		return innerPojos;
+		return pojos;
 	}
 
 	private Map<AttributeNode, Set<String>> groupBySubnode(Set<String> attrNames) {
@@ -221,14 +234,23 @@ final class AttributeNodeForPojo implements AttributeNode {
 		return actualPrefix + attrName;
 	}
 
+	/**
+	 * Collects all objects, that implement JmxRefreshable from this node
+	 * and it's children.
+	 *
+	 * @param source a pojo class instance
+	 * @return a list of refreshables
+	 */
 	@Override
 	public List<JmxRefreshable> getAllRefreshables(Object source) {
 		Object pojo = fetcher.fetchFrom(source);
 
+		// if source doesn't contain attributes
 		if (pojo == null) {
 			return Collections.emptyList();
 		}
 
+		// event stats or value stats
 		if (pojo instanceof JmxRefreshable) {
 			return singletonList(((JmxRefreshable) pojo));
 		} else {
@@ -264,7 +286,7 @@ final class AttributeNodeForPojo implements AttributeNode {
 		}
 
 		AttributeNode appropriateSubNode = fullNameToNode.get(attrName);
-		appropriateSubNode.setAttribute(removePrefix(attrName), value, fetchInnerPojos(targets));
+		appropriateSubNode.setAttribute(removePrefix(attrName), value, fetchPojos(targets));
 	}
 
 	@Override
@@ -287,9 +309,14 @@ final class AttributeNodeForPojo implements AttributeNode {
 		appropriateSubNode.setVisible(removePrefix(attrName));
 	}
 
+	/**
+	 * Makes null pojos not visible.
+	 *
+	 * @param sources a list of composite sources, which may contain null pojos as a member
+	 */
 	@Override
 	public void hideNullPojos(List<?> sources) {
-		List<?> innerPojos = fetchInnerPojos(sources);
+		List<?> innerPojos = fetchPojos(sources);
 		if (innerPojos.size() == 0) {
 			this.visible = false;
 			return;
@@ -300,12 +327,20 @@ final class AttributeNodeForPojo implements AttributeNode {
 		}
 	}
 
+	/**
+	 * Applies given modifier to appropriate attribute nodes
+	 *
+	 * @param attrName	a name of attribute to be modified
+	 * @param modifier	a modifier which will be applying to an attribute
+	 * @param target
+	 */
 	@SuppressWarnings({"unchecked", "UnnecessaryLocalVariable"})
 	@Override
 	public void applyModifier(String attrName, AttributeModifier<?> modifier, List<?> target) {
+		//modifier for this node
 		if (attrName.equals(name)) {
 			AttributeModifier attrModifierRaw = modifier;
-			List<Object> attributes = fetchInnerPojos(target);
+			List<Object> attributes = fetchPojos(target);
 			for (Object attribute : attributes) {
 				attrModifierRaw.apply(attribute);
 			}
@@ -315,7 +350,7 @@ final class AttributeNodeForPojo implements AttributeNode {
 		for (String fullAttrName : fullNameToNode.keySet()) {
 			if (flattenedAttrNameContainsNode(fullAttrName, attrName)) {
 				AttributeNode appropriateSubNode = fullNameToNode.get(fullAttrName);
-				appropriateSubNode.applyModifier(removePrefix(attrName), modifier, fetchInnerPojos(target));
+				appropriateSubNode.applyModifier(removePrefix(attrName), modifier, fetchPojos(target));
 				return;
 			}
 		}

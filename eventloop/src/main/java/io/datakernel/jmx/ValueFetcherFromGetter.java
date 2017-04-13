@@ -28,6 +28,13 @@ final class ValueFetcherFromGetter implements ValueFetcher {
 		this.getter = checkNotNull(getter);
 	}
 
+	/**
+	 * Invokes getter on instance of a class, containing this getter's
+	 * declaration
+	 *
+	 * @param source	object, on which getter is called
+	 * @return			returns value, which is returned by getter
+	 */
 	@Override
 	public Object fetchFrom(Object source) {
 		try {

@@ -23,6 +23,10 @@ import java.util.Map;
 
 import static io.datakernel.util.Preconditions.checkArgument;
 
+/**
+ * Contains info about optional mbeans, which will be visible and attribute
+ * modifiers.
+ */
 public final class MBeanSettings {
 	private final List<String> includedOptionals = new ArrayList<>();
 	private final Map<String, AttributeModifier<?>> modifiers = new HashMap<>();

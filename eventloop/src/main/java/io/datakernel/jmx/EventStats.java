@@ -100,6 +100,11 @@ public final class EventStats implements JmxRefreshableStats<EventStats> {
 		lastCount += events;
 	}
 
+	/**
+	 * Refreshes stats if time period is valid
+	 *
+	 * @param timestamp end of refreshing period
+	 */
 	@Override
 	public void refresh(long timestamp) {
 		long timeElapsedMillis = timestamp - lastTimestampMillis;
