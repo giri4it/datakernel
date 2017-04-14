@@ -161,7 +161,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 	private Exception consolidationLastError;
 
 	private Cube(Eventloop eventloop, ExecutorService executorService, DefiningClassLoader classLoader,
-	             CubeMetadataStorage cubeMetadataStorage, AggregationChunkStorage aggregationChunkStorage) {
+				 CubeMetadataStorage cubeMetadataStorage, AggregationChunkStorage aggregationChunkStorage) {
 		this.eventloop = eventloop;
 		this.executorService = executorService;
 		this.classLoader = classLoader;
@@ -170,7 +170,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 	}
 
 	public static Cube create(Eventloop eventloop, ExecutorService executorService, DefiningClassLoader classLoader,
-	                          CubeMetadataStorage cubeMetadataStorage, AggregationChunkStorage aggregationChunkStorage) {
+							  CubeMetadataStorage cubeMetadataStorage, AggregationChunkStorage aggregationChunkStorage) {
 		return new Cube(eventloop, executorService, classLoader, cubeMetadataStorage, aggregationChunkStorage);
 	}
 
@@ -502,8 +502,8 @@ public final class Cube implements ICube, EventloopJmxMBean {
 	 * @return consumer for streaming data to cube
 	 */
 	public <T> StreamConsumer<T> consumer(Class<T> inputClass, Map<String, String> dimensionFields, Map<String, String> measureFields,
-	                                      final AggregationPredicate predicate,
-	                                      final ResultCallback<Multimap<String, AggregationChunk.NewChunk>> callback) {
+										  final AggregationPredicate predicate,
+										  final ResultCallback<Multimap<String, AggregationChunk.NewChunk>> callback) {
 		logger.info("Started consuming data. Dimensions: {}. Measures: {}", dimensionFields.keySet(), measureFields.keySet());
 
 		final StreamSplitter<T> streamSplitter = StreamSplitter.create(eventloop);
@@ -571,12 +571,12 @@ public final class Cube implements ICube, EventloopJmxMBean {
 	 * @return producer that streams query results
 	 */
 	public <T> StreamProducer<T> queryRawStream(List<String> dimensions, List<String> storedMeasures, AggregationPredicate where,
-	                                            Class<T> resultClass) throws QueryException {
+												Class<T> resultClass) throws QueryException {
 		return queryRawStream(dimensions, storedMeasures, where, resultClass, classLoader);
 	}
 
 	public <T> StreamProducer<T> queryRawStream(List<String> dimensions, List<String> storedMeasures, AggregationPredicate where,
-	                                            Class<T> resultClass, DefiningClassLoader queryClassLoader) throws QueryException {
+												Class<T> resultClass, DefiningClassLoader queryClassLoader) throws QueryException {
 		where = where.simplify();
 		storedMeasures = newArrayList(storedMeasures);
 		List<String> allDimensions = newArrayList(concat(dimensions, where.getDimensions()));
@@ -1241,7 +1241,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 		}
 
 		private void resolveSpecifiedDimensions(final AttributeResolverContainer resolverContainer, final Map<String, Object> result,
-		                                        final CompletionCallback callback) {
+												final CompletionCallback callback) {
 			Object[] key = new Object[resolverContainer.dimensions.size()];
 			for (int i = 0; i < resolverContainer.dimensions.size(); i++) {
 				String dimension = resolverContainer.dimensions.get(i);
@@ -1267,7 +1267,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 						protected void onComplete() {
 							for (int i = 0; i < resolverContainer.attributes.size(); i++) {
 								String attribute = resolverContainer.attributes.get(i);
-								result.put(attribute, ((Object[]) attributesPlaceholder[0])[i]);
+								result.put(attribute, attributesPlaceholder[0] != null ? ((Object[]) attributesPlaceholder[0])[i] : null);
 							}
 							callback.setComplete();
 						}
