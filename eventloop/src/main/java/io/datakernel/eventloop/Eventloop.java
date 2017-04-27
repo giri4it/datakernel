@@ -20,10 +20,7 @@ import io.datakernel.annotation.Nullable;
 import io.datakernel.async.*;
 import io.datakernel.exception.AsyncTimeoutException;
 import io.datakernel.exception.SimpleException;
-import io.datakernel.jmx.EventloopJmxMBean;
-import io.datakernel.jmx.JmxAttribute;
-import io.datakernel.jmx.JmxOperation;
-import io.datakernel.jmx.ValueStats;
+import io.datakernel.jmx.*;
 import io.datakernel.net.DatagramSocketSettings;
 import io.datakernel.net.ServerSocketSettings;
 import io.datakernel.time.CurrentTimeProvider;
@@ -147,6 +144,23 @@ public final class Eventloop implements Runnable, CurrentTimeProvider, Scheduler
 
 	private boolean monitoring = false;
 
+	// TODO(vsavchuk) Debug stats, will be removed soon
+	private final LinkedList<Runnable> lastLocalTasks = new LinkedList<>();
+	private final LinkedList<Runnable> lastConcurrentTasks = new LinkedList<>();
+	private final LinkedList<Runnable> lastScheduledTasks = new LinkedList<>();
+	private final LinkedList<Runnable> lastBackgroundTasks = new LinkedList<>();
+	private String currentTasks;
+	private long lastLocalTasksTimestamp;
+	private long lastConcurrentTasksTimestamp;
+	private long lastScheduledTasksTimestamp;
+	private long lastBackgroundTasksTimestamp;
+	private long lastIoTasksTimestamp;
+
+	private static void addTasks(LinkedList<Runnable> list, Runnable runnable) {
+		list.addFirst(runnable);
+		if (list.size() > 15) list.pollLast();
+	}
+
 	// region builders
 	private Eventloop(CurrentTimeProvider timeProvider, String threadName, int threadPriority,
 	                  ThrottlingController throttlingController, FatalErrorHandler fatalErrorHandler) {
@@ -160,6 +174,11 @@ public final class Eventloop implements Runnable, CurrentTimeProvider, Scheduler
 		}
 		refreshTimestamp();
 		CURRENT_EVENTLOOP.set(this);
+		lastLocalTasksTimestamp = currentTimeMillis();
+		lastConcurrentTasksTimestamp = currentTimeMillis();
+		lastScheduledTasksTimestamp = currentTimeMillis();
+		lastBackgroundTasksTimestamp = currentTimeMillis();
+		lastIoTasksTimestamp = currentTimeMillis();
 	}
 
 	public static Eventloop create() {
@@ -303,6 +322,7 @@ public final class Eventloop implements Runnable, CurrentTimeProvider, Scheduler
 
 			updateBusinessLogicStats();
 			tick = (tick + (1L << 32)) & ~0xFFFFFFFFL;
+			currentTasks = "no tasks";
 		}
 		logger.info("Eventloop {} finished", this);
 		eventloopThread = null;
@@ -361,6 +381,7 @@ public final class Eventloop implements Runnable, CurrentTimeProvider, Scheduler
 	 * @param selectedKeys set that contains all selected keys, returned from NIO Selector.select()
 	 */
 	private int processSelectedKeys(Set<SelectionKey> selectedKeys) {
+		currentTasks = "processSelectedKeys";
 		long startTimestamp = timestamp;
 		Stopwatch sw = monitoring ? Stopwatch.createUnstarted() : null;
 
@@ -369,6 +390,7 @@ public final class Eventloop implements Runnable, CurrentTimeProvider, Scheduler
 		Iterator<SelectionKey> iterator = lastSelectedKeys != 0 ? selectedKeys.iterator()
 				: Collections.<SelectionKey>emptyIterator();
 		while (iterator.hasNext()) {
+			lastIoTasksTimestamp = timestamp;
 			SelectionKey key = iterator.next();
 			iterator.remove();
 
@@ -420,6 +442,7 @@ public final class Eventloop implements Runnable, CurrentTimeProvider, Scheduler
 	 * Executes local tasks which were added from current thread
 	 */
 	private int executeLocalTasks() {
+		currentTasks = "executeLocalTasks";
 		long startTimestamp = timestamp;
 
 		int newRunnables = 0;
@@ -427,6 +450,7 @@ public final class Eventloop implements Runnable, CurrentTimeProvider, Scheduler
 		Stopwatch sw = monitoring ? Stopwatch.createUnstarted() : null;
 
 		while (true) {
+			lastLocalTasksTimestamp = timestamp;
 			Runnable runnable = localTasks.poll();
 			if (runnable == null) {
 				break;
@@ -436,6 +460,8 @@ public final class Eventloop implements Runnable, CurrentTimeProvider, Scheduler
 				sw.reset();
 				sw.start();
 			}
+
+			addTasks(lastLocalTasks, runnable);
 
 			try {
 				runnable.run();
@@ -457,6 +483,7 @@ public final class Eventloop implements Runnable, CurrentTimeProvider, Scheduler
 	 * Executes concurrent tasks which were added from other threads.
 	 */
 	private int executeConcurrentTasks() {
+		currentTasks = "executeConcurrentTasks";
 		long startTimestamp = timestamp;
 
 		int newRunnables = 0;
@@ -465,10 +492,13 @@ public final class Eventloop implements Runnable, CurrentTimeProvider, Scheduler
 		Stopwatch sw = monitoring ? Stopwatch.createUnstarted() : null;
 
 		while (true) {
+			lastConcurrentTasksTimestamp = timestamp;
 			Runnable runnable = concurrentTasks.poll();
 			if (runnable == null) {
 				break;
 			}
+
+			addTasks(lastConcurrentTasks, (runnable));
 
 			if (sw != null) {
 				sw.reset();
@@ -494,10 +524,12 @@ public final class Eventloop implements Runnable, CurrentTimeProvider, Scheduler
 	 * Executes tasks, scheduled for execution at particular timestamps
 	 */
 	private int executeScheduledTasks() {
+		currentTasks = "executeScheduledTasks";
 		return executeScheduledTasks(scheduledTasks);
 	}
 
 	private int executeBackgroundTasks() {
+		currentTasks = "executeBackgroundTasks";
 		return executeScheduledTasks(backgroundTasks);
 	}
 
@@ -509,6 +541,11 @@ public final class Eventloop implements Runnable, CurrentTimeProvider, Scheduler
 		Stopwatch sw = monitoring ? Stopwatch.createUnstarted() : null;
 
 		for (; ; ) {
+			if (currentTasks.equals("executeScheduledTasks")) {
+				lastScheduledTasksTimestamp = timestamp;
+			} else {
+				lastBackgroundTasksTimestamp = timestamp;
+			}
 			ScheduledRunnable peeked = taskQueue.peek();
 			if (peeked == null)
 				break;
@@ -531,6 +568,12 @@ public final class Eventloop implements Runnable, CurrentTimeProvider, Scheduler
 			if (monitoring) {
 				int overdue = (int) (System.currentTimeMillis() - peeked.getTimestamp());
 				stats.recordScheduledTaskOverdue(overdue, background);
+			}
+
+			if (currentTasks.equals("executeScheduledTasks")) {
+				addTasks(lastScheduledTasks, runnable);
+			} else {
+				addTasks(lastBackgroundTasks, runnable);
 			}
 
 			try {
@@ -1304,6 +1347,59 @@ public final class Eventloop implements Runnable, CurrentTimeProvider, Scheduler
 
 		stats.setSmoothingWindow(smoothingWindow);
 		concurrentCallsStats.setSmoothingWindow(smoothingWindow);
+	}
+
+	@JmxAttribute
+	public List<Runnable> getLastBackgroundTasks() {
+		return new ArrayList<>(lastBackgroundTasks);
+	}
+
+	@JmxAttribute
+	public List<Runnable> getLastConcurrentTasks() {
+		return new ArrayList<>(lastConcurrentTasks);
+	}
+
+	@JmxAttribute
+	public List<Runnable> getLastLocalTasks() {
+		return new ArrayList<>(lastLocalTasks);
+	}
+
+	@JmxAttribute
+	public List<Runnable> getLastScheduledTasks() {
+		return new ArrayList<>(lastScheduledTasks);
+	}
+
+	@JmxAttribute
+	public String getLastBackgroundTasksTimestamp() {
+		return MBeanFormat.formatPeriodAgo(lastBackgroundTasksTimestamp);
+	}
+
+
+	@JmxAttribute
+	public String getLastConcurrentTasksTimestamp() {
+		return MBeanFormat.formatPeriodAgo(lastConcurrentTasksTimestamp);
+	}
+
+	@JmxAttribute
+	public String getLastIoTasksTimestamp() {
+		return MBeanFormat.formatPeriodAgo(lastIoTasksTimestamp);
+	}
+
+
+	@JmxAttribute
+	public String getLastLocalTasksTimestamp() {
+		return MBeanFormat.formatPeriodAgo(lastLocalTasksTimestamp);
+	}
+
+
+	@JmxAttribute
+	public String getLastScheduledTasksTimestamp() {
+		return MBeanFormat.formatPeriodAgo(lastScheduledTasksTimestamp);
+	}
+
+	@JmxAttribute
+	public String getCurrentTasks() {
+		return currentTasks;
 	}
 
 	final class ExtraStatsExtractor {
