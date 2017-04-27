@@ -135,7 +135,7 @@ public final class AsyncHttpClient implements IAsyncHttpClient, EventloopService
 
 		void onHttpResponse(HttpClientConnection connection, HttpResponse response);
 
-		void onHttpError(HttpClientConnection connection, boolean keepAliveConnection, Exception e);
+		void onHttpError(HttpClientConnection connection, Exception e);
 	}
 
 	public static class JmxInspector implements Inspector {
@@ -150,7 +150,6 @@ public final class AsyncHttpClient implements IAsyncHttpClient, EventloopService
 		private long responses;
 		private final EventStats httpTimeouts = EventStats.create(SMOOTHING_WINDOW);
 		private final ExceptionStats httpErrors = ExceptionStats.create();
-		private long responsesErrors;
 		private final EventStats sslErrors = EventStats.create(SMOOTHING_WINDOW);
 
 		@Override
@@ -188,16 +187,13 @@ public final class AsyncHttpClient implements IAsyncHttpClient, EventloopService
 		}
 
 		@Override
-		public void onHttpError(HttpClientConnection connection, boolean keepAliveConnection, Exception e) {
+		public void onHttpError(HttpClientConnection connection, Exception e) {
 			if (e == AbstractHttpConnection.READ_TIMEOUT_ERROR || e == AbstractHttpConnection.WRITE_TIMEOUT_ERROR) {
 				httpTimeouts.recordEvent();
 			} else {
 				httpErrors.recordException(e);
 				if (SSLException.class == e.getClass()) {
 					sslErrors.recordEvent();
-				}
-				if (!keepAliveConnection) {
-					responsesErrors++;
 				}
 			}
 		}
@@ -235,7 +231,7 @@ public final class AsyncHttpClient implements IAsyncHttpClient, EventloopService
 		@JmxAttribute(reducer = JmxReducers.JmxReducerSum.class)
 		public long getActiveRequests() {
 			return totalRequests.getTotalCount() -
-					(resolveErrors.getTotal() + connectErrors.getTotal() + responsesErrors + responses);
+					(resolveErrors.getTotal() + connectErrors.getTotal() + httpTimeouts.getTotalCount() + httpErrors.getTotal() + responses);
 		}
 
 		@JmxAttribute(reducer = JmxReducers.JmxReducerSum.class)
