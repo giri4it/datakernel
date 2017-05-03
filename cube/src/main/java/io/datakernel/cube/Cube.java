@@ -1121,7 +1121,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 				return com.google.common.base.Predicates.alwaysTrue();
 			if (queryHaving == AggregationPredicates.alwaysFalse())
 				return com.google.common.base.Predicates.alwaysFalse();
-			return ClassBuilder.create(classLoader, Predicate.class)
+			return ClassBuilder.create(queryClassLoader, Predicate.class)
 					.withMethod("apply", boolean.class, singletonList(Object.class),
 							queryHaving.createPredicateDef(cast(arg(0), resultClass), fieldTypes))
 					.buildClassAndCreateNewInstance();

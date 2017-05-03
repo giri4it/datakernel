@@ -245,6 +245,7 @@ public class ReportingTest {
 				CubeMetadataStorageSql.create(eventloop, executor, jooqConfiguration, "processId");
 
 		Cube cube = Cube.create(eventloop, executor, classLoader, cubeMetadataStorageSql, aggregationChunkStorage)
+				.withClassLoaderCache(CubeClassLoaderCache.create(classLoader, 5))
 				.withDimensions(DIMENSIONS)
 				.withMeasures(MEASURES)
 				.withRelation("campaign", "advertiser")

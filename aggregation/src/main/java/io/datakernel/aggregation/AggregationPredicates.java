@@ -25,6 +25,7 @@ import io.datakernel.codegen.VarField;
 
 import java.util.*;
 import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.Lists.newArrayList;
@@ -470,9 +471,13 @@ public class AggregationPredicates {
 
 		@Override
 		public PredicateDef createPredicateDef(Expression record, Map<String, FieldType> fields) {
-			Pattern pattern = Pattern.compile(regexp);
-			return Expressions.and(Expressions.isNotNull(field(record, key.replace('.', '$'))), cmpNe(value(false),
-					call(call(value(pattern), "matcher", cast(field(record, key.replace('.', '$')), CharSequence.class)), "matches")));
+			try {
+				Pattern pattern = Pattern.compile(regexp);
+				return Expressions.and(Expressions.isNotNull(field(record, key.replace('.', '$'))), cmpNe(value(false),
+						call(call(value(pattern), "matcher", cast(field(record, key.replace('.', '$')), CharSequence.class)), "matches")));
+			} catch (PatternSyntaxException e) {
+				return Expressions.alwaysFalse();
+			}
 		}
 
 		@Override
