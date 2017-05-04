@@ -439,9 +439,9 @@ public class AggregationPredicates {
 
 	public static final class PredicateRegexp implements AggregationPredicate {
 		final String key;
-		final String regexp;
+		final Pattern regexp;
 
-		private PredicateRegexp(String key, String regexp) {
+		private PredicateRegexp(String key, Pattern regexp) {
 			this.key = key;
 			this.regexp = regexp;
 		}
@@ -450,7 +450,7 @@ public class AggregationPredicates {
 			return key;
 		}
 
-		public String getRegexp() {
+		public Pattern getRegexp() {
 			return regexp;
 		}
 
@@ -471,13 +471,8 @@ public class AggregationPredicates {
 
 		@Override
 		public PredicateDef createPredicateDef(Expression record, Map<String, FieldType> fields) {
-			try {
-				Pattern pattern = Pattern.compile(regexp);
 				return Expressions.and(Expressions.isNotNull(field(record, key.replace('.', '$'))), cmpNe(value(false),
-						call(call(value(pattern), "matcher", cast(field(record, key.replace('.', '$')), CharSequence.class)), "matches")));
-			} catch (PatternSyntaxException e) {
-				return Expressions.alwaysFalse();
-			}
+						call(call(value(regexp), "matcher", cast(field(record, key.replace('.', '$')), CharSequence.class)), "matches")));
 		}
 
 		@Override
@@ -780,7 +775,12 @@ public class AggregationPredicates {
 		return new PredicateHas(key);
 	}
 
-	public static AggregationPredicate regexp(String key, String pattern) {
+	public static AggregationPredicate regexp(String key, String pattern) throws PatternSyntaxException{
+		Pattern p = Pattern.compile(pattern);
+		return regexp(key, p);
+	}
+
+	public static AggregationPredicate regexp(String key, Pattern pattern) {
 		return new PredicateRegexp(key, pattern);
 	}
 

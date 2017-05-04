@@ -80,7 +80,7 @@ final class AggregationPredicateGsonAdapter extends TypeAdapter<AggregationPredi
 	@SuppressWarnings("unchecked")
 	private void writeRegexp(JsonWriter writer, PredicateRegexp predicate) throws IOException {
 		writer.value(predicate.getKey());
-		writer.value(predicate.getRegexp());
+		writer.value(predicate.getRegexp().pattern());
 	}
 
 	@SuppressWarnings("unchecked")
@@ -139,6 +139,8 @@ final class AggregationPredicateGsonAdapter extends TypeAdapter<AggregationPredi
 		List<AggregationPredicate> predicates = newArrayList();
 		while (reader.hasNext()) {
 			String field = reader.nextName();
+			if(!attributeAdapters.containsKey(field))
+				throw new JsonParseException("Unknown field " +field);
 			TypeAdapter typeAdapter = attributeAdapters.get(field);
 			Object value = typeAdapter.read(reader);
 			predicates.add(eq(field, value));
