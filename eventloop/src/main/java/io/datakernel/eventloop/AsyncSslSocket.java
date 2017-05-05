@@ -306,6 +306,7 @@ public final class AsyncSslSocket implements AsyncTcpSocket, AsyncTcpSocket.Even
 		HandshakeStatus handshakeStatus;
 		SSLEngineResult result = null;
 		while (true) {
+			if (result != null && result.getStatus() == CLOSED) break;
 			handshakeStatus = engine.getHandshakeStatus();
 			if (handshakeStatus == NEED_WRAP) {
 				result = tryToWrap();
