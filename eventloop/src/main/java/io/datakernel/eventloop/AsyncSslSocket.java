@@ -192,6 +192,7 @@ public final class AsyncSslSocket implements AsyncTcpSocket, AsyncTcpSocket.Even
 	@Override
 	public void close() {
 		closed = true;
+		// якщо не було handshake
 		engine.closeOutbound();
 		postSync();
 	}
@@ -301,12 +302,20 @@ public final class AsyncSslSocket implements AsyncTcpSocket, AsyncTcpSocket.Even
 		}
 	}
 
+	private void doClose() {
+		upstream.close();
+		recycleByteBufs();
+	}
+
 	@SuppressWarnings("UnusedAssignment")
 	private void doSync() throws SSLException {
 		HandshakeStatus handshakeStatus;
 		SSLEngineResult result = null;
 		while (true) {
-			if (result != null && result.getStatus() == CLOSED) break;
+			if (result != null && result.getStatus() == CLOSED) {
+				doClose();
+				break;
+			}
 			handshakeStatus = engine.getHandshakeStatus();
 			if (handshakeStatus == NEED_WRAP) {
 				result = tryToWrap();
