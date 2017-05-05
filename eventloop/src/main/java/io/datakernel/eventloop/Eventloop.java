@@ -145,21 +145,7 @@ public final class Eventloop implements Runnable, CurrentTimeProvider, Scheduler
 	private boolean monitoring = false;
 
 	// TODO(vsavchuk) Debug stats, will be removed soon
-	private final LinkedList<Runnable> lastLocalTasks = new LinkedList<>();
-	private final LinkedList<Runnable> lastConcurrentTasks = new LinkedList<>();
-	private final LinkedList<Runnable> lastScheduledTasks = new LinkedList<>();
-	private final LinkedList<Runnable> lastBackgroundTasks = new LinkedList<>();
 	private String currentTasks;
-	private long lastLocalTasksTimestamp;
-	private long lastConcurrentTasksTimestamp;
-	private long lastScheduledTasksTimestamp;
-	private long lastBackgroundTasksTimestamp;
-	private long lastIoTasksTimestamp;
-
-	private static void addTasks(LinkedList<Runnable> list, Runnable runnable) {
-		list.addFirst(runnable);
-		if (list.size() > 15) list.pollLast();
-	}
 
 	// region builders
 	private Eventloop(CurrentTimeProvider timeProvider, String threadName, int threadPriority,
@@ -174,11 +160,6 @@ public final class Eventloop implements Runnable, CurrentTimeProvider, Scheduler
 		}
 		refreshTimestamp();
 		CURRENT_EVENTLOOP.set(this);
-		lastLocalTasksTimestamp = currentTimeMillis();
-		lastConcurrentTasksTimestamp = currentTimeMillis();
-		lastScheduledTasksTimestamp = currentTimeMillis();
-		lastBackgroundTasksTimestamp = currentTimeMillis();
-		lastIoTasksTimestamp = currentTimeMillis();
 	}
 
 	public static Eventloop create() {
@@ -390,7 +371,6 @@ public final class Eventloop implements Runnable, CurrentTimeProvider, Scheduler
 		Iterator<SelectionKey> iterator = lastSelectedKeys != 0 ? selectedKeys.iterator()
 				: Collections.<SelectionKey>emptyIterator();
 		while (iterator.hasNext()) {
-			lastIoTasksTimestamp = timestamp;
 			SelectionKey key = iterator.next();
 			iterator.remove();
 
@@ -450,7 +430,6 @@ public final class Eventloop implements Runnable, CurrentTimeProvider, Scheduler
 		Stopwatch sw = monitoring ? Stopwatch.createUnstarted() : null;
 
 		while (true) {
-			lastLocalTasksTimestamp = timestamp;
 			Runnable runnable = localTasks.poll();
 			if (runnable == null) {
 				break;
@@ -460,8 +439,6 @@ public final class Eventloop implements Runnable, CurrentTimeProvider, Scheduler
 				sw.reset();
 				sw.start();
 			}
-
-			addTasks(lastLocalTasks, runnable);
 
 			try {
 				runnable.run();
@@ -492,13 +469,10 @@ public final class Eventloop implements Runnable, CurrentTimeProvider, Scheduler
 		Stopwatch sw = monitoring ? Stopwatch.createUnstarted() : null;
 
 		while (true) {
-			lastConcurrentTasksTimestamp = timestamp;
 			Runnable runnable = concurrentTasks.poll();
 			if (runnable == null) {
 				break;
 			}
-
-			addTasks(lastConcurrentTasks, (runnable));
 
 			if (sw != null) {
 				sw.reset();
@@ -541,11 +515,6 @@ public final class Eventloop implements Runnable, CurrentTimeProvider, Scheduler
 		Stopwatch sw = monitoring ? Stopwatch.createUnstarted() : null;
 
 		for (; ; ) {
-			if (currentTasks.equals("executeScheduledTasks")) {
-				lastScheduledTasksTimestamp = timestamp;
-			} else {
-				lastBackgroundTasksTimestamp = timestamp;
-			}
 			ScheduledRunnable peeked = taskQueue.peek();
 			if (peeked == null)
 				break;
@@ -568,12 +537,6 @@ public final class Eventloop implements Runnable, CurrentTimeProvider, Scheduler
 			if (monitoring) {
 				int overdue = (int) (System.currentTimeMillis() - peeked.getTimestamp());
 				stats.recordScheduledTaskOverdue(overdue, background);
-			}
-
-			if (currentTasks.equals("executeScheduledTasks")) {
-				addTasks(lastScheduledTasks, runnable);
-			} else {
-				addTasks(lastBackgroundTasks, runnable);
 			}
 
 			try {
@@ -1347,54 +1310,6 @@ public final class Eventloop implements Runnable, CurrentTimeProvider, Scheduler
 
 		stats.setSmoothingWindow(smoothingWindow);
 		concurrentCallsStats.setSmoothingWindow(smoothingWindow);
-	}
-
-	@JmxAttribute
-	public List<Runnable> getLastBackgroundTasks() {
-		return new ArrayList<>(lastBackgroundTasks);
-	}
-
-	@JmxAttribute
-	public List<Runnable> getLastConcurrentTasks() {
-		return new ArrayList<>(lastConcurrentTasks);
-	}
-
-	@JmxAttribute
-	public List<Runnable> getLastLocalTasks() {
-		return new ArrayList<>(lastLocalTasks);
-	}
-
-	@JmxAttribute
-	public List<Runnable> getLastScheduledTasks() {
-		return new ArrayList<>(lastScheduledTasks);
-	}
-
-	@JmxAttribute
-	public String getLastBackgroundTasksTimestamp() {
-		return MBeanFormat.formatPeriodAgo(lastBackgroundTasksTimestamp);
-	}
-
-
-	@JmxAttribute
-	public String getLastConcurrentTasksTimestamp() {
-		return MBeanFormat.formatPeriodAgo(lastConcurrentTasksTimestamp);
-	}
-
-	@JmxAttribute
-	public String getLastIoTasksTimestamp() {
-		return MBeanFormat.formatPeriodAgo(lastIoTasksTimestamp);
-	}
-
-
-	@JmxAttribute
-	public String getLastLocalTasksTimestamp() {
-		return MBeanFormat.formatPeriodAgo(lastLocalTasksTimestamp);
-	}
-
-
-	@JmxAttribute
-	public String getLastScheduledTasksTimestamp() {
-		return MBeanFormat.formatPeriodAgo(lastScheduledTasksTimestamp);
 	}
 
 	@JmxAttribute
