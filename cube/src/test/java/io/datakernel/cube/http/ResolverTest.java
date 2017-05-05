@@ -17,32 +17,51 @@
 package io.datakernel.cube.http;
 
 public class ResolverTest {
-	public static class Record {
-		public int id;
-		public String name1;
-		public String name2;
+/*
+	static class Record {
+		int id;
+		String countryName;
 
 		public Record(int id) {
 			this.id = id;
 		}
 	}
 
-/*
-	public static class TestConstantResolver implements AttributeResolver {
-		@Override
-		public Map<PrimaryKey, Object[]> resolve(Set<PrimaryKey> keys, List<String> attributes) {
-			Map<PrimaryKey, Object[]> result = newHashMap();
-			for (PrimaryKey key : keys) {
-				String name1 = key.get(0).toString() + key.get(1).toString();
-				String name2 = "~" + name1;
-				result.put(key, new Object[]{name1, name2});
+	public static class TestConstantResolver extends AbstractAttributeResolver<Short, String> {
+		static Map<Short, String> countriesIso3166_1 = new HashMap<Short, String>() {
+			{
+				put((short) 804, "UKRAINE");
+				put((short) 840, "USA");
+				put((short) 887, "YEMEN");
 			}
-			return result;
+		};
+
+		@Override
+		public Class<?>[] getKeyTypes() {
+			return new Class<?>[0];
+		}
+
+		@Override
+		protected Short toKey(Object[] keyArray) {
+			return (short) keyArray[0];
+		}
+
+		@Override
+		public Map<String, Class<?>> getAttributeTypes() {
+			return ImmutableMap.<String, Class<?>>of("countryName", String.class);
+		}
+
+		@Override
+		protected Object[] toAttributes(String attributes) {
+			return new Object[0];
+		}
+
+		@Override
+		protected String resolveAttributes(Short key) {
+			return countriesIso3166_1.get(key);
 		}
 	}
-*/
 
-/*
 	@Test
 	public void testResolve() throws Exception {
 		List<Object> records = Arrays.asList((Object) new Record(1), new Record(2), new Record(3));
@@ -62,7 +81,7 @@ public class ResolverTest {
 		Map<String, Object> keyConstants = newHashMap();
 		keyConstants.put("constantId", "ab");
 
-		Resolver resolver = Resolver.create(attributeResolvers);
+		AttributeResolver resolver = Resolver.create(attributeResolvers);
 
 		List<Object> resultRecords = resolver.resolve(records, Record.class, attributeTypes, resolverKeys, keyConstants,
 				DefiningClassLoader.create());
@@ -78,4 +97,5 @@ public class ResolverTest {
 		assertEquals(3, ((Record) resultRecords.get(2)).id);
 	}
 */
+
 }

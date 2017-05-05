@@ -48,6 +48,7 @@ import java.net.Socket;
 import java.util.List;
 
 import static com.google.common.io.ByteStreams.readFully;
+import static com.google.inject.name.Names.named;
 import static io.datakernel.bytebuf.ByteBufPool.*;
 import static io.datakernel.bytebuf.ByteBufStrings.decodeAscii;
 import static io.datakernel.bytebuf.ByteBufStrings.encodeAscii;
@@ -156,7 +157,14 @@ public class HelloWorldGuiceTest {
 	}
 
 	public static void main(String[] args) throws Exception {
-		Injector injector = Guice.createInjector(Stage.PRODUCTION, new TestModule(), JmxModule.create());
+		Key<?> GLOBAL_EVENTLOOP  = Key.get(Eventloop.class, named("GLOBAL_EVENTLOOP_STATS"));
+		Injector injector = Guice.createInjector(Stage.PRODUCTION, new TestModule(),
+				JmxModule.create()
+						.withOptional(Eventloop.class, "businessLogicTime_smoothedRate")
+						.withGlobalMBean(Eventloop.class, "GLOBAL_EVENTLOOP_STATS")
+						.withOptional(GLOBAL_EVENTLOOP, "businessLogicTime_smoothedRate")
+						.withOptional(GLOBAL_EVENTLOOP, "idleLoops_smoothedRate")
+						.withOptional(GLOBAL_EVENTLOOP, "selectOverdues_smoothedRate"));
 
 		// jmx
 		JmxRegistrator jmxRegistrator = injector.getInstance(JmxRegistrator.class);

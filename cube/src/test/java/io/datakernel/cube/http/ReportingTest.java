@@ -379,7 +379,7 @@ public class ReportingTest {
 				.withMeasures("impressions")
 				.withOrderings(asc("date"), asc("advertiser.name"))
 				.withHaving(and(
-						or(eq("advertiser.name", null), regexp("advertiser.name", ".*f.*")),
+						or(eq("advertiser.name", null), regexp("advertiser.name", ".*f.][[]][*")),
 						between("date", LocalDate.parse("2000-01-01"), LocalDate.parse("2000-01-03"))));
 
 		final QueryResult[] queryResult = new QueryResult[1];

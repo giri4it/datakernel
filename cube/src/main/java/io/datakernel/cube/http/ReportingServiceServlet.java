@@ -76,8 +76,7 @@ public final class ReportingServiceServlet implements AsyncServlet {
 		logger.info("Received request: {}", httpRequest);
 		try {
 			final Stopwatch totalTimeStopwatch = Stopwatch.createStarted();
-			final RequestErrorNotification requestErrorNotification =
-					RequestErrorNotification.create().withDetailedDescription();
+			final RequestErrorNotification requestErrorNotification;
 			final CubeQuery cubeQuery = parseQuery(httpRequest, requestErrorNotification);
 			if (!requestErrorNotification.isEmpty()) {
 				logger.warn("Received malformed request {}", httpRequest);
@@ -140,34 +139,42 @@ public final class ReportingServiceServlet implements AsyncServlet {
 
 	private static class RequestValidator {
 		static CubeQuery validateWhereParam(CubeQuery query, String parameter, Gson gson, RequestErrorNotification requestErrorNotification) {
+			if (requestErrorNotification == null)
+				requestErrorNotification = RequestErrorNotification.create().withDetailedDescription();
 			try {
 				AggregationPredicate where = gson.fromJson(parameter, AggregationPredicate.class);
 				query = query.withWhere(where);
 				for (String dimension : where.getDimensions()) {
 					if (dimension.contains(".")) {
-						requestErrorNotification.addError(WHERE_PARAM, "Use 'having' parameter to search for non-key attribute.");
+						requestErrorNotification.addError(WHERE_PARAM,
+								"Use 'having' parameter to search for non-key attribute.");
 						break;
 					}
 				}
 			} catch (JsonSyntaxException e) {
 				requestErrorNotification.addError(WHERE_PARAM, "Check JSON syntax of this parameter.");
 			} catch (PatternSyntaxException e) {
-				requestErrorNotification.addError(WHERE_PARAM,
-						"Valid example: &" + WHERE_PARAM + "=[\"regexp\", \"keyAttribute\", \".*substringOf_keyAttribute.*\"].");
+				requestErrorNotification.addError(WHERE_PARAM, "Valid example: &" + WHERE_PARAM +
+						"=[\"regexp\", \"keyAttribute\", \".*substringOf_keyAttribute.*\"].");
 			}
 			return query;
 		}
 
 		static CubeQuery validateSortParam(CubeQuery query, String parameter, RequestErrorNotification requestErrorNotification) {
+			if (requestErrorNotification == null)
+				requestErrorNotification = RequestErrorNotification.create().withDetailedDescription();
 			try {
 				query = query.withOrderings(parseOrderings(parameter));
 			} catch (ParseException e) {
-				requestErrorNotification.addError(SORT_PARAM, "Valid example: &" + SORT_PARAM + "=attribute1:asc,attribute2:asc,attribute3:desc");
+				requestErrorNotification.addError(SORT_PARAM,
+						"Valid example: &" + SORT_PARAM + "=attribute1:asc,attribute2:asc,attribute3:desc");
 			}
 			return query;
 		}
 
 		static CubeQuery validateHavingParam(CubeQuery query, String parameter, Gson gson, RequestErrorNotification requestErrorNotification) {
+			if (requestErrorNotification == null)
+				requestErrorNotification = RequestErrorNotification.create().withDetailedDescription();
 			try {
 				query = query.withHaving(gson.fromJson(parameter, AggregationPredicate.class));
 			} catch (JsonSyntaxException e) {
@@ -175,13 +182,15 @@ public final class ReportingServiceServlet implements AsyncServlet {
 						? e.getCause().getMessage()
 						: "Check JSON syntax of this parameter. "));
 			} catch (PatternSyntaxException e) {
-				requestErrorNotification.addError(HAVING_PARAM,
-						"Valid example: &" + HAVING_PARAM + "=[\"regexp\", \"field.attribute\", \".*substring_in_attribute.*\"].");
+				requestErrorNotification.addError(HAVING_PARAM, "Valid example: &" + HAVING_PARAM +
+						"=[\"regexp\", \"field.attribute\", \".*substring_in_attribute.*\"].");
 			}
 			return query;
 		}
 
 		static CubeQuery validateLimitParam(CubeQuery query, String parameter, RequestErrorNotification requestErrorNotification) {
+			if (requestErrorNotification == null)
+				requestErrorNotification = RequestErrorNotification.create().withDetailedDescription();
 			try {
 				query = query.withLimit(Integer.valueOf(parameter)); // TODO throws ParseException
 			} catch (NumberFormatException e) {
@@ -191,6 +200,8 @@ public final class ReportingServiceServlet implements AsyncServlet {
 		}
 
 		public static CubeQuery validateOffsetParam(CubeQuery query, String parameter, RequestErrorNotification requestErrorNotification) {
+			if (requestErrorNotification == null)
+				requestErrorNotification = RequestErrorNotification.create().withDetailedDescription();
 			try {
 				query = query.withOffset(Integer.valueOf(parameter));
 			} catch (NumberFormatException e) {
@@ -219,7 +230,7 @@ public final class ReportingServiceServlet implements AsyncServlet {
 	// TODO(yevhenii) remove if not used
 	@SuppressWarnings("unchecked")
 	public CubeQuery parseQuery(HttpRequest request) throws ParseException {
-		return parseQuery(request, RequestErrorNotification.create().withDetailedDescription());
+		return parseQuery(request, null);
 	}
 
 	private CubeQuery parseQuery(HttpRequest request, RequestErrorNotification requestErrorNotification) {
