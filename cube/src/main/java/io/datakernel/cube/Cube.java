@@ -75,6 +75,7 @@ import static io.datakernel.cube.Utils.*;
 import static io.datakernel.jmx.ValueStats.SMOOTHING_WINDOW_10_MINUTES;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
+import static java.util.Collections.sort;
 
 /**
  * Represents an OLAP cube. Provides methods for loading and querying data.
@@ -577,35 +578,15 @@ public final class Cube implements ICube, EventloopJmxMBean {
 
 	public <T> StreamProducer<T> queryRawStream(List<String> dimensions, List<String> storedMeasures, AggregationPredicate where,
 	                                            Class<T> resultClass, DefiningClassLoader queryClassLoader) throws QueryException {
-		where = where.simplify();
-		storedMeasures = newArrayList(storedMeasures);
-		List<String> allDimensions = newArrayList(concat(dimensions, where.getDimensions()));
 
-		AggregationPredicate specifiedWhere = AggregationPredicates.and(newArrayList(concat(singletonList(where),
-				transform(dimensions, new Function<String, AggregationPredicate>() {
-					@Override
-					public AggregationPredicate apply(String input) {
-						return AggregationPredicates.has(input);
-					}
-				})))).simplify();
+		List<AggregationContainerWithScore> compatibleAggregations = getCompatibleAggregations(dimensions, storedMeasures, where);
+		return queryRawStream(dimensions, storedMeasures, where, resultClass, queryClassLoader, compatibleAggregations);
+	}
 
-		List<AggregationContainerWithScore> compatibleAggregations = new ArrayList<>();
-		for (AggregationContainer aggregationContainer : aggregations.values()) {
-			if (!all(allDimensions, in(aggregationContainer.aggregation.getKeys())))
-				continue;
-			List<String> compatibleMeasures = newArrayList(filter(storedMeasures, in(aggregationContainer.measures)));
-			if (compatibleMeasures.isEmpty())
-				continue;
-			AggregationPredicate specifiedWhereIntersection = AggregationPredicates.and(specifiedWhere, aggregationContainer.predicate).simplify();
-			if (!specifiedWhereIntersection.equals(specifiedWhere))
-				continue;
-
-			AggregationQuery aggregationQuery = AggregationQuery.create(dimensions, compatibleMeasures, where);
-			double score = aggregationContainer.aggregation.estimateCost(aggregationQuery);
-			compatibleAggregations.add(new AggregationContainerWithScore(aggregationContainer, score));
-		}
-
-		Collections.sort(compatibleAggregations);
+	private <T> StreamProducer<T> queryRawStream(List<String> dimensions, List<String> storedMeasures, AggregationPredicate where,
+	                                             Class<T> resultClass, DefiningClassLoader queryClassLoader,
+	                                             List<AggregationContainerWithScore> compatibleAggregations) throws QueryException {
+		sort(compatibleAggregations);
 
 		Class resultKeyClass = createKeyClass(projectKeys(dimensionTypes, dimensions), queryClassLoader);
 
@@ -614,6 +595,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 		StreamReducer<Comparable, T, Object> streamReducer = StreamReducer.create(eventloop, Ordering.natural());
 		StreamProducer<T> queryResultProducer = streamReducer.getOutput();
 
+		storedMeasures = newArrayList(storedMeasures);
 		for (AggregationContainerWithScore aggregationContainerWithScore : compatibleAggregations) {
 			AggregationContainer aggregationContainer = aggregationContainerWithScore.aggregationContainer;
 			List<String> compatibleMeasures = newArrayList(filter(storedMeasures, in(aggregationContainer.measures)));
@@ -660,6 +642,38 @@ public final class Cube implements ICube, EventloopJmxMBean {
 		}
 
 		return queryResultProducer;
+	}
+
+	private List<AggregationContainerWithScore> getCompatibleAggregations(List<String> dimensions,
+	                                                                      List<String> storedMeasures,
+	                                                                      AggregationPredicate where) {
+		where = where.simplify();
+		List<String> allDimensions = newArrayList(concat(dimensions, where.getDimensions()));
+
+		AggregationPredicate specifiedWhere = AggregationPredicates.and(newArrayList(concat(singletonList(where),
+				transform(dimensions, new Function<String, AggregationPredicate>() {
+					@Override
+					public AggregationPredicate apply(String input) {
+						return AggregationPredicates.has(input);
+					}
+				})))).simplify();
+
+		List<AggregationContainerWithScore> compatibleAggregations = new ArrayList<>();
+		for (AggregationContainer aggregationContainer : aggregations.values()) {
+			if (!all(allDimensions, in(aggregationContainer.aggregation.getKeys())))
+				continue;
+			List<String> compatibleMeasures = newArrayList(filter(storedMeasures, in(aggregationContainer.measures)));
+			if (compatibleMeasures.isEmpty())
+				continue;
+			AggregationPredicate specifiedWhereIntersection = AggregationPredicates.and(specifiedWhere, aggregationContainer.predicate).simplify();
+			if (!specifiedWhereIntersection.equals(specifiedWhere))
+				continue;
+
+			AggregationQuery aggregationQuery = AggregationQuery.create(dimensions, compatibleMeasures, where);
+			double score = aggregationContainer.aggregation.estimateCost(aggregationQuery);
+			compatibleAggregations.add(new AggregationContainerWithScore(aggregationContainer, score));
+		}
+		return compatibleAggregations;
 	}
 
 	private static class AggregationContainerWithScore implements Comparable<AggregationContainerWithScore> {
@@ -1013,10 +1027,20 @@ public final class Cube implements ICube, EventloopJmxMBean {
 			havingPredicate = createHavingPredicate();
 			recordScheme = createRecordScheme();
 			recordFunction = createRecordFunction();
+			List<AggregationContainerWithScore> compatibleAggregations = getCompatibleAggregations(newArrayList(queryDimensions),
+					newArrayList(resultStoredMeasures), queryPredicate);
+			if (query.isMetaOnly()) {
+				QueryResult result = QueryResult.create(recordScheme, Collections.<Record>emptyList(),
+						Record.create(recordScheme), 0, newArrayList(resultAttributes), newArrayList(queryMeasures),
+						resultOrderings, drillDownsAndChains.drilldowns, drillDownsAndChains.chains,
+						Collections.<String, Object>emptyMap(), true);
+				resultCallback.setResult(result);
+				return;
+			}
 
 			StreamConsumers.ToList consumer = StreamConsumers.toList(eventloop);
 			StreamProducer queryResultProducer = queryRawStream(newArrayList(queryDimensions), newArrayList(resultStoredMeasures), queryPredicate,
-					resultClass, queryClassLoader);
+					resultClass, queryClassLoader, compatibleAggregations);
 			queryResultProducer.streamTo(consumer);
 
 			consumer.setResultCallback(new ForwardingResultCallback<List<Object>>(resultCallback) {
@@ -1233,10 +1257,9 @@ public final class Cube implements ICube, EventloopJmxMBean {
 			Record totalRecord = Record.create(recordScheme);
 			recordFunction.copyMeasures(totals, totalRecord);
 
-			QueryResult result = QueryResult.create(recordScheme,
-					resultRecords, totalRecord, totalCount,
+			QueryResult result = QueryResult.create(recordScheme, resultRecords, totalRecord, totalCount,
 					newArrayList(resultAttributes), newArrayList(queryMeasures), resultOrderings,
-					drillDownsAndChains.drilldowns, drillDownsAndChains.chains, filterAttributes);
+					drillDownsAndChains.drilldowns, drillDownsAndChains.chains, filterAttributes, false);
 			callback.setResult(result);
 		}
 

@@ -39,6 +39,8 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newLinkedHashMap;
 import static com.google.common.collect.Sets.newHashSet;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 
 final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
 	private static final String DIMENSIONS_FIELD = "dimensions";
@@ -51,6 +53,7 @@ final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
 	private static final String TOTALS_FIELD = "totals";
 	private static final String COUNT_FIELD = "count";
 	private static final String SORTED_BY_FIELD = "sortedBy";
+	private static final String META_ONLY_FIELD = "metaOnly";
 
 	private final Map<String, TypeAdapter<?>> attributeAdapters;
 	private final Map<String, TypeAdapter<?>> measureAdapters;
@@ -94,25 +97,15 @@ final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
 	@Override
 	public QueryResult read(JsonReader reader) throws JsonParseException, IOException {
 		reader.beginObject();
+
+		checkArgument(META_ONLY_FIELD.equals(reader.nextName()));
+		boolean metaOnly = reader.nextBoolean();
+
 		checkArgument(ATTRIBUTES_FIELD.equals(reader.nextName()));
 		List<String> attributes = stringListAdapter.read(reader);
 
 		checkArgument(MEASURES_FIELD.equals(reader.nextName()));
 		List<String> measures = stringListAdapter.read(reader);
-
-		checkArgument(SORTED_BY_FIELD.equals(reader.nextName()));
-		List<String> sortedBy = stringListAdapter.read(reader);
-
-		RecordScheme recordScheme = recordScheme(attributes, measures);
-
-		checkArgument(RECORDS_FIELD.equals(reader.nextName()));
-		List<Record> records = readRecords(reader, recordScheme);
-
-		checkArgument(TOTALS_FIELD.equals(reader.nextName()));
-		Record totals = readTotals(reader, recordScheme);
-
-		checkArgument(COUNT_FIELD.equals(reader.nextName()));
-		int count = reader.nextInt();
 
 		checkArgument(DRILLDOWNS_FIELD.equals(reader.nextName()));
 		List<Drilldown> drilldowns = readDrilldowns(reader);
@@ -120,14 +113,36 @@ final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
 		checkArgument(CHAINS_FIELD.equals(reader.nextName()));
 		Collection<List<String>> chains = chainsAdapter.read(reader);
 
-		checkArgument(FILTER_ATTRIBUTES_FIELD.equals(reader.nextName()));
-		Map<String, Object> filterAttributes = readFilterAttributes(reader);
+		checkArgument(SORTED_BY_FIELD.equals(reader.nextName()));
+		List<String> sortedBy = stringListAdapter.read(reader);
+
+		RecordScheme recordScheme = RecordScheme.create();
+		List<Record> records = emptyList();
+		Record totals = Record.create(recordScheme);
+		Map<String, Object> filterAttributes = emptyMap();
+		int count = 0;
+
+		if (!metaOnly) {
+			recordScheme = recordScheme(attributes, measures);
+
+			checkArgument(RECORDS_FIELD.equals(reader.nextName()));
+			records = readRecords(reader, recordScheme);
+
+			checkArgument(TOTALS_FIELD.equals(reader.nextName()));
+			totals = readTotals(reader, recordScheme);
+
+			checkArgument(COUNT_FIELD.equals(reader.nextName()));
+			count = reader.nextInt();
+
+			checkArgument(FILTER_ATTRIBUTES_FIELD.equals(reader.nextName()));
+			filterAttributes = readFilterAttributes(reader);
+		}
 
 		reader.endObject();
 
 		return QueryResult.create(recordScheme, records, totals, count,
-				attributes, measures, sortedBy,
-				drilldowns, chains, filterAttributes);
+				attributes, measures, sortedBy, drilldowns,
+				chains, filterAttributes, metaOnly);
 	}
 
 	private List<Record> readRecords(JsonReader reader, RecordScheme recordScheme) throws JsonParseException, IOException {
@@ -200,23 +215,14 @@ final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
 	public void write(JsonWriter writer, QueryResult result) throws IOException {
 		writer.beginObject();
 
+		writer.name(META_ONLY_FIELD);
+		writer.value(result.isMetaOnly());
+
 		writer.name(ATTRIBUTES_FIELD);
 		stringListAdapter.write(writer, result.getAttributes());
 
 		writer.name(MEASURES_FIELD);
 		stringListAdapter.write(writer, result.getMeasures());
-
-		writer.name(SORTED_BY_FIELD);
-		stringListAdapter.write(writer, result.getSortedBy());
-
-		writer.name(RECORDS_FIELD);
-		writeRecords(writer, result.getRecordScheme(), result.getRecords());
-
-		writer.name(TOTALS_FIELD);
-		writeTotals(writer, result.getRecordScheme(), result.getTotals());
-
-		writer.name(COUNT_FIELD);
-		writer.value(result.getTotalCount());
 
 		writer.name(DRILLDOWNS_FIELD);
 		writeDrilldowns(writer, result.getDrilldowns());
@@ -224,8 +230,22 @@ final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
 		writer.name(CHAINS_FIELD);
 		chainsAdapter.write(writer, result.getChains());
 
-		writer.name(FILTER_ATTRIBUTES_FIELD);
-		writeFilterAttributes(writer, result.getFilterAttributes());
+		writer.name(SORTED_BY_FIELD);
+		stringListAdapter.write(writer, result.getSortedBy());
+
+		if (!result.isMetaOnly()) {
+			writer.name(RECORDS_FIELD);
+			writeRecords(writer, result.getRecordScheme(), result.getRecords());
+
+			writer.name(TOTALS_FIELD);
+			writeTotals(writer, result.getRecordScheme(), result.getTotals());
+
+			writer.name(COUNT_FIELD);
+			writer.value(result.getTotalCount());
+
+			writer.name(FILTER_ATTRIBUTES_FIELD);
+			writeFilterAttributes(writer, result.getFilterAttributes());
+		}
 
 		writer.endObject();
 	}
