@@ -17,6 +17,7 @@
 package io.datakernel.cube.http;
 
 import com.google.gson.Gson;
+import io.datakernel.aggregation.QueryException;
 import io.datakernel.async.ForwardingResultCallback;
 import io.datakernel.async.ResultCallback;
 import io.datakernel.bytebuf.ByteBufStrings;
@@ -101,6 +102,11 @@ public final class CubeHttpClient implements ICube {
 				callback.setResult(result);
 			}
 		});
+	}
+
+	@Override
+	public void resolveAttributes(CubeQuery cubeQuery, ResultCallback<QueryResult> resultCallback) throws QueryException {
+		httpClient.send(buildRequest());
 	}
 
 	private HttpRequest buildRequest(CubeQuery query) {

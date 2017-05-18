@@ -71,7 +71,6 @@ import static io.datakernel.async.AsyncRunnables.runInParallel;
 import static io.datakernel.codegen.ExpressionComparator.leftField;
 import static io.datakernel.codegen.ExpressionComparator.rightField;
 import static io.datakernel.codegen.Expressions.*;
-import static io.datakernel.cube.Utils.*;
 import static io.datakernel.jmx.ValueStats.SMOOTHING_WINDOW_10_MINUTES;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
@@ -891,7 +890,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 				if (i == j) continue;
 
 				List<String> chain2 = chainsList.get(j);
-				if (startsWith(chain2, chain1))
+				if (Utils.startsWith(chain2, chain1))
 					continue outer;
 			}
 
@@ -956,6 +955,15 @@ public final class Cube implements ICube, EventloopJmxMBean {
 			}
 		});
 	}
+
+	@Override
+	public void resolveAttributes(CubeQuery cubeQuery, ResultCallback<QueryResult> resultCallback) throws QueryException {
+		DefiningClassLoader queryClassLoader = getQueryClassLoader(new CubeClassLoaderCache.Key(
+				newLinkedHashSet(cubeQuery.getAttributes()),
+				Collections.<String>emptySet(),
+				cubeQuery.getWhere().getDimensions()));
+
+	}
 	// endregion
 
 	private DefiningClassLoader getQueryClassLoader(CubeClassLoaderCache.Key key) {
@@ -1006,7 +1014,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 			prepareMeasures();
 			drillDownsAndChains = getDrillDownsAndChains(queryDimensions, queryMeasures, queryPredicate);
 
-			resultClass = createResultClass(resultAttributes, resultMeasures, Cube.this, queryClassLoader);
+			resultClass = Utils.createResultClass(resultAttributes, resultMeasures, Cube.this, queryClassLoader);
 			measuresFunction = createMeasuresFunction();
 			totalsFunction = createTotalsFunction();
 			comparator = createComparator();
@@ -1187,7 +1195,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 					tasks.add(new AsyncRunnable() {
 						@Override
 						public void run(CompletionCallback callback) {
-							resolveAttributes(results, resolverContainer.resolver,
+							Utils.resolveAttributes(results, resolverContainer.resolver,
 									resolverContainer.dimensions, attributes,
 									(Class) resultClass, queryClassLoader, callback);
 						}

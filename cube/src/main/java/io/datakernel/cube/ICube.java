@@ -9,6 +9,8 @@ import java.util.Map;
 public interface ICube {
 	void query(CubeQuery cubeQuery, ResultCallback<QueryResult> resultCallback) throws QueryException;
 
+	void resolveAttributes(CubeQuery cubeQuery, ResultCallback<QueryResult> resultCallback) throws QueryException;
+
 	Map<String, Type> getAttributeTypes();
 
 	Map<String, Type> getMeasureTypes();

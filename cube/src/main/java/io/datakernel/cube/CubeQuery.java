@@ -32,6 +32,8 @@ public final class CubeQuery {
 	private Integer limit = null;
 	private Integer offset = null;
 	private List<Ordering> orderings = new ArrayList<>();
+	private boolean metaOnly;
+	private boolean resolveAttributes;
 
 	private CubeQuery() {
 
@@ -103,6 +105,16 @@ public final class CubeQuery {
 		return this;
 	}
 
+	public CubeQuery withMetaOnly() {
+		this.metaOnly = true;
+		return this;
+	}
+
+	public CubeQuery withResolveAttributes() {
+		this.resolveAttributes = true;
+		return this;
+	}
+
 	// endregion
 
 	// region getters
@@ -128,6 +140,14 @@ public final class CubeQuery {
 
 	public Integer getOffset() {
 		return offset;
+	}
+
+	public boolean isMetaOnly() {
+		return metaOnly;
+	}
+
+	public boolean isResolveAttributes() {
+		return resolveAttributes;
 	}
 
 	// endregion
@@ -203,6 +223,7 @@ public final class CubeQuery {
 				", limit=" + limit +
 				", offset=" + offset +
 				", orderings=" + orderings +
+				", metaOnly=" + metaOnly +
 				'}';
 	}
 }

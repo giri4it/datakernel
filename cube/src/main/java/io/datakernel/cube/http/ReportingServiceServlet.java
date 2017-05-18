@@ -68,7 +68,8 @@ public final class ReportingServiceServlet implements AsyncServlet {
 				.with(GET, "/", create(eventloop, cube));
 		if (cube instanceof Cube) {
 			middlewareServlet = middlewareServlet
-					.with(GET, "/consolidation-debug", ConsolidationDebugServlet.create((Cube) cube));
+					.with(GET, "/consolidation-debug", ConsolidationDebugServlet.create((Cube) cube))
+					.with(GET, "/attributes-resolver", AttributeResolverServlet.create((Cube) cube));
 		}
 		return middlewareServlet;
 	}
