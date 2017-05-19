@@ -71,6 +71,7 @@ import static io.datakernel.async.AsyncRunnables.runInParallel;
 import static io.datakernel.codegen.ExpressionComparator.leftField;
 import static io.datakernel.codegen.ExpressionComparator.rightField;
 import static io.datakernel.codegen.Expressions.*;
+import static io.datakernel.cube.Utils.*;
 import static io.datakernel.jmx.ValueStats.SMOOTHING_WINDOW_10_MINUTES;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
@@ -904,7 +905,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 				if (i == j) continue;
 
 				List<String> chain2 = chainsList.get(j);
-				if (Utils.startsWith(chain2, chain1))
+				if (startsWith(chain2, chain1))
 					continue outer;
 			}
 
@@ -969,11 +970,6 @@ public final class Cube implements ICube, EventloopJmxMBean {
 			}
 		});
 	}
-
-	@Override
-	public void resolveAttributes(final CubeQuery cubeQuery, final ResultCallback<QueryResult> resultCallback) throws QueryException {
-		query(cubeQuery, resultCallback);
-	}
 	// endregion
 
 	private DefiningClassLoader getQueryClassLoader(CubeClassLoaderCache.Key key) {
@@ -1024,18 +1020,17 @@ public final class Cube implements ICube, EventloopJmxMBean {
 			prepareMeasures();
 			drillDownsAndChains = getDrillDownsAndChains(queryDimensions, queryMeasures, queryPredicate);
 
-			resultClass = Utils.createResultClass(resultAttributes, resultMeasures, Cube.this, queryClassLoader);
+			resultClass = createResultClass(resultAttributes, resultMeasures, Cube.this, queryClassLoader);
 			measuresFunction = createMeasuresFunction();
 			totalsFunction = createTotalsFunction();
 			comparator = createComparator();
 			havingPredicate = createHavingPredicate();
 			recordScheme = createRecordScheme();
 			recordFunction = createRecordFunction();
-			List<AggregationContainerWithScore> compatibleAggregations = getCompatibleAggregations(newArrayList(queryDimensions),
-					newArrayList(resultStoredMeasures), queryPredicate);
+
 			if (query.isMetaOnly()) {
 				QueryResult result = QueryResult.create(recordScheme, Collections.<Record>emptyList(),
-						Record.create(recordScheme), 0, newArrayList(resultAttributes), newArrayList(queryMeasures),
+						Record.create(recordScheme), 0, newArrayList(resultAttributes), newArrayList(resultMeasures),
 						resultOrderings, drillDownsAndChains.drilldowns, drillDownsAndChains.chains,
 						Collections.<String, Object>emptyMap(), true);
 				resultCallback.setResult(result);
@@ -1043,8 +1038,8 @@ public final class Cube implements ICube, EventloopJmxMBean {
 			}
 
 			StreamConsumers.ToList consumer = StreamConsumers.toList(eventloop);
-			StreamProducer queryResultProducer = queryRawStream(newArrayList(queryDimensions), newArrayList(resultStoredMeasures), queryPredicate,
-					resultClass, queryClassLoader, compatibleAggregations);
+			StreamProducer queryResultProducer = queryRawStream(newArrayList(queryDimensions), newArrayList(resultStoredMeasures),
+					queryPredicate, resultClass, queryClassLoader);
 			queryResultProducer.streamTo(consumer);
 
 			consumer.setResultCallback(new ForwardingResultCallback<List<Object>>(resultCallback) {
@@ -1207,20 +1202,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 			}
 			totalsFunction.computeMeasures(totals);
 
-			final Map<String, Object> filterAttributes = newLinkedHashMap();
-			final List<AsyncRunnable> tasks = newArrayList();
-			getFilterAttributes(results, filterAttributes, tasks);
-
-			runInParallel(eventloop, tasks).run(new ForwardingCompletionCallback(callback) {
-				@Override
-				protected void onComplete() {
-					processResults2(results, totals, filterAttributes, callback);
-				}
-			});
-		}
-
-		private void getFilterAttributes(final List<Object> results, final Map<String, Object> filterAttributes,
-		                                 final List<AsyncRunnable> tasks) {
+			List<AsyncRunnable> tasks = new ArrayList<>();
 			for (final AttributeResolverContainer resolverContainer : attributeResolvers) {
 				final List<String> attributes = new ArrayList<>(resolverContainer.attributes);
 				attributes.retainAll(resultAttributes);
@@ -1228,7 +1210,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 					tasks.add(new AsyncRunnable() {
 						@Override
 						public void run(CompletionCallback callback) {
-							Utils.resolveAttributes(results, resolverContainer.resolver,
+							resolveAttributes(results, resolverContainer.resolver,
 									resolverContainer.dimensions, attributes,
 									(Class) resultClass, queryClassLoader, callback);
 						}
@@ -1236,6 +1218,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 				}
 			}
 
+			final Map<String, Object> filterAttributes = newLinkedHashMap();
 			for (final AttributeResolverContainer resolverContainer : attributeResolvers) {
 				if (fullySpecifiedDimensions.keySet().containsAll(resolverContainer.dimensions)) {
 					tasks.add(new AsyncRunnable() {
@@ -1246,6 +1229,13 @@ public final class Cube implements ICube, EventloopJmxMBean {
 					});
 				}
 			}
+
+			runInParallel(eventloop, tasks).run(new ForwardingCompletionCallback(callback) {
+				@Override
+				protected void onComplete() {
+					processResults2(results, totals, filterAttributes, callback);
+				}
+			});
 		}
 
 		void processResults2(List<Object> results, Object totals, Map<String, Object> filterAttributes, final ResultCallback<QueryResult> callback) {
