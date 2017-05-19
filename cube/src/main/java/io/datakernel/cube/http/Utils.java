@@ -34,7 +34,6 @@ import org.joda.time.LocalDate;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -47,6 +46,7 @@ class Utils {
 	static final String LIMIT_PARAM = "limit";
 	static final String OFFSET_PARAM = "offset";
 	static final String META_ONLY_PARAM = "metaOnly";
+	static final String RESOLVE_ATTRIBUTES_PARAM = "resolveAttributes";
 
 	static final Splitter SPLITTER = Splitter.on(',').omitEmptyStrings();
 	static final Joiner JOINER = Joiner.on(',');
@@ -108,25 +108,6 @@ class Utils {
 					}
 				})
 				.registerTypeAdapter(CubeQuery.Ordering.class, QueryOrderingGsonAdapter.create());
-	}
-
-	static GsonBuilder createGsonBuilderForAttributeResolver(final Map<String, Type> attributeTypes) {
-		return new GsonBuilder().serializeNulls()
-				.registerTypeAdapterFactory(new TypeAdapterFactory() {
-					@SuppressWarnings("unchecked")
-					@Override
-					public <T> TypeAdapter<T> create(Gson gson, TypeToken<T> type) {
-						if (AggregationPredicate.class.isAssignableFrom(type.getRawType())) {
-							return (TypeAdapter<T>) AggregationPredicateGsonAdapter.create(gson, attributeTypes,
-									Collections.<String, Type>emptyMap());
-						}
-						if (type.getRawType() == QueryResult.class) {
-							return (TypeAdapter<T>) QueryResultGsonAdapter.create(gson, attributeTypes,
-									Collections.<String, Type>emptyMap());
-						}
-						return null;
-					}
-				});
 	}
 
 }

@@ -54,6 +54,7 @@ final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
 	private static final String COUNT_FIELD = "count";
 	private static final String SORTED_BY_FIELD = "sortedBy";
 	private static final String META_ONLY_FIELD = "metaOnly";
+	private static final String RESOLVE_ATTRIBUTES_FIELD = "resolveAttributes";
 
 	private final Map<String, TypeAdapter<?>> attributeAdapters;
 	private final Map<String, TypeAdapter<?>> measureAdapters;
@@ -121,6 +122,7 @@ final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
 		Record totals = Record.create(recordScheme);
 		Map<String, Object> filterAttributes = emptyMap();
 		int count = 0;
+		boolean isResolveAttributes = false;
 
 		if (!metaOnly) {
 			recordScheme = recordScheme(attributes, measures);
@@ -134,15 +136,20 @@ final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
 			checkArgument(COUNT_FIELD.equals(reader.nextName()));
 			count = reader.nextInt();
 
-			checkArgument(FILTER_ATTRIBUTES_FIELD.equals(reader.nextName()));
-			filterAttributes = readFilterAttributes(reader);
+			checkArgument(RESOLVE_ATTRIBUTES_FIELD.equals(reader.nextName()));
+			isResolveAttributes = reader.nextBoolean();
+
+			if(isResolveAttributes){
+				checkArgument(FILTER_ATTRIBUTES_FIELD.equals(reader.nextName()));
+				filterAttributes = readFilterAttributes(reader);
+			}
 		}
 
 		reader.endObject();
 
 		return QueryResult.create(recordScheme, records, totals, count,
 				attributes, measures, sortedBy, drilldowns,
-				chains, filterAttributes, metaOnly);
+				chains, filterAttributes, metaOnly, isResolveAttributes);
 	}
 
 	private List<Record> readRecords(JsonReader reader, RecordScheme recordScheme) throws JsonParseException, IOException {
@@ -243,8 +250,13 @@ final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
 			writer.name(COUNT_FIELD);
 			writer.value(result.getTotalCount());
 
-			writer.name(FILTER_ATTRIBUTES_FIELD);
-			writeFilterAttributes(writer, result.getFilterAttributes());
+			writer.name(RESOLVE_ATTRIBUTES_FIELD);
+			writer.value(result.isResolveAttributes());
+
+			if(result.isResolveAttributes()){
+				writer.name(FILTER_ATTRIBUTES_FIELD);
+				writeFilterAttributes(writer, result.getFilterAttributes());
+			}
 		}
 
 		writer.endObject();

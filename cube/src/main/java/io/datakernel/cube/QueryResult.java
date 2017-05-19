@@ -34,11 +34,12 @@ public final class QueryResult {
 	private final Collection<List<String>> chains;
 	private final Map<String, Object> filterAttributes;
 	private final boolean metaOnly;
+	private boolean resolveAttributes;
 
 	private QueryResult(RecordScheme recordScheme, List<Record> records, Record totals, int totalCount,
 	                    List<String> attributes, List<String> measures, List<String> sortedBy,
 	                    Collection<Drilldown> drilldowns, Collection<List<String>> chains,
-	                    Map<String, Object> filterAttributes, boolean metaOnly) {
+	                    Map<String, Object> filterAttributes, boolean metaOnly, boolean resolveAttributes) {
 		this.recordScheme = recordScheme;
 		this.records = records;
 		this.totals = totals;
@@ -50,14 +51,15 @@ public final class QueryResult {
 		this.sortedBy = sortedBy;
 		this.filterAttributes = filterAttributes;
 		this.metaOnly = metaOnly;
+		this.resolveAttributes = resolveAttributes;
 	}
 
 	public static QueryResult create(RecordScheme recordScheme, List<Record> records, Record totals, int totalCount,
 	                                 List<String> attributes, List<String> measures, List<String> sortedBy,
 	                                 Collection<Drilldown> drilldowns, Collection<List<String>> chains,
-	                                 Map<String, Object> filterAttributes, boolean onlyMeta) {
+	                                 Map<String, Object> filterAttributes, boolean onlyMeta, boolean resolveAttributes) {
 		return new QueryResult(recordScheme, records, totals, totalCount, attributes, measures, sortedBy, drilldowns,
-				chains, filterAttributes, onlyMeta);
+				chains, filterAttributes, onlyMeta, resolveAttributes);
 	}
 
 	public RecordScheme getRecordScheme() {
@@ -104,6 +106,10 @@ public final class QueryResult {
 		return metaOnly;
 	}
 
+	public boolean isResolveAttributes() {
+		return resolveAttributes;
+	}
+
 	@Override
 	public String toString() {
 		return MoreObjects.toStringHelper(this)
@@ -115,6 +121,7 @@ public final class QueryResult {
 				.add("measures", measures)
 				.add("sortedBy", sortedBy)
 				.add("metaOnly", metaOnly)
+				.add("resolveAttributes", resolveAttributes)
 				.toString();
 	}
 

@@ -45,7 +45,7 @@ public class AttributeResolverServlet implements AsyncServlet {
 	}
 
 	public static AttributeResolverServlet create(Cube cube) {
-		Gson gson = createGsonBuilderForAttributeResolver(cube.getAttributeTypes()).create();
+		Gson gson = createGsonBuilder(cube.getAttributeTypes(), cube.getMeasureTypes()).create();
 		return new AttributeResolverServlet(cube, gson);
 	}
 
@@ -56,7 +56,7 @@ public class AttributeResolverServlet implements AsyncServlet {
 			cube.resolveAttributes(cubeQuery, new ForwardingResultCallback<QueryResult>(callback) {
 				@Override
 				protected void onResult(QueryResult result) {
-					String json = gson.toJson(httpRequest, QueryResult.class);
+					String json = gson.toJson(result);
 					HttpResponse httpResponse = createResponse(json);
 					logger.info("Processed request {} ({}) ", httpRequest, cubeQuery);
 					callback.setResult(httpResponse);
@@ -66,7 +66,7 @@ public class AttributeResolverServlet implements AsyncServlet {
 			logger.error("Parse exception: " + httpRequest, e);
 			callback.setException(e);
 		} catch (QueryException e) {
-			logger.error("Parse exception: " + httpRequest, e);
+			logger.error("Query exception: " + httpRequest, e);
 			callback.setException(e);
 		}
 	}
@@ -91,6 +91,10 @@ public class AttributeResolverServlet implements AsyncServlet {
 		parameter = request.getParameter(WHERE_PARAM);
 		if (parameter != null)
 			query = query.withWhere(gson.fromJson(parameter, AggregationPredicate.class));
+
+		parameter = request.getParameter(RESOLVE_ATTRIBUTES_PARAM);
+		if(parameter != null && Boolean.parseBoolean(parameter))
+			query = query.withResolveAttributes();
 
 		return query;
 	}
