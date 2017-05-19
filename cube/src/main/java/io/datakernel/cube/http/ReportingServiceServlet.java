@@ -18,7 +18,6 @@ package io.datakernel.cube.http;
 
 import com.google.common.base.Charsets;
 import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
 import io.datakernel.aggregation.AggregationPredicate;
 import io.datakernel.aggregation.QueryException;
 import io.datakernel.async.ForwardingResultCallback;
@@ -34,18 +33,12 @@ import io.datakernel.util.Stopwatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.lang.reflect.Type;
-import java.util.List;
-
 import static io.datakernel.bytebuf.ByteBufStrings.wrapUtf8;
 import static io.datakernel.cube.http.Utils.*;
 import static io.datakernel.http.HttpMethod.GET;
 
 public final class ReportingServiceServlet implements AsyncServlet {
 	protected final Logger logger = LoggerFactory.getLogger(ReportingServiceServlet.class);
-
-	private static final Type LIST_OF_STRINGS = new TypeToken<List<String>>() {}.getType();
-	private static final Type ORDERINGS = new TypeToken<List<CubeQuery.Ordering>>() {}.getType();
 
 	private final Eventloop eventloop;
 

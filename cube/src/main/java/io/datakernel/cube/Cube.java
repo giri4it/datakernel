@@ -957,12 +957,8 @@ public final class Cube implements ICube, EventloopJmxMBean {
 	}
 
 	@Override
-	public void resolveAttributes(CubeQuery cubeQuery, ResultCallback<QueryResult> resultCallback) throws QueryException {
-		DefiningClassLoader queryClassLoader = getQueryClassLoader(new CubeClassLoaderCache.Key(
-				newLinkedHashSet(cubeQuery.getAttributes()),
-				Collections.<String>emptySet(),
-				cubeQuery.getWhere().getDimensions()));
-
+	public void resolveAttributes(final CubeQuery cubeQuery, final ResultCallback<QueryResult> resultCallback) throws QueryException {
+		query(cubeQuery, resultCallback);
 	}
 	// endregion
 
@@ -1187,7 +1183,20 @@ public final class Cube implements ICube, EventloopJmxMBean {
 			}
 			totalsFunction.computeMeasures(totals);
 
-			List<AsyncRunnable> tasks = new ArrayList<>();
+			final Map<String, Object> filterAttributes = newLinkedHashMap();
+			final List<AsyncRunnable> tasks = newArrayList();
+			getFilterAttributes(results, filterAttributes, tasks);
+
+			runInParallel(eventloop, tasks).run(new ForwardingCompletionCallback(callback) {
+				@Override
+				protected void onComplete() {
+					processResults2(results, totals, filterAttributes, callback);
+				}
+			});
+		}
+
+		private void getFilterAttributes(final List<Object> results, final Map<String, Object> filterAttributes,
+		                                 final List<AsyncRunnable> tasks) {
 			for (final AttributeResolverContainer resolverContainer : attributeResolvers) {
 				final List<String> attributes = new ArrayList<>(resolverContainer.attributes);
 				attributes.retainAll(resultAttributes);
@@ -1203,7 +1212,6 @@ public final class Cube implements ICube, EventloopJmxMBean {
 				}
 			}
 
-			final Map<String, Object> filterAttributes = newLinkedHashMap();
 			for (final AttributeResolverContainer resolverContainer : attributeResolvers) {
 				if (fullySpecifiedDimensions.keySet().containsAll(resolverContainer.dimensions)) {
 					tasks.add(new AsyncRunnable() {
@@ -1214,13 +1222,6 @@ public final class Cube implements ICube, EventloopJmxMBean {
 					});
 				}
 			}
-
-			runInParallel(eventloop, tasks).run(new ForwardingCompletionCallback(callback) {
-				@Override
-				protected void onComplete() {
-					processResults2(results, totals, filterAttributes, callback);
-				}
-			});
 		}
 
 		void processResults2(List<Object> results, Object totals, Map<String, Object> filterAttributes, final ResultCallback<QueryResult> callback) {

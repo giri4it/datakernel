@@ -106,7 +106,7 @@ public final class CubeHttpClient implements ICube {
 
 	@Override
 	public void resolveAttributes(CubeQuery cubeQuery, ResultCallback<QueryResult> resultCallback) throws QueryException {
-		httpClient.send(buildRequest());
+		//httpClient.send(buildRequest());
 	}
 
 	private HttpRequest buildRequest(CubeQuery query) {
