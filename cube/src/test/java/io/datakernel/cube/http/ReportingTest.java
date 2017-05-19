@@ -18,6 +18,7 @@ package io.datakernel.cube.http;
 
 import com.google.common.collect.ImmutableMap;
 import io.datakernel.aggregation.AggregationChunkStorage;
+import io.datakernel.aggregation.AggregationPredicates;
 import io.datakernel.aggregation.LocalFsChunkStorage;
 import io.datakernel.aggregation.annotation.Key;
 import io.datakernel.aggregation.annotation.Measures;
@@ -54,6 +55,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Sets.*;
 import static io.datakernel.aggregation.AggregationPredicates.*;
 import static io.datakernel.aggregation.fieldtype.FieldTypes.*;
@@ -68,8 +70,8 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
 import static junit.framework.TestCase.assertEquals;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import static org.hamcrest.collection.IsIterableContainingInAnyOrder.containsInAnyOrder;
+import static org.junit.Assert.*;
 
 public class ReportingTest {
 	private static final Logger logger = LoggerFactory.getLogger(ReportingTest.class);
@@ -107,6 +109,7 @@ public class ReportingTest {
 			.put("minRevenue", min(ofDouble()))
 			.put("maxRevenue", max(ofDouble()))
 			.put("uniqueUserIdsCount", hyperLogLog(1024))
+			.put("errors", sum(ofLong()))
 			.build();
 
 	private static class AdvertiserResolver extends AbstractAttributeResolver<Integer, String> {
@@ -183,11 +186,15 @@ public class ReportingTest {
 		@Serialize(order = 8)
 		public int userId;
 
+		@io.datakernel.aggregation.annotation.Measure
+		@Serialize(order = 9)
+		public int errors;
+
 		public LogItem() {
 		}
 
-		public LogItem(int date, int advertiser, int campaign, int banner,
-		               long impressions, long clicks, long conversions, double revenue, int userId) {
+		public LogItem(int date, int advertiser, int campaign, int banner, long impressions, long clicks,
+		               long conversions, double revenue, int userId, int errors) {
 			this.date = date;
 			this.advertiser = advertiser;
 			this.campaign = campaign;
@@ -197,6 +204,7 @@ public class ReportingTest {
 			this.conversions = conversions;
 			this.revenue = revenue;
 			this.userId = userId;
+			this.errors = errors;
 		}
 	}
 
@@ -250,12 +258,18 @@ public class ReportingTest {
 				.withMeasures(MEASURES)
 				.withRelation("campaign", "advertiser")
 				.withRelation("banner", "campaign")
+				.withRelation("errors", "advertiser")
 				.withAttribute("advertiser.name", new AdvertiserResolver())
 				.withComputedMeasure("ctr", percent(measure("clicks"), measure("impressions")))
 				.withComputedMeasure("uniqueUserPercent", percent(div(measure("uniqueUserIdsCount"), measure("eventCount"))))
+				.withComputedMeasure("errorsPercent", percent(div(measure("errors"), measure("impressions"))))
 				.withAggregation(id("detailed")
 						.withDimensions(DIMENSIONS.keySet())
-						.withMeasures(difference(MEASURES.keySet(), singleton("revenue"))));
+						.withMeasures(difference(MEASURES.keySet(), newHashSet("revenue", "errors"))))
+				.withAggregation(id("errors")
+						.withDimensions(singleton("advertiser"))
+						.withMeasures(singleton("errors"))
+						.withPredicate(AggregationPredicates.between("advertiser", 5, 10)));
 
 		LogToCubeMetadataStorage logToCubeMetadataStorage =
 				getLogToCubeMetadataStorage(eventloop, executor, jooqConfiguration, cubeMetadataStorageSql);
@@ -264,12 +278,12 @@ public class ReportingTest {
 				LogItemSplitter.factory(), LOG_NAME, LOG_PARTITIONS, logToCubeMetadataStorage);
 
 		List<LogItem> logItems = asList(
-				new LogItem(0, 1, 1, 1, 10, 1, 1, 0.14, 1),
-				new LogItem(1, 1, 1, 1, 20, 3, 1, 0.12, 2),
-				new LogItem(2, 1, 1, 1, 15, 2, 0, 0.22, 1),
-				new LogItem(3, 1, 1, 1, 30, 5, 2, 0.30, 3),
-				new LogItem(1, 2, 2, 2, 100, 5, 0, 0.36, 10),
-				new LogItem(1, 3, 3, 3, 80, 5, 0, 0.60, 1));
+				new LogItem(0, 1, 1, 1, 10, 1, 1, 0.14, 1, 0),
+				new LogItem(1, 1, 1, 1, 20, 3, 1, 0.12, 2, 2),
+				new LogItem(2, 1, 1, 1, 15, 2, 0, 0.22, 1, 3),
+				new LogItem(3, 1, 1, 1, 30, 5, 2, 0.30, 3, 4),
+				new LogItem(1, 2, 2, 2, 100, 5, 0, 0.36, 10, 0),
+				new LogItem(1, 3, 3, 3, 80, 5, 0, 0.60, 1, 8));
 		StreamProducers.OfIterator<LogItem> producerOfRandomLogItems =
 				new StreamProducers.OfIterator<>(eventloop, logItems.iterator());
 		producerOfRandomLogItems.streamTo(logManager.consumer(LOG_PARTITION_NAME));
@@ -298,6 +312,7 @@ public class ReportingTest {
 				.withMeasure("clicks", long.class)
 				.withMeasure("conversions", long.class)
 				.withMeasure("revenue", double.class)
+				.withMeasure("errors", double.class)
 				.withMeasure("eventCount", int.class)
 				.withMeasure("minRevenue", double.class)
 				.withMeasure("maxRevenue", double.class)
@@ -316,20 +331,12 @@ public class ReportingTest {
 						between("date", LocalDate.parse("2000-01-02"), LocalDate.parse("2000-01-03"))))
 				.withOrderings(asc("campaign"), asc("ctr"), desc("banner"));
 
-		final QueryResult[] queryResult = new QueryResult[1];
-		cubeHttpClient.query(query, new AssertingResultCallback<QueryResult>() {
-			@Override
-			protected void onResult(QueryResult result) {
-				queryResult[0] = result;
-			}
-		});
+		final QueryResult queryResult = getQueryResult(query);
 
-		eventloop.run();
-
-		List<Record> records = queryResult[0].getRecords();
+		List<Record> records = queryResult.getRecords();
 		assertEquals(2, records.size());
-		assertEquals(newHashSet("date", "advertiser", "campaign"), newHashSet(queryResult[0].getAttributes()));
-		assertEquals(newHashSet("impressions", "clicks", "ctr"), newHashSet(queryResult[0].getMeasures()));
+		assertEquals(newHashSet("date", "advertiser", "campaign"), newHashSet(queryResult.getAttributes()));
+		assertEquals(newHashSet("impressions", "clicks", "ctr"), newHashSet(queryResult.getMeasures()));
 		assertEquals(LocalDate.parse("2000-01-03"), records.get(0).get("date"));
 		assertEquals(1, (int) records.get(0).get("advertiser"));
 		assertEquals(2, (long) records.get(0).get("clicks"));
@@ -340,14 +347,14 @@ public class ReportingTest {
 		assertEquals(3, (long) records.get(1).get("clicks"));
 		assertEquals(20, (long) records.get(1).get("impressions"));
 		assertEquals(3.0 / 20.0 * 100.0, (double) records.get(1).get("ctr"), DELTA);
-		assertEquals(2, queryResult[0].getTotalCount());
-		Record totals = queryResult[0].getTotals();
+		assertEquals(2, queryResult.getTotalCount());
+		Record totals = queryResult.getTotals();
 		assertEquals(35, (long) totals.get("impressions"));
 		assertEquals(5, (long) totals.get("clicks"));
 		assertEquals(5.0 / 35.0 * 100.0, (double) totals.get("ctr"), DELTA);
-		assertEquals(newHashSet("campaign", "ctr"), newHashSet(queryResult[0].getSortedBy()));
-		assertTrue(queryResult[0].getDrilldowns().isEmpty());
-//		assertTrue(queryResult[0].getAttributes().isEmpty());
+		assertEquals(newHashSet("campaign", "ctr"), newHashSet(queryResult.getSortedBy()));
+		assertTrue(queryResult.getDrilldowns().isEmpty());
+//		assertTrue(queryResult.getAttributes().isEmpty());
 	}
 
 	@Test
@@ -357,17 +364,9 @@ public class ReportingTest {
 				.withMeasures("clicks")
 				.withHaving(and(between("advertiser", 1, 3), alwaysTrue(), alwaysTrue()));
 
-		final QueryResult[] queryResult = new QueryResult[1];
-		cubeHttpClient.query(query, new AssertingResultCallback<QueryResult>() {
-			@Override
-			protected void onResult(QueryResult result) {
-				queryResult[0] = result;
-			}
-		});
+		final QueryResult queryResult = getQueryResult(query);
 
-		eventloop.run();
-
-		List<Record> records = queryResult[0].getRecords();
+		List<Record> records = queryResult.getRecords();
 		assertEquals(3, records.size());
 	}
 
@@ -381,20 +380,12 @@ public class ReportingTest {
 						or(eq("advertiser.name", null), regexp("advertiser.name", ".*f.*")),
 						between("date", LocalDate.parse("2000-01-01"), LocalDate.parse("2000-01-03"))));
 
-		final QueryResult[] queryResult = new QueryResult[1];
-		cubeHttpClient.query(query, new AssertingResultCallback<QueryResult>() {
-			@Override
-			protected void onResult(QueryResult result) {
-				queryResult[0] = result;
-			}
-		});
+		final QueryResult queryResult = getQueryResult(query);
 
-		eventloop.run();
-
-		List<Record> records = queryResult[0].getRecords();
+		List<Record> records = queryResult.getRecords();
 		assertEquals(4, records.size());
-		assertEquals(newHashSet("date", "advertiser", "advertiser.name"), newHashSet(queryResult[0].getAttributes()));
-		assertEquals(newHashSet("impressions"), newHashSet(queryResult[0].getMeasures()));
+		assertEquals(newHashSet("date", "advertiser", "advertiser.name"), newHashSet(queryResult.getAttributes()));
+		assertEquals(newHashSet("impressions"), newHashSet(queryResult.getMeasures()));
 
 		assertEquals(LocalDate.parse("2000-01-01"), records.get(0).get("date"));
 		assertEquals(1, (int) records.get(0).get("advertiser"));
@@ -416,9 +407,9 @@ public class ReportingTest {
 		assertEquals("first", (String) records.get(3).get("advertiser.name"));
 		assertEquals(15, (long) records.get(3).get("impressions"));
 
-		Record totals = queryResult[0].getTotals();
+		Record totals = queryResult.getTotals();
 		assertEquals(255, (long) totals.get("impressions"));
-		assertEquals(newHashSet("date", "advertiser.name"), newHashSet(queryResult[0].getSortedBy()));
+		assertEquals(newHashSet("date", "advertiser.name"), newHashSet(queryResult.getSortedBy()));
 	}
 
 	@Test
@@ -428,17 +419,9 @@ public class ReportingTest {
 				.withMeasures("impressions")
 				.withHaving(or(between("advertiser.name", "a", "z"), eq("advertiser.name", null)));
 
-		final QueryResult[] queryResult = new QueryResult[1];
-		cubeHttpClient.query(query, new AssertingResultCallback<QueryResult>() {
-			@Override
-			protected void onResult(QueryResult result) {
-				queryResult[0] = result;
-			}
-		});
+		final QueryResult queryResult = getQueryResult(query);
 
-		eventloop.run();
-
-		List<Record> records = queryResult[0].getRecords();
+		List<Record> records = queryResult.getRecords();
 		assertEquals(3, records.size());
 		assertEquals("first", (String) records.get(0).get("advertiser.name"));
 		assertEquals(null, (String) records.get(1).get("advertiser.name"));
@@ -453,29 +436,21 @@ public class ReportingTest {
 				.withLimit(1)
 				.withOffset(2);
 
-		final QueryResult[] queryResult = new QueryResult[1];
-		cubeHttpClient.query(query, new AssertingResultCallback<QueryResult>() {
-			@Override
-			protected void onResult(QueryResult result) {
-				queryResult[0] = result;
-			}
-		});
-
-		eventloop.run();
+		final QueryResult queryResult = getQueryResult(query);
 
 		Set<QueryResult.Drilldown> drilldowns = newLinkedHashSet();
 		drilldowns.add(QueryResult.Drilldown.create(asList("advertiser"), singleton("impressions")));
 		drilldowns.add(QueryResult.Drilldown.create(asList("advertiser", "campaign"), singleton("impressions")));
 		drilldowns.add(QueryResult.Drilldown.create(asList("advertiser", "campaign", "banner"), singleton("impressions")));
-		assertEquals(drilldowns, newHashSet(queryResult[0].getDrilldowns()));
+		assertEquals(drilldowns, newHashSet(queryResult.getDrilldowns()));
 
-		List<Record> records = queryResult[0].getRecords();
+		List<Record> records = queryResult.getRecords();
 		assertEquals(1, records.size());
 		assertEquals(3, records.get(0).getScheme().getFields().size());
 		assertEquals(LocalDate.parse("2000-01-03"), records.get(0).get("date"));
 		assertEquals(15, (long) records.get(0).get("impressions"));
 		assertEquals(2.0 / 15.0 * 100.0, (double) records.get(0).get("ctr"), DELTA);
-		assertEquals(4, queryResult[0].getTotalCount());
+		assertEquals(4, queryResult.getTotalCount());
 
 	}
 
@@ -488,17 +463,9 @@ public class ReportingTest {
 				.withOrderings(asc("advertiser.name"))
 				.withHaving(eq("advertiser.name", null));
 
-		final QueryResult[] queryResult = new QueryResult[1];
-		cubeHttpClient.query(query, new AssertingResultCallback<QueryResult>() {
-			@Override
-			protected void onResult(QueryResult result) {
-				queryResult[0] = result;
-			}
-		});
+		final QueryResult queryResult = getQueryResult(query);
 
-		eventloop.run();
-
-		Map<String, Object> filterAttributes = queryResult[0].getFilterAttributes();
+		Map<String, Object> filterAttributes = queryResult.getFilterAttributes();
 		assertEquals(1, filterAttributes.size());
 		assertTrue(filterAttributes.containsKey("advertiser.name"));
 		assertNull(filterAttributes.get("advertiser.name"));
@@ -511,21 +478,13 @@ public class ReportingTest {
 				.withMeasures("clicks")
 				.withHaving(or(regexp("advertiser.name", ".*s.*"), eq("advertiser.name", null)));
 
-		final QueryResult[] queryResult = new QueryResult[1];
-		cubeHttpClient.query(query, new AssertingResultCallback<QueryResult>() {
-			@Override
-			protected void onResult(QueryResult result) {
-				queryResult[0] = result;
-			}
-		});
+		final QueryResult queryResult = getQueryResult(query);
 
-		eventloop.run();
-
-		List<Record> records = queryResult[0].getRecords();
+		List<Record> records = queryResult.getRecords();
 		assertEquals(2, records.size());
 		assertEquals(asList("advertiser", "advertiser.name", "clicks"), records.get(0).getScheme().getFields());
-		assertEquals(asList("advertiser", "advertiser.name"), queryResult[0].getAttributes());
-		assertEquals(asList("clicks"), queryResult[0].getMeasures());
+		assertEquals(asList("advertiser", "advertiser.name"), queryResult.getAttributes());
+		assertEquals(asList("clicks"), queryResult.getMeasures());
 		assertEquals(1, (int) records.get(0).get("advertiser"));
 		assertEquals("first", records.get(0).get("advertiser.name"));
 		assertEquals(2, (int) records.get(1).get("advertiser"));
@@ -539,20 +498,12 @@ public class ReportingTest {
 				.withMeasures("eventCount", "minRevenue", "maxRevenue", "uniqueUserIdsCount", "uniqueUserPercent")
 				.withOrderings(asc("uniqueUserIdsCount"), asc("advertiser"));
 
-		final QueryResult[] queryResult = new QueryResult[1];
-		cubeHttpClient.query(query, new AssertingResultCallback<QueryResult>() {
-			@Override
-			protected void onResult(QueryResult result) {
-				queryResult[0] = result;
-			}
-		});
+		final QueryResult queryResult = getQueryResult(query);
 
-		eventloop.run();
-
-		List<Record> records = queryResult[0].getRecords();
+		List<Record> records = queryResult.getRecords();
 		assertEquals(newHashSet("eventCount", "minRevenue", "maxRevenue", "uniqueUserIdsCount", "uniqueUserPercent"),
-				newHashSet(queryResult[0].getMeasures()));
-		assertEquals(asList("uniqueUserIdsCount", "advertiser"), queryResult[0].getSortedBy());
+				newHashSet(queryResult.getMeasures()));
+		assertEquals(asList("uniqueUserIdsCount", "advertiser"), queryResult.getSortedBy());
 		assertEquals(3, records.size());
 
 		Record r1 = records.get(0);
@@ -579,7 +530,7 @@ public class ReportingTest {
 		assertEquals(3, (int) r3.get("uniqueUserIdsCount"));
 		assertEquals(3.0 / 4.0 * 100.0, (double) r3.get("uniqueUserPercent"), DELTA);
 
-		Record totals = queryResult[0].getTotals();
+		Record totals = queryResult.getTotals();
 		assertEquals(0.12, (double) totals.get("minRevenue"), DELTA);
 		assertEquals(0.60, (double) totals.get("maxRevenue"), DELTA);
 		assertEquals(6, (int) totals.get("eventCount"));
@@ -587,4 +538,84 @@ public class ReportingTest {
 		assertEquals(4.0 / 6.0 * 100.0, (double) totals.get("uniqueUserPercent"), DELTA);
 	}
 
+	@Test
+	public void testMetaOnlyQuery() {
+		String[] attributes = {"date", "advertiser", "advertiser.name"};
+		CubeQuery onlyMetaQuery = CubeQuery.create()
+				.withAttributes(attributes)
+				.withMeasures("clicks", "ctr", "conversions")
+				.withOrderingDesc("date")
+				.withOrderingAsc("advertiser.name")
+				.withMetaOnly();
+
+		final QueryResult metadata = getQueryResult(onlyMetaQuery);
+
+		assertEquals(0, metadata.getRecordScheme().getFields().size());
+		assertEquals(0, metadata.getTotalCount());
+		assertTrue(metadata.getRecords().isEmpty());
+		assertTrue(metadata.getTotals().asMap().isEmpty());
+		assertTrue(metadata.getFilterAttributes().isEmpty());
+
+		assertThat(metadata.getAttributes(), containsInAnyOrder(attributes));
+		assertFalse(metadata.getDrilldowns().isEmpty());
+		assertEquals(2, metadata.getDrilldowns().size());
+		assertEquals(1, metadata.getChains().size());
+		assertEquals(2, metadata.getSortedBy().size());
+
+		Set<QueryResult.Drilldown> expectedDrilldowns = newLinkedHashSet();
+		expectedDrilldowns.add(QueryResult.Drilldown.create(asList("campaign"), newLinkedHashSet(asList("conversions", "clicks"))));
+		expectedDrilldowns.add(QueryResult.Drilldown.create(asList("campaign", "banner"), newLinkedHashSet(asList("conversions", "clicks"))));
+		assertTrue(metadata.getDrilldowns().containsAll(expectedDrilldowns));
+
+		Set<List<String>> expectedChains = newHashSet();
+		expectedChains.add(asList("advertiser", "campaign", "banner"));
+		assertTrue(metadata.getChains().containsAll(expectedChains));
+	}
+
+	@Test
+	public void testMetaOnlyQueryHasEmptyMeasuresWhenNoAggregationsFound() {
+		CubeQuery queryAffectingNonCompatibleAggregations = CubeQuery.create()
+				.withAttributes("date", "advertiser")
+				.withMeasures("errors", "errorsPercent")
+				.withMetaOnly();
+
+		final QueryResult metadata = getQueryResult(queryAffectingNonCompatibleAggregations);
+		assertTrue(metadata.getMeasures().isEmpty());
+	}
+
+	@Test
+	public void testMetaOnlyQueryResultHasSubsetOfRequestedMeasuresWhenSomeAggregationsAreIncompatible() {
+		CubeQuery queryAffectingSeveralCompatibleAggregations = CubeQuery.create()
+				.withAttributes("date", "advertiser")
+				.withMeasures("impressions", "errors", "clicks")
+				.withMetaOnly();
+
+		final QueryResult metadata = getQueryResult(queryAffectingSeveralCompatibleAggregations);
+		List<String> expectedMeasures = newArrayList("impressions", "clicks");
+		assertEquals(expectedMeasures, metadata.getMeasures());
+	}
+
+	@Test
+	public void testMetaOnlyQueryResultHasCorrectMeasuresWhenSomeAggregationsAreIncompatible() {
+		CubeQuery queryAffectingNonCompatibleAggregations = CubeQuery.create()
+				.withAttributes("date", "advertiser")
+				.withMeasures("impressions", "errors", "clicks")
+				.withMetaOnly();
+
+		final QueryResult metadata = getQueryResult(queryAffectingNonCompatibleAggregations);
+		List<String> expectedMeasures = newArrayList("impressions", "clicks");
+		assertEquals(expectedMeasures, metadata.getMeasures());
+	}
+
+	private QueryResult getQueryResult(CubeQuery query) {
+		final QueryResult[] queryResult = new QueryResult[1];
+		cubeHttpClient.query(query, new AssertingResultCallback<QueryResult>() {
+			@Override
+			protected void onResult(QueryResult result) {
+				queryResult[0] = result;
+			}
+		});
+		eventloop.run();
+		return queryResult[0];
+	}
 }

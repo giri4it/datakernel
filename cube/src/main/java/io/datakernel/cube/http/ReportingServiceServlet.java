@@ -134,6 +134,10 @@ public final class ReportingServiceServlet implements AsyncServlet {
 		if (parameter != null)
 			query = query.withOffset(Integer.valueOf(parameter));
 
+		parameter = request.getParameter(META_ONLY_PARAM);
+		if(parameter != null && Boolean.parseBoolean(parameter))
+			query = query.withMetaOnly();
+
 		return query;
 	}
 

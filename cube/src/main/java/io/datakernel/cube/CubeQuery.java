@@ -224,6 +224,7 @@ public final class CubeQuery {
 				", offset=" + offset +
 				", orderings=" + orderings +
 				", metaOnly=" + metaOnly +
+				", resolveAttributes=" + resolveAttributes +
 				'}';
 	}
 }
