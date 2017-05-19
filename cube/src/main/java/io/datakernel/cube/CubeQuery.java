@@ -32,6 +32,7 @@ public final class CubeQuery {
 	private Integer limit = null;
 	private Integer offset = null;
 	private List<Ordering> orderings = new ArrayList<>();
+	private boolean metaOnly;
 
 	private CubeQuery() {
 
@@ -103,6 +104,11 @@ public final class CubeQuery {
 		return this;
 	}
 
+	public CubeQuery withMetaOnly() {
+		this.metaOnly = true;
+		return this;
+	}
+
 	// endregion
 
 	// region getters
@@ -130,7 +136,11 @@ public final class CubeQuery {
 		return offset;
 	}
 
-	// endregion
+	public boolean isMetaOnly() {
+		return metaOnly;
+	}
+
+// endregion
 
 	// region helper classes
 
@@ -203,6 +213,7 @@ public final class CubeQuery {
 				", limit=" + limit +
 				", offset=" + offset +
 				", orderings=" + orderings +
+				", metaOnly=" + metaOnly +
 				'}';
 	}
 }

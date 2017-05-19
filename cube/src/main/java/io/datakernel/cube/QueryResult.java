@@ -33,10 +33,12 @@ public final class QueryResult {
 	private final Collection<Drilldown> drilldowns;
 	private final Collection<List<String>> chains;
 	private final Map<String, Object> filterAttributes;
+	private final boolean metaOnly;
 
 	private QueryResult(RecordScheme recordScheme, List<Record> records, Record totals, int totalCount,
 	                    List<String> attributes, List<String> measures, List<String> sortedBy,
-	                    Collection<Drilldown> drilldowns, Collection<List<String>> chains, Map<String, Object> filterAttributes) {
+	                    Collection<Drilldown> drilldowns, Collection<List<String>> chains,
+	                    Map<String, Object> filterAttributes, boolean metaOnly) {
 		this.recordScheme = recordScheme;
 		this.records = records;
 		this.totals = totals;
@@ -47,12 +49,15 @@ public final class QueryResult {
 		this.measures = measures;
 		this.sortedBy = sortedBy;
 		this.filterAttributes = filterAttributes;
+		this.metaOnly = metaOnly;
 	}
 
 	public static QueryResult create(RecordScheme recordScheme, List<Record> records, Record totals, int totalCount,
 	                                 List<String> attributes, List<String> measures, List<String> sortedBy,
-	                                 Collection<Drilldown> drilldowns, Collection<List<String>> chains, Map<String, Object> filterAttributes) {
-		return new QueryResult(recordScheme, records, totals, totalCount, attributes, measures, sortedBy, drilldowns, chains, filterAttributes);
+	                                 Collection<Drilldown> drilldowns, Collection<List<String>> chains,
+	                                 Map<String, Object> filterAttributes, boolean onlyMeta) {
+		return new QueryResult(recordScheme, records, totals, totalCount, attributes, measures, sortedBy, drilldowns,
+				chains, filterAttributes, onlyMeta);
 	}
 
 	public RecordScheme getRecordScheme() {
@@ -95,6 +100,10 @@ public final class QueryResult {
 		return sortedBy;
 	}
 
+	public boolean isMetaOnly() {
+		return metaOnly;
+	}
+
 	@Override
 	public String toString() {
 		return MoreObjects.toStringHelper(this)
@@ -105,6 +114,7 @@ public final class QueryResult {
 				.add("chains", chains)
 				.add("measures", measures)
 				.add("sortedBy", sortedBy)
+				.add("metaOnly", metaOnly)
 				.toString();
 	}
 
