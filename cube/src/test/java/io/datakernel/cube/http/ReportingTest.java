@@ -18,7 +18,6 @@ package io.datakernel.cube.http;
 
 import com.google.common.collect.ImmutableMap;
 import io.datakernel.aggregation.AggregationChunkStorage;
-import io.datakernel.aggregation.AggregationPredicates;
 import io.datakernel.aggregation.LocalFsChunkStorage;
 import io.datakernel.aggregation.annotation.Key;
 import io.datakernel.aggregation.annotation.Measures;
@@ -55,6 +54,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import static com.google.common.collect.Iterables.concat;
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Sets.*;
 import static io.datakernel.aggregation.AggregationPredicates.*;
@@ -98,6 +98,8 @@ public class ReportingTest {
 			.put("advertiser", ofInt())
 			.put("campaign", ofInt())
 			.put("banner", ofInt())
+			.put("affiliate", ofInt())
+			.put("site", ofInt())
 			.build();
 
 	private static final Map<String, Measure> MEASURES = ImmutableMap.<String, Measure>builder()
@@ -166,6 +168,14 @@ public class ReportingTest {
 		@Serialize(order = 3)
 		public int banner;
 
+		@Key
+		@Serialize(order = 10)
+		public int affiliate;
+
+		@Key
+		@Serialize(order = 11)
+		public int site;
+
 		@io.datakernel.aggregation.annotation.Measure
 		@Serialize(order = 4)
 		public long impressions;
@@ -194,7 +204,7 @@ public class ReportingTest {
 		}
 
 		public LogItem(int date, int advertiser, int campaign, int banner, long impressions, long clicks,
-		               long conversions, double revenue, int userId, int errors) {
+		               long conversions, double revenue, int userId, int errors, int affiliate, int site) {
 			this.date = date;
 			this.advertiser = advertiser;
 			this.campaign = campaign;
@@ -205,6 +215,8 @@ public class ReportingTest {
 			this.revenue = revenue;
 			this.userId = userId;
 			this.errors = errors;
+			this.affiliate = affiliate;
+			this.site = site;
 		}
 	}
 
@@ -264,12 +276,15 @@ public class ReportingTest {
 				.withComputedMeasure("uniqueUserPercent", percent(div(measure("uniqueUserIdsCount"), measure("eventCount"))))
 				.withComputedMeasure("errorsPercent", percent(div(measure("errors"), measure("impressions"))))
 				.withAggregation(id("detailed")
-						.withDimensions(DIMENSIONS.keySet())
+						.withDimensions(difference(DIMENSIONS.keySet(), newHashSet("affiliate", "site")))
 						.withMeasures(difference(MEASURES.keySet(), newHashSet("revenue", "errors"))))
-				.withAggregation(id("errors")
-						.withDimensions(singleton("advertiser"))
-						.withMeasures(singleton("errors"))
-						.withPredicate(AggregationPredicates.between("advertiser", 5, 10)));
+//				.withAggregation(id("errors")
+//						.withDimensions(singleton("advertiser"))
+//						.withMeasures(singleton("errors"))
+//						.withPredicate(AggregationPredicates.between("advertiser", 5, 10)))
+				.withAggregation(id("affiliates")
+						.withDimensions(DIMENSIONS.keySet())
+						.withMeasures(MEASURES.keySet()));
 
 		LogToCubeMetadataStorage logToCubeMetadataStorage =
 				getLogToCubeMetadataStorage(eventloop, executor, jooqConfiguration, cubeMetadataStorageSql);
@@ -277,15 +292,23 @@ public class ReportingTest {
 		LogToCubeRunner<LogItem> logToCubeRunner = LogToCubeRunner.create(eventloop, cube, logManager,
 				LogItemSplitter.factory(), LOG_NAME, LOG_PARTITIONS, logToCubeMetadataStorage);
 
-		List<LogItem> logItems = asList(
-				new LogItem(0, 1, 1, 1, 10, 1, 1, 0.14, 1, 0),
-				new LogItem(1, 1, 1, 1, 20, 3, 1, 0.12, 2, 2),
-				new LogItem(2, 1, 1, 1, 15, 2, 0, 0.22, 1, 3),
-				new LogItem(3, 1, 1, 1, 30, 5, 2, 0.30, 3, 4),
-				new LogItem(1, 2, 2, 2, 100, 5, 0, 0.36, 10, 0),
-				new LogItem(1, 3, 3, 3, 80, 5, 0, 0.60, 1, 8));
-		StreamProducers.OfIterator<LogItem> producerOfRandomLogItems =
-				new StreamProducers.OfIterator<>(eventloop, logItems.iterator());
+		List<LogItem> logItemsForAdvertisersAggregations = asList(
+				new LogItem(1, 1, 1, 1, 20, 3, 1, 0.12, 2, 2, 0, 0),
+				new LogItem(2, 1, 1, 1, 15, 2, 0, 0.22, 1, 3, 0, 0),
+				new LogItem(3, 1, 1, 1, 30, 5, 2, 0.30, 3, 4, 0, 0),
+				new LogItem(1, 2, 2, 2, 100, 5, 0, 0.36, 10, 0, 0, 0),
+				new LogItem(1, 3, 3, 3, 80, 5, 0, 0.60, 1, 8, 0, 0));
+
+		List<LogItem> logItemsForAffiliatesAggregation = asList(
+				new LogItem(1, 0, 0, 0, 0, 3, 1, 0.12, 0, 2, 1, 3),
+				new LogItem(1, 0, 0, 0, 15, 2, 0, 0.22, 0, 3, 2, 3),
+				new LogItem(1, 0, 0, 0, 30, 5, 2, 0.30, 0, 4, 2, 3),
+				new LogItem(1, 0, 0, 0, 100, 5, 0, 0.36, 0, 0, 3, 2),
+				new LogItem(1, 0, 0, 0, 80, 5, 0, 0.60, 0, 8, 4, 1));
+
+		StreamProducers.OfIterator<LogItem> producerOfRandomLogItems = new StreamProducers.OfIterator<>(eventloop,
+				concat(logItemsForAdvertisersAggregations, logItemsForAffiliatesAggregation).iterator());
+
 		producerOfRandomLogItems.streamTo(logManager.consumer(LOG_PARTITION_NAME));
 		eventloop.run();
 
@@ -336,7 +359,7 @@ public class ReportingTest {
 		List<Record> records = queryResult.getRecords();
 		assertEquals(2, records.size());
 		assertEquals(newHashSet("date", "advertiser", "campaign"), newHashSet(queryResult.getAttributes()));
-		assertEquals(newHashSet("impressions", "clicks", "ctr"), newHashSet(queryResult.getMeasures()));
+		assertEquals(newHashSet("impressions", "clicks", "ctr", "revenue"), newHashSet(queryResult.getMeasures()));
 		assertEquals(LocalDate.parse("2000-01-03"), records.get(0).get("date"));
 		assertEquals(1, (int) records.get(0).get("advertiser"));
 		assertEquals(2, (long) records.get(0).get("clicks"));
@@ -353,7 +376,7 @@ public class ReportingTest {
 		assertEquals(5, (long) totals.get("clicks"));
 		assertEquals(5.0 / 35.0 * 100.0, (double) totals.get("ctr"), DELTA);
 		assertEquals(newHashSet("campaign", "ctr"), newHashSet(queryResult.getSortedBy()));
-		assertTrue(queryResult.getDrilldowns().isEmpty());
+//		assertTrue(queryResult.getDrilldowns().isEmpty());
 //		assertTrue(queryResult.getAttributes().isEmpty());
 	}
 
@@ -373,7 +396,7 @@ public class ReportingTest {
 	@Test
 	public void testQueryWithNullAttributes() {
 		CubeQuery query = CubeQuery.create()
-				.withAttributes("date", "advertiser.name")
+				.withAttributes("date", "advertiser.name", "advertiser")
 				.withMeasures("impressions")
 				.withOrderings(asc("date"), asc("advertiser.name"))
 				.withHaving(and(
@@ -387,28 +410,25 @@ public class ReportingTest {
 		assertEquals(newHashSet("date", "advertiser", "advertiser.name"), newHashSet(queryResult.getAttributes()));
 		assertEquals(newHashSet("impressions"), newHashSet(queryResult.getMeasures()));
 
-		assertEquals(LocalDate.parse("2000-01-01"), records.get(0).get("date"));
-		assertEquals(1, (int) records.get(0).get("advertiser"));
-		assertEquals("first", (String) records.get(0).get("advertiser.name"));
-		assertEquals(10, (long) records.get(0).get("impressions"));
+		assertEquals(LocalDate.parse("2000-01-02"), records.get(0).get("date"));
+		assertEquals(0, (int) records.get(0).get("advertiser"));
+		assertEquals(null, (String) records.get(0).get("advertiser.name"));
+		assertEquals(225, (long) records.get(0).get("impressions"));
 
 		assertEquals(LocalDate.parse("2000-01-02"), records.get(1).get("date"));
 		assertEquals(2, (int) records.get(1).get("advertiser"));
-		assertEquals(null, (String) records.get(1).get("advertiser.name"));
 		assertEquals(100, (long) records.get(1).get("impressions"));
 
 		assertEquals(LocalDate.parse("2000-01-02"), records.get(2).get("date"));
 		assertEquals(1, (int) records.get(2).get("advertiser"));
-		assertEquals("first", (String) records.get(2).get("advertiser.name"));
 		assertEquals(20, (long) records.get(2).get("impressions"));
 
 		assertEquals(LocalDate.parse("2000-01-03"), records.get(3).get("date"));
 		assertEquals(1, (int) records.get(3).get("advertiser"));
-		assertEquals("first", (String) records.get(3).get("advertiser.name"));
 		assertEquals(15, (long) records.get(3).get("impressions"));
 
 		Record totals = queryResult.getTotals();
-		assertEquals(255, (long) totals.get("impressions"));
+		assertEquals(490, (long) totals.get("impressions"));
 		assertEquals(newHashSet("date", "advertiser.name"), newHashSet(queryResult.getSortedBy()));
 	}
 
@@ -461,7 +481,8 @@ public class ReportingTest {
 				.withMeasures("impressions")
 				.withWhere(eq("advertiser", 2))
 				.withOrderings(asc("advertiser.name"))
-				.withHaving(eq("advertiser.name", null));
+				.withHaving(eq("advertiser.name", null))
+				.withResolveAttributes();
 
 		final QueryResult queryResult = getQueryResult(query);
 
@@ -494,19 +515,27 @@ public class ReportingTest {
 	@Test
 	public void testCustomMeasures() throws Exception {
 		CubeQuery query = CubeQuery.create()
-				.withAttributes("advertiser")
-				.withMeasures("eventCount", "minRevenue", "maxRevenue", "uniqueUserIdsCount", "uniqueUserPercent")
-				.withOrderings(asc("uniqueUserIdsCount"), asc("advertiser"));
+				.withAttributes("date")
+				.withMeasures("eventCount", "minRevenue", "maxRevenue", "uniqueUserIdsCount", "uniqueUserPercent", "clicks")
+				.withOrderings(asc("date"), asc("uniqueUserIdsCount"));
 
 		final QueryResult queryResult = getQueryResult(query);
 
 		List<Record> records = queryResult.getRecords();
-		assertEquals(newHashSet("eventCount", "minRevenue", "maxRevenue", "uniqueUserIdsCount", "uniqueUserPercent"),
+		assertEquals(newHashSet("eventCount", "minRevenue", "maxRevenue", "uniqueUserIdsCount", "uniqueUserPercent", "clicks"),
 				newHashSet(queryResult.getMeasures()));
-		assertEquals(asList("uniqueUserIdsCount", "advertiser"), queryResult.getSortedBy());
 		assertEquals(3, records.size());
 
 		Record r1 = records.get(0);
+		assertEquals(LocalDate.parse("2000-01-02"), r1.get("date"));
+		assertEquals(0.12, (double) r1.get("minRevenue"), DELTA);
+		assertEquals(0.6, (double) r1.get("maxRevenue"), DELTA);
+		assertEquals(8, (int) r1.get("eventCount"));
+		assertEquals(4, (int) r1.get("uniqueUserIdsCount"));
+		assertEquals(50.0, (double) r1.get("uniqueUserPercent"), DELTA);
+
+
+		/*Record r1 = records.get(0);
 		assertEquals(2, (int) r1.get("advertiser"));
 		assertEquals(0.36, (double) r1.get("minRevenue"), DELTA);
 		assertEquals(0.36, (double) r1.get("maxRevenue"), DELTA);
@@ -528,14 +557,15 @@ public class ReportingTest {
 		assertEquals(0.30, (double) r3.get("maxRevenue"), DELTA);
 		assertEquals(4, (int) r3.get("eventCount"));
 		assertEquals(3, (int) r3.get("uniqueUserIdsCount"));
-		assertEquals(3.0 / 4.0 * 100.0, (double) r3.get("uniqueUserPercent"), DELTA);
+		assertEquals(3.0 / 4.0 * 100.0, (double) r3.get("uniqueUserPercent"), DELTA);*/
 
 		Record totals = queryResult.getTotals();
 		assertEquals(0.12, (double) totals.get("minRevenue"), DELTA);
 		assertEquals(0.60, (double) totals.get("maxRevenue"), DELTA);
-		assertEquals(6, (int) totals.get("eventCount"));
-		assertEquals(4, (int) totals.get("uniqueUserIdsCount"));
-		assertEquals(4.0 / 6.0 * 100.0, (double) totals.get("uniqueUserPercent"), DELTA);
+		assertEquals(10, (int) totals.get("eventCount"));
+		assertEquals(5, (int) totals.get("uniqueUserIdsCount"));
+		assertEquals(5 / 10.0 * 100, (double) totals.get("uniqueUserPercent"), DELTA);
+		assertEquals(40 , (long) totals.get("clicks"));
 	}
 
 	@Test
