@@ -56,7 +56,8 @@ import java.util.concurrent.Executors;
 
 import static com.google.common.collect.Iterables.concat;
 import static com.google.common.collect.Lists.newArrayList;
-import static com.google.common.collect.Sets.*;
+import static com.google.common.collect.Sets.newHashSet;
+import static com.google.common.collect.Sets.newLinkedHashSet;
 import static io.datakernel.aggregation.AggregationPredicates.*;
 import static io.datakernel.aggregation.fieldtype.FieldTypes.*;
 import static io.datakernel.aggregation.measure.Measures.*;
@@ -93,11 +94,28 @@ public class ReportingTest {
 
 	private static final int SERVER_PORT = 50001;
 
-	private static final Map<String, FieldType> DIMENSIONS = ImmutableMap.<String, FieldType>builder()
+	private static final Map<String, FieldType> DIMENSIONS_CUBE = ImmutableMap.<String, FieldType>builder()
 			.put("date", ofLocalDate(LocalDate.parse("2000-01-01")))
 			.put("advertiser", ofInt())
 			.put("campaign", ofInt())
 			.put("banner", ofInt())
+			.put("affiliate", ofInt())
+			.put("site", ofInt())
+			.build();
+
+	private static final Map<String, FieldType> DIMENSIONS_DATE_AGGREGATION = ImmutableMap.<String, FieldType>builder()
+			.put("date", ofLocalDate(LocalDate.parse("2000-01-01")))
+			.build();
+
+	private static final Map<String, FieldType> DIMENSIONS_ADVERTISERS_AGGREGATION = ImmutableMap.<String, FieldType>builder()
+			.put("date", ofLocalDate(LocalDate.parse("2000-01-01")))
+			.put("advertiser", ofInt())
+			.put("campaign", ofInt())
+			.put("banner", ofInt())
+			.build();
+
+	private static final Map<String, FieldType> DIMENSIONS_AFFILIATES_AGGREGATION = ImmutableMap.<String, FieldType>builder()
+			.put("date", ofLocalDate(LocalDate.parse("2000-01-01")))
 			.put("affiliate", ofInt())
 			.put("site", ofInt())
 			.build();
@@ -188,7 +206,7 @@ public class ReportingTest {
 		@Serialize(order = 6)
 		public long conversions;
 
-		@Measures({"minRevenue", "maxRevenue"})
+		@Measures({"minRevenue", "maxRevenue", "revenue"})
 		@Serialize(order = 7)
 		public double revenue;
 
@@ -236,16 +254,26 @@ public class ReportingTest {
 			return FACTORY;
 		}
 
-		private StreamDataReceiver<LogItem> logItemAggregator;
+		// TODO(yevhenii) use single streamDataReceiver after refactoring Cube.consumer
+		private StreamDataReceiver<LogItem> advertisersAggregator;
+		private StreamDataReceiver<LogItem> affiliatesAggregator;
 
 		@Override
 		protected void addOutputs() {
-			logItemAggregator = addOutput(LogItem.class);
+			advertisersAggregator = addOutput(LogItem.class);
+//			advertisersAggregator = addOutput(LogItem.class,
+//					scanKeyFields(LogItem.class),
+//					scanMeasureFields(LogItem.class),
+//					and(not(eq("advertiser", 0)), not(eq("campaign", 0)), not(eq("banner", 0))));
+//			affiliatesAggregator = addOutput(LogItem.class,
+//					scanKeyFields(LogItem.class),
+//					scanMeasureFields(LogItem.class),
+//					and(not(eq("affiliate", 0)), not(eq("site", 0))));
 		}
 
 		@Override
 		protected void processItem(LogItem item) {
-			logItemAggregator.onData(item);
+			advertisersAggregator.onData(item);
 		}
 	}
 
@@ -266,24 +294,28 @@ public class ReportingTest {
 
 		Cube cube = Cube.create(eventloop, executor, classLoader, cubeMetadataStorageSql, aggregationChunkStorage)
 				.withClassLoaderCache(CubeClassLoaderCache.create(classLoader, 5))
-				.withDimensions(DIMENSIONS)
+				.withDimensions(DIMENSIONS_CUBE)
 				.withMeasures(MEASURES)
 				.withRelation("campaign", "advertiser")
 				.withRelation("banner", "campaign")
-				.withRelation("errors", "advertiser")
+				.withRelation("site", "affiliate")
 				.withAttribute("advertiser.name", new AdvertiserResolver())
 				.withComputedMeasure("ctr", percent(measure("clicks"), measure("impressions")))
 				.withComputedMeasure("uniqueUserPercent", percent(div(measure("uniqueUserIdsCount"), measure("eventCount"))))
 				.withComputedMeasure("errorsPercent", percent(div(measure("errors"), measure("impressions"))))
-				.withAggregation(id("detailed")
-						.withDimensions(difference(DIMENSIONS.keySet(), newHashSet("affiliate", "site")))
-						.withMeasures(difference(MEASURES.keySet(), newHashSet("revenue", "errors"))))
-//				.withAggregation(id("errors")
-//						.withDimensions(singleton("advertiser"))
-//						.withMeasures(singleton("errors"))
-//						.withPredicate(AggregationPredicates.between("advertiser", 5, 10)))
+
+				.withAggregation(id("advertisers")
+						.withDimensions(DIMENSIONS_ADVERTISERS_AGGREGATION.keySet())
+						.withMeasures(MEASURES.keySet())
+						.withPredicate(not(and(eq("advertiser", 0), eq("campaign", 0), eq("banner", 0)))))
+
 				.withAggregation(id("affiliates")
-						.withDimensions(DIMENSIONS.keySet())
+						.withDimensions(DIMENSIONS_AFFILIATES_AGGREGATION.keySet())
+						.withMeasures(MEASURES.keySet())
+						.withPredicate(not(and(eq("affiliate", 0), eq("site", 0)))))
+
+				.withAggregation(id("daily")
+						.withDimensions(DIMENSIONS_DATE_AGGREGATION.keySet())
 						.withMeasures(MEASURES.keySet()));
 
 		LogToCubeMetadataStorage logToCubeMetadataStorage =
@@ -298,13 +330,18 @@ public class ReportingTest {
 				new LogItem(3, 1, 1, 1, 30, 5, 2, 0.30, 3, 4, 0, 0),
 				new LogItem(1, 2, 2, 2, 100, 5, 0, 0.36, 10, 0, 0, 0),
 				new LogItem(1, 3, 3, 3, 80, 5, 0, 0.60, 1, 8, 0, 0));
+		// totals:          -, -, -, -, 245, 20, 3, 1.6, -, 17, -, -
 
 		List<LogItem> logItemsForAffiliatesAggregation = asList(
 				new LogItem(1, 0, 0, 0, 0, 3, 1, 0.12, 0, 2, 1, 3),
 				new LogItem(1, 0, 0, 0, 15, 2, 0, 0.22, 0, 3, 2, 3),
 				new LogItem(1, 0, 0, 0, 30, 5, 2, 0.30, 0, 4, 2, 3),
 				new LogItem(1, 0, 0, 0, 100, 5, 0, 0.36, 0, 0, 3, 2),
-				new LogItem(1, 0, 0, 0, 80, 5, 0, 0.60, 0, 8, 4, 1));
+				new LogItem(1, 0, 0, 0, 80, 5, 0, 0.60, 0, 8, 4, 1),
+				new LogItem(2, 0, 0, 0, 20, 1, 12, 0.8, 0, 3, 4, 1),
+				new LogItem(2, 0, 0, 0, 30, 2, 13, 0.9, 0, 2, 4, 1),
+				new LogItem(3, 0, 0, 0, 40, 3, 2, 1.0, 0, 1, 4, 1));
+		// totals:          -, -, -, -, 315, 20, 3, 1.6, -, 17, -, -
 
 		StreamProducers.OfIterator<LogItem> producerOfRandomLogItems = new StreamProducers.OfIterator<>(eventloop,
 				concat(logItemsForAdvertisersAggregations, logItemsForAffiliatesAggregation).iterator());
@@ -330,6 +367,8 @@ public class ReportingTest {
 				.withAttribute("advertiser", int.class)
 				.withAttribute("campaign", int.class)
 				.withAttribute("banner", int.class)
+				.withAttribute("affiliate", int.class)
+				.withAttribute("site", int.class)
 				.withAttribute("advertiser.name", String.class)
 				.withMeasure("impressions", long.class)
 				.withMeasure("clicks", long.class)
@@ -397,11 +436,11 @@ public class ReportingTest {
 
 		Record r2 = records.get(1);
 		assertEquals(LocalDate.parse("2000-01-03"), r2.get("date"));
-		assertEquals(15, (long) r2.get("impressions"));
+		assertEquals(65, (long) r2.get("impressions"));
 
 		Record r3 = records.get(2);
 		assertEquals(LocalDate.parse("2000-01-04"), r3.get("date"));
-		assertEquals(30, (long) r3.get("impressions"));
+		assertEquals(70, (long) r3.get("impressions"));
 	}
 
 	@Test
@@ -422,6 +461,7 @@ public class ReportingTest {
 				.withAttributes("date", "advertiser.name", "advertiser")
 				.withMeasures("impressions")
 				.withOrderings(asc("date"), asc("advertiser.name"))
+				.withWhere(between("date", LocalDate.parse("2000-01-01"), LocalDate.parse("2000-01-04")))
 				.withHaving(and(
 						or(eq("advertiser.name", null), regexp("advertiser.name", ".*f.*")),
 						between("date", LocalDate.parse("2000-01-01"), LocalDate.parse("2000-01-03"))));
@@ -453,6 +493,60 @@ public class ReportingTest {
 		Record totals = queryResult.getTotals();
 		assertEquals(490, (long) totals.get("impressions"));
 		assertEquals(newHashSet("date", "advertiser.name"), newHashSet(queryResult.getSortedBy()));
+	}
+
+	@Test
+	public void testQueryByDateAndAdvertiserIncludesAffiliatesMeasuresInTotals() {
+		CubeQuery query = CubeQuery.create()
+				.withAttributes("date", "advertiser")
+				.withMeasures("impressions", "revenue")
+				.withOrderings(asc("date"));
+
+		final QueryResult queryResult = getQueryResult(query);
+
+		List<Record> records = queryResult.getRecords();
+	/*	assertEquals(8, records.size());
+		assertEquals(newHashSet("date", "advertiser"), newHashSet(queryResult.getAttributes()));
+		assertEquals(newHashSet("impressions", "revenue"), newHashSet(queryResult.getMeasures()));
+
+		// Pseudorecord, to be used in totals
+		// aggregating stats from 'affiliates' aggregation for date 2000-01-02
+		assertEquals(LocalDate.parse("2000-01-02"), records.get(0).get("date"));
+		assertEquals(0, (int) records.get(0).get("advertiser"));
+		assertEquals(225, (long) records.get(0).get("impressions"));
+
+		assertEquals(LocalDate.parse("2000-01-02"), records.get(1).get("date"));
+		assertEquals(1, (int) records.get(1).get("advertiser"));
+		assertEquals(20, (long) records.get(1).get("impressions"));
+
+		assertEquals(LocalDate.parse("2000-01-02"), records.get(2).get("date"));
+		assertEquals(2, (int) records.get(2).get("advertiser"));
+		assertEquals(100, (long) records.get(2).get("impressions"));
+
+		assertEquals(LocalDate.parse("2000-01-02"), records.get(3).get("date"));
+		assertEquals(3, (int) records.get(3).get("advertiser"));
+		assertEquals(80, (long) records.get(3).get("impressions"));
+
+		assertEquals(LocalDate.parse("2000-01-03"), records.get(4).get("date"));
+		assertEquals(0, (int) records.get(4).get("advertiser"));
+		assertEquals(50, (long) records.get(4).get("impressions"));
+
+		assertEquals(LocalDate.parse("2000-01-03"), records.get(5).get("date"));
+		assertEquals(1, (int) records.get(5).get("advertiser"));
+		assertEquals(15, (long) records.get(5).get("impressions"));
+
+		assertEquals(LocalDate.parse("2000-01-04"), records.get(6).get("date"));
+		assertEquals(0, (int) records.get(6).get("advertiser"));
+		assertEquals(40, (long) records.get(6).get("impressions"));
+
+		assertEquals(LocalDate.parse("2000-01-04"), records.get(7).get("date"));
+		assertEquals(1, (int) records.get(7).get("advertiser"));
+		assertEquals(30, (long) records.get(7).get("impressions"));*/
+
+		Record totals = queryResult.getTotals();
+		assertEquals(560, (long) totals.get("impressions"));
+		assertEquals(5.9, (double) totals.get("revenue"), DELTA);
+		//	assertEquals(newHashSet("date", "advertiser.name"), newHashSet(queryResult.getSortedBy()));
 	}
 
 	@Test
@@ -584,11 +678,11 @@ public class ReportingTest {
 
 		Record totals = queryResult.getTotals();
 		assertEquals(0.12, (double) totals.get("minRevenue"), DELTA);
-		assertEquals(0.60, (double) totals.get("maxRevenue"), DELTA);
+		assertEquals(1.0, (double) totals.get("maxRevenue"), DELTA);
 		assertEquals(10, (int) totals.get("eventCount"));
 		assertEquals(5, (int) totals.get("uniqueUserIdsCount"));
 		assertEquals(5 / 10.0 * 100, (double) totals.get("uniqueUserPercent"), DELTA);
-		assertEquals(40 , (long) totals.get("clicks"));
+		assertEquals(40, (long) totals.get("clicks"));
 	}
 
 	@Test
