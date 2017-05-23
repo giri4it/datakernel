@@ -381,11 +381,34 @@ public class ReportingTest {
 	}
 
 	@Test
+	public void testImpressionsByDate() throws Exception {
+		CubeQuery query = CubeQuery.create()
+				.withAttributes("date")
+				.withMeasures("impressions");
+
+		final QueryResult queryResult = getQueryResult(query);
+
+		List<Record> records = queryResult.getRecords();
+		assertEquals(3, records.size());
+
+		Record r1 = records.get(0);
+		assertEquals(LocalDate.parse("2000-01-02"), r1.get("date"));
+		assertEquals(425, (long) r1.get("impressions"));
+
+		Record r2 = records.get(1);
+		assertEquals(LocalDate.parse("2000-01-03"), r2.get("date"));
+		assertEquals(15, (long) r2.get("impressions"));
+
+		Record r3 = records.get(2);
+		assertEquals(LocalDate.parse("2000-01-04"), r3.get("date"));
+		assertEquals(30, (long) r3.get("impressions"));
+	}
+
+	@Test
 	public void testBetweenQueryOnPrimitives() throws Exception {
 		CubeQuery query = CubeQuery.create()
-				.withAttributes("advertiser", "advertiser.name")
-				.withMeasures("clicks")
-				.withHaving(and(between("advertiser", 1, 3), alwaysTrue(), alwaysTrue()));
+				.withAttributes("date")
+				.withMeasures("clicks");
 
 		final QueryResult queryResult = getQueryResult(query);
 
