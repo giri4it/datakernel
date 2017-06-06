@@ -20,7 +20,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Predicate;
-import com.google.common.base.Predicates;
 import com.google.common.collect.*;
 import io.datakernel.aggregation.*;
 import io.datakernel.aggregation.AggregationMetadataStorage.LoadedChunks;
@@ -502,54 +501,29 @@ public final class Cube implements ICube, EventloopJmxMBean {
 	 * @return consumer for streaming data to cube
 	 */
 	public <T> StreamConsumer<T> consumer(Class<T> inputClass, Map<String, String> dimensionFields, Map<String, String> measureFields,
-	                                      final AggregationPredicate predicate,
+	                                      final AggregationPredicate dataPredicate,
 	                                      final ResultCallback<Multimap<String, AggregationChunk.NewChunk>> callback) {
 		logger.info("Started consuming data. Dimensions: {}. Measures: {}", dimensionFields.keySet(), measureFields.keySet());
 
 		final StreamSplitter<T> streamSplitter = StreamSplitter.create(eventloop);
 		final AsyncResultsTrackerMultimap<String, AggregationChunk.NewChunk> tracker = ofMultimap(callback);
 
-		for (final Map.Entry<String, AggregationContainer> entry : aggregations.entrySet()) {
-			final String aggregationId = entry.getKey();
-			AggregationContainer container = entry.getValue();
-			final Aggregation aggregation = container.aggregation;
-			if (!all(aggregation.getKeys(), in(dimensionFields.keySet())))
-				continue;
-			// сравнивать с предикатом заливаемых данных
-			// if (AggregationPredicates.and(container.predicate, predicate).simplify() == predicate)
-			// predicate - предикат заливаемых данных
-			// выявит, подходит ли аггрегация
-			// будет применяться ко всем заливаемым данным.
-			// если container predicate != always true -> нужно заливаемые данныe предотфильтрововать и игнорировать
-			// (сгенерировать кодегеном гуавовский предикат для фильтрации)
-			// Stream filter
-			AggregationPredicate intersection = AggregationPredicates.and(container.predicate, predicate.simplify()).simplify();
-
-			if (!intersection.equals(container.predicate))
-				continue;
-
-			Predicate<T> filterPredicate = Predicates.alwaysTrue();
-			StreamFilter<T> filter = StreamFilter.create(eventloop, filterPredicate);
-
-			if (!container.predicate.equals(alwaysTrue())) {
-				filterPredicate = createPredicate(inputClass, predicate, getClassLoader(), fieldTypes);
-				filter = StreamFilter.create(eventloop, filterPredicate);
-			}
+		Map<String, AggregationContainer> compatibleAggregations = getCompatibleAggregations(dimensionFields, measureFields, dataPredicate);
+		for (final Map.Entry<String, AggregationContainer> entry : compatibleAggregations.entrySet()) {
+			final AggregationContainer aggregationContainer = entry.getValue();
+			final Aggregation aggregation = aggregationContainer.aggregation;
 
 			Map<String, String> aggregationKeyFields = filterKeys(dimensionFields, in(aggregation.getKeys()));
-			Map<String, String> aggregationMeasureFields = filterKeys(measureFields, in(container.measures));
-			if (aggregationMeasureFields.isEmpty())
-				continue;
+			Map<String, String> aggregationMeasureFields = filterKeys(measureFields, in(aggregationContainer.measures));
 
 			tracker.startOperation();
-			streamSplitter.newOutput().streamTo(filter.getInput());
 
 			StreamConsumer<T> groupReducer = aggregation.consumer(inputClass,
 					aggregationKeyFields, aggregationMeasureFields,
 					new ResultCallback<List<AggregationChunk.NewChunk>>() {
 						@Override
 						public void onResult(List<AggregationChunk.NewChunk> chunks) {
-							tracker.completeWithResults(aggregationId, chunks);
+							tracker.completeWithResults(entry.getKey(), chunks);
 						}
 
 						@Override
@@ -558,11 +532,43 @@ public final class Cube implements ICube, EventloopJmxMBean {
 						}
 					});
 
-			filter.getOutput().streamTo(groupReducer);
+			final boolean isFilter = !aggregationContainer.predicate.equals(dataPredicate);
+			if (isFilter) {
+				Predicate<T> filterPredicate = createPredicate(inputClass, dataPredicate, getClassLoader(), fieldTypes);
+				StreamFilter<T> filter = StreamFilter.create(eventloop, filterPredicate);
+				streamSplitter.newOutput().streamTo(filter.getInput());
+				filter.getOutput().streamTo(groupReducer);
+			} else {
+				streamSplitter.newOutput().streamTo(groupReducer);
+			}
 		}
 		tracker.shutDown();
 
 		return streamSplitter.getInput();
+	}
+
+	private Map<String, AggregationContainer> getCompatibleAggregations(final Map<String, String> dimensionFields,
+	                                                                    final Map<String, String> measureFields,
+	                                                                    final AggregationPredicate dataPredicate) {
+
+		Map<String, AggregationContainer> compatibleAggregations = newHashMap();
+		for (Map.Entry<String, AggregationContainer> aggregationContainer : aggregations.entrySet()) {
+			final AggregationContainer container = aggregationContainer.getValue();
+			final Aggregation aggregation = container.aggregation;
+			if (!all(aggregation.getKeys(), in(dimensionFields.keySet())))
+				continue;
+
+			AggregationPredicate intersection = AggregationPredicates.and(container.predicate, dataPredicate).simplify();
+
+			if (!intersection.equals(container.predicate))
+				continue;
+
+			Map<String, String> aggregationMeasureFields = filterKeys(measureFields, in(container.measures));
+			if (aggregationMeasureFields.isEmpty())
+				continue;
+			compatibleAggregations.put(aggregationContainer.getKey(), container);
+		}
+		return compatibleAggregations;
 	}
 
 	private Predicate createPredicate(Class<?> inputClass,
@@ -675,18 +681,10 @@ public final class Cube implements ICube, EventloopJmxMBean {
 	}
 
 	List<AggregationContainerWithScore> getCompatibleAggregations(List<String> dimensions,
-	                                                                      List<String> storedMeasures,
-	                                                                      AggregationPredicate where) {
+	                                                              List<String> storedMeasures,
+	                                                              AggregationPredicate where) {
 		where = where.simplify();
 		List<String> allDimensions = newArrayList(concat(dimensions, where.getDimensions()));
-
-/*		AggregationPredicate specifiedWhere = AggregationPredicates.and(newArrayList(concat(singletonList(where),
-				transform(dimensions, new Function<String, AggregationPredicate>() {
-					@Override
-					public AggregationPredicate apply(String input) {
-						return AggregationPredicates.has(input);
-					}
-				})))).simplify();*/
 
 		List<AggregationContainerWithScore> compatibleAggregations = new ArrayList<>();
 		for (AggregationContainer aggregationContainer : aggregations.values()) {
@@ -695,8 +693,8 @@ public final class Cube implements ICube, EventloopJmxMBean {
 			List<String> compatibleMeasures = newArrayList(filter(storedMeasures, in(aggregationContainer.measures)));
 			if (compatibleMeasures.isEmpty())
 				continue;
-			AggregationPredicate specifiedWhereIntersection = AggregationPredicates.and(where, aggregationContainer.predicate).simplify();
-			if (!specifiedWhereIntersection.equals(where))
+			AggregationPredicate whereIntersection = AggregationPredicates.and(where, aggregationContainer.predicate).simplify();
+			if (!whereIntersection.equals(where))
 				continue;
 
 			AggregationQuery aggregationQuery = AggregationQuery.create(dimensions, compatibleMeasures, where);
