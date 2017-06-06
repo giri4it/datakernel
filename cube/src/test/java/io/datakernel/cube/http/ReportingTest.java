@@ -17,6 +17,8 @@
 package io.datakernel.cube.http;
 
 import com.google.common.collect.ImmutableMap;
+import io.datakernel.aggregation.Aggregation;
+import io.datakernel.aggregation.AggregationChunk;
 import io.datakernel.aggregation.AggregationChunkStorage;
 import io.datakernel.aggregation.LocalFsChunkStorage;
 import io.datakernel.aggregation.annotation.Key;
@@ -59,8 +61,6 @@ import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Sets.newHashSet;
 import static com.google.common.collect.Sets.newLinkedHashSet;
 import static io.datakernel.aggregation.AggregationPredicates.*;
-import static io.datakernel.aggregation.AggregationUtils.scanKeyFields;
-import static io.datakernel.aggregation.AggregationUtils.scanMeasureFields;
 import static io.datakernel.aggregation.fieldtype.FieldTypes.*;
 import static io.datakernel.aggregation.measure.Measures.*;
 import static io.datakernel.cube.ComputedMeasures.*;
@@ -84,6 +84,7 @@ public class ReportingTest {
 	private AsyncHttpServer cubeHttpServer;
 	private AsyncHttpClient httpClient;
 	private CubeHttpClient cubeHttpClient;
+	private Cube cube;
 
 	@Rule
 	public TemporaryFolder temporaryFolder = new TemporaryFolder();
@@ -256,31 +257,15 @@ public class ReportingTest {
 			return FACTORY;
 		}
 
-		// TODO(yevhenii) use single streamDataReceiver after refactoring Cube.consumer
-		private StreamDataReceiver<LogItem> advertisersAggregator;
-		private StreamDataReceiver<LogItem> affiliatesAggregator;
 		private StreamDataReceiver<LogItem> dateAggregator;
 
 		@Override
 		protected void addOutputs() {
-			advertisersAggregator = addOutput(LogItem.class,
-					scanKeyFields(LogItem.class),
-					scanMeasureFields(LogItem.class),
-					and(not(eq("advertiser", 0)), not(eq("campaign", 0)), not(eq("banner", 0))));
-			affiliatesAggregator = addOutput(LogItem.class,
-					scanKeyFields(LogItem.class),
-					scanMeasureFields(LogItem.class),
-					and(not(eq("affiliate", 0)), not(eq("site", 0))));
 			dateAggregator = addOutput(LogItem.class);
 		}
 
 		@Override
 		protected void processItem(LogItem item) {
-			if (item.advertiser != 0 && item.campaign != 0 && item.banner != 0) {
-				advertisersAggregator.onData(item);
-			} else if (item.affiliate != 0 && item.site != 0) {
-				affiliatesAggregator.onData(item);
-			}
 			dateAggregator.onData(item);
 		}
 	}
@@ -300,7 +285,7 @@ public class ReportingTest {
 		CubeMetadataStorageSql cubeMetadataStorageSql =
 				CubeMetadataStorageSql.create(eventloop, executor, jooqConfiguration, "processId");
 
-		Cube cube = Cube.create(eventloop, executor, classLoader, cubeMetadataStorageSql, aggregationChunkStorage)
+		cube = Cube.create(eventloop, executor, classLoader, cubeMetadataStorageSql, aggregationChunkStorage)
 				.withClassLoaderCache(CubeClassLoaderCache.create(classLoader, 5))
 				.withDimensions(DIMENSIONS_CUBE)
 				.withMeasures(MEASURES)
@@ -315,12 +300,12 @@ public class ReportingTest {
 				.withAggregation(id("advertisers")
 						.withDimensions(DIMENSIONS_ADVERTISERS_AGGREGATION.keySet())
 						.withMeasures(MEASURES.keySet())
-						.withPredicate(not(and(eq("advertiser", 0), eq("campaign", 0), eq("banner", 0)))))
+						.withPredicate(and(not(eq("advertiser", 0)), not(eq("campaign", 0)), not(eq("banner", 0)))))
 
 				.withAggregation(id("affiliates")
 						.withDimensions(DIMENSIONS_AFFILIATES_AGGREGATION.keySet())
 						.withMeasures(MEASURES.keySet())
-						.withPredicate(not(and(eq("affiliate", 0), eq("site", 0)))))
+						.withPredicate(and(not(eq("affiliate", 0)), not(eq("site", 0)))))
 
 				.withAggregation(id("daily")
 						.withDimensions(DIMENSIONS_DATE_AGGREGATION.keySet())
@@ -334,21 +319,21 @@ public class ReportingTest {
 
 		List<LogItem> logItemsForAdvertisersAggregations = asList(
 				new LogItem(1, 1, 1, 1, 20, 3, 1, 0.12, 2, 2, 0, 0),
-				new LogItem(2, 1, 1, 1, 15, 2, 0, 0.22, 1, 3, 0, 0),
-				new LogItem(3, 1, 1, 1, 30, 5, 2, 0.30, 3, 4, 0, 0),
 				new LogItem(1, 2, 2, 2, 100, 5, 0, 0.36, 10, 0, 0, 0),
-				new LogItem(1, 3, 3, 3, 80, 5, 0, 0.60, 1, 8, 0, 0));
+				new LogItem(1, 3, 3, 3, 80, 5, 0, 0.60, 1, 8, 0, 0),
+				new LogItem(2, 1, 1, 1, 15, 2, 0, 0.22, 1, 3, 0, 0),
+				new LogItem(3, 1, 1, 1, 30, 5, 2, 0.30, 3, 4, 0, 0));
 		// totals:          -, -, -, -, 245, 20, 3, 1.6, -, 17, -, -
 
 		List<LogItem> logItemsForAffiliatesAggregation = asList(
-				new LogItem(1, 0, 0, 0, 0, 3, 1, 0.12, 0, 2, 1, 3),
+				new LogItem(1, 0, 0, 0, 0, 3, 1, 0.12, 0, 2, 1, 3),     //1
 				new LogItem(1, 0, 0, 0, 15, 2, 0, 0.22, 0, 3, 2, 3),
 				new LogItem(1, 0, 0, 0, 30, 5, 2, 0.30, 0, 4, 2, 3),
-				new LogItem(1, 0, 0, 0, 100, 5, 0, 0.36, 0, 0, 3, 2),
-				new LogItem(1, 0, 0, 0, 80, 5, 0, 0.60, 0, 8, 4, 1),
-				new LogItem(2, 0, 0, 0, 20, 1, 12, 0.8, 0, 3, 4, 1),
-				new LogItem(2, 0, 0, 0, 30, 2, 13, 0.9, 0, 2, 4, 1),
-				new LogItem(3, 0, 0, 0, 40, 3, 2, 1.0, 0, 1, 4, 1));
+				new LogItem(1, 0, 0, 0, 100, 5, 0, 0.36, 0, 0, 3, 2),   //2
+				new LogItem(1, 0, 0, 0, 80, 5, 0, 0.60, 0, 8, 4, 1),    //3
+				new LogItem(2, 0, 0, 0, 20, 1, 12, 0.8, 0, 3, 4, 1),    //4
+				new LogItem(2, 0, 0, 0, 30, 2, 13, 0.9, 0, 2, 4, 1),    //5
+				new LogItem(3, 0, 0, 0, 40, 3, 2, 1.0, 0, 1, 4, 1));    //6
 		// totals:          -, -, -, -, 315, 20, 3, 1.6, -, 17, -, -
 
 		StreamProducers.OfIterator<LogItem> producerOfRandomLogItems = new StreamProducers.OfIterator<>(eventloop,
@@ -382,7 +367,7 @@ public class ReportingTest {
 				.withMeasure("clicks", long.class)
 				.withMeasure("conversions", long.class)
 				.withMeasure("revenue", double.class)
-				.withMeasure("errors", double.class)
+				.withMeasure("errors", long.class)
 				.withMeasure("eventCount", int.class)
 				.withMeasure("minRevenue", double.class)
 				.withMeasure("maxRevenue", double.class)
@@ -651,7 +636,7 @@ public class ReportingTest {
 		CubeQuery query = CubeQuery.create()
 				.withAttributes("advertiser.name")
 				.withMeasures("clicks")
-				.withWhere(not(and(eq("advertiser", 0), eq("campaign", 0),eq("banner", 0))))
+				.withWhere(not(and(eq("advertiser", 0), eq("campaign", 0), eq("banner", 0))))
 				.withHaving(or(regexp("advertiser.name", ".*s.*"), eq("advertiser.name", null)));
 
 		final QueryResult queryResult = getQueryResult(query);
@@ -695,7 +680,7 @@ public class ReportingTest {
 		assertEquals(0.9, (double) r2.get("maxRevenue"), DELTA);
 		assertEquals(3, (int) r2.get("eventCount"));
 		assertEquals(2, (int) r2.get("uniqueUserIdsCount"));
-		assertEquals(2.0/3.0 * 100, (double) r2.get("uniqueUserPercent"), DELTA);
+		assertEquals(2.0 / 3.0 * 100, (double) r2.get("uniqueUserPercent"), DELTA);
 
 		Record r3 = records.get(2);
 		assertEquals(LocalDate.parse("2000-01-04"), r3.get("date"));
@@ -781,6 +766,78 @@ public class ReportingTest {
 		final QueryResult metadata = getQueryResult(queryAffectingNonCompatibleAggregations);
 		List<String> expectedMeasures = newArrayList("impressions", "clicks");
 		assertEquals(expectedMeasures, metadata.getMeasures());
+	}
+
+	@Test
+	public void testDataCorrectlyLoadedIntoAggregations() {
+		Aggregation daily = cube.getAggregation("daily");
+		int dailyAggregationItemsCount = getAggregationItemsCount(daily);
+		assertEquals(3, dailyAggregationItemsCount);
+
+		Aggregation advertisers = cube.getAggregation("advertisers");
+		int advertisersAggregationItemsCount = getAggregationItemsCount(advertisers);
+		assertEquals(5, advertisersAggregationItemsCount);
+
+		Aggregation affiliates = cube.getAggregation("affiliates");
+		int affiliatesAggregationItemsCount = getAggregationItemsCount(affiliates);
+		assertEquals(6, affiliatesAggregationItemsCount);
+	}
+
+	@Test
+	public void testTotalsConsistency() {
+		CubeQuery queryAdvertisers = CubeQuery.create()
+				.withAttributes("date", "advertiser")
+				.withMeasures(newArrayList("clicks", "impressions", "revenue", "errors"))
+				.withWhere(and(not(eq("advertiser", 0)), not(eq("campaign", 0)), not(eq("banner", 0)),
+						between("date", LocalDate.parse("2000-01-02"), LocalDate.parse("2000-01-02"))));
+
+		final QueryResult resultByAdvertisers = getQueryResult(queryAdvertisers);
+
+		Record advertisersTotals = resultByAdvertisers.getTotals();
+		long advertisersImpressions = (long) advertisersTotals.get("impressions");
+		long advertisersClicks = (long) advertisersTotals.get("clicks");
+		double advertisersRevenue = (double) advertisersTotals.get("revenue");
+		long advertisersErrors = (long) advertisersTotals.get("errors");
+		assertEquals(200, advertisersImpressions);
+		assertEquals(13, advertisersClicks);
+		assertEquals(1.08, advertisersRevenue, Double.MIN_VALUE);
+		assertEquals(10, advertisersErrors);
+
+		CubeQuery queryAffiliates = CubeQuery.create()
+				.withAttributes("date", "affiliate", "site")
+				.withMeasures(newArrayList("clicks", "impressions", "revenue", "errors"))
+				.withWhere(and(not(eq("affiliate", 0)), not(eq("site", 0)),
+						between("date", LocalDate.parse("2000-01-02"), LocalDate.parse("2000-01-02"))));
+
+
+		final QueryResult resultByAffiliates = cubeHttpClient.query(queryAffiliates);
+		eventloop.run();
+
+		Record affiliatesTotals = resultByAffiliates.getTotals();
+		long affiliatesImpressions = (long) affiliatesTotals.get("impressions");
+		long affiliatesClicks = (long) affiliatesTotals.get("clicks");
+		double affiliatesRevenue = (double) affiliatesTotals.get("revenue");
+		long affiliatesErrors = (long) affiliatesTotals.get("errors");
+		assertEquals(200, affiliatesImpressions);
+		assertEquals(13, affiliatesClicks);
+		assertEquals(1.08, affiliatesRevenue, Double.MIN_VALUE);
+		assertEquals(10, affiliatesErrors);
+
+		CubeQuery queryDaily = CubeQuery.create()
+				.withAttributes("date")
+				.withMeasures(newArrayList("clicks", "impressions", "revenue", "errors"))
+				.withWhere(between("date", LocalDate.parse("2000-01-02"), LocalDate.parse("2000-01-02")));
+
+		final QueryResult resultByDate = getQueryResult(queryAffiliates);
+
+	}
+
+	private static int getAggregationItemsCount(Aggregation aggregation) {
+		int count = 0;
+		for (Map.Entry<Long, AggregationChunk> chunk : aggregation.getMetadata().getChunks().entrySet()) {
+			count += chunk.getValue().getCount();
+		}
+		return count;
 	}
 
 	private QueryResult getQueryResult(CubeQuery query) {

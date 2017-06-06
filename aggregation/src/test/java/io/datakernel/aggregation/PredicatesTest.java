@@ -18,6 +18,9 @@ public class PredicatesTest {
 				and(not(not(and(not(not(eq("date", 20160101))), eq("publisher", 20)))), not(not(eq("publisher", 20)))).simplify());
 		assertEquals(and(eq("date", 20160101), eq("publisher", 20)),
 				and(and(not(not(eq("publisher", 20))), not(not(eq("date", 20160101)))), and(eq("date", 20160101), eq("publisher", 20))).simplify());
+		assertEquals(and(not(eq("affiliate", 0)), not(eq("site", 0)), not(eq("placement", 0)), between("placement", 10, 15)),
+				and(not(eq("affiliate", 0)), not(eq("site", 0)), between("placement", 10, 20),
+						and(not(eq("affiliate", 0)), not(eq("site", 0)), not(eq("placement", 0)), between("placement", 10, 15))).simplify());
 	}
 
 }
