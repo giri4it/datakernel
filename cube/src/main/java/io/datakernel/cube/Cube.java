@@ -1072,80 +1072,6 @@ public final class Cube implements ICube, EventloopJmxMBean {
 				return;
 			}
 
-			if (query.isResolveAttributes()) {
-				Record record = Record.create(recordScheme);
-				final List<Record> resultRecords = newArrayList(record);
-				QueryResult result = QueryResult.create(recordScheme, resultRecords,
-						Record.create(recordScheme), 0, newArrayList(resultAttributes), Collections.<String>emptyList(),
-						resultOrderings, drillDownsAndChains.drilldowns, drillDownsAndChains.chains,
-						Collections.<String, Object>emptyMap(), false, true);
-				resultCallback.setResult(result);
-				StreamConsumers.ToList consumer = StreamConsumers.toList(eventloop);
-				StreamProducer queryResultProducer = queryRawStream(newArrayList(queryDimensions), newArrayList(resultStoredMeasures),
-						queryPredicate, resultClass, queryClassLoader);
-				queryResultProducer.streamTo(consumer);
-
-				consumer.setResultCallback(new ForwardingResultCallback<List<Object>>(resultCallback) {
-					@Override
-					protected void onResult(final List<Object> results) {
-						List<AsyncRunnable> tasks = new ArrayList<>();
-						for (final AttributeResolverContainer resolverContainer : attributeResolvers) {
-							final List<String> attributes = new ArrayList<>(resolverContainer.attributes);
-							attributes.retainAll(resultAttributes);
-							if (!attributes.isEmpty()) {
-								tasks.add(new AsyncRunnable() {
-									@Override
-									public void run(CompletionCallback callback) {
-										Utils.resolveAttributes(results, resolverContainer.resolver,
-												resolverContainer.dimensions, attributes,
-												(Class) resultClass, queryClassLoader, callback);
-									}
-								});
-							}
-						}
-
-						final Map<String, Object> filterAttributes = newLinkedHashMap();
-
-						for (final AttributeResolverContainer resolverContainer : attributeResolvers) {
-							if (fullySpecifiedDimensions.keySet().containsAll(resolverContainer.dimensions)) {
-								tasks.add(new AsyncRunnable() {
-									@Override
-									public void run(CompletionCallback callback) {
-										resolveSpecifiedDimensions(resolverContainer, filterAttributes, callback);
-									}
-								});
-							}
-						}
-
-						runInParallel(eventloop, tasks).run(new ForwardingCompletionCallback(resultCallback) {
-							@Override
-							protected void onComplete() {
-
-								List r = newArrayList(Iterables.filter(results, (Predicate<Object>) havingPredicate));
-
-								List<Record> resultRecords = new ArrayList<>(results.size());
-								for (Object result : r) {
-									Record record = Record.create(recordScheme);
-									recordFunction.copyAttributes(result, record);
-									recordFunction.copyMeasures(result, record);
-									resultRecords.add(record);
-								}
-
-								Record totalRecord = Record.create(recordScheme);
-								// 	recordFunction.copyMeasures(totals, totalRecord);
-
-								QueryResult result = QueryResult.create(recordScheme, r, totalRecord, 0,
-										newArrayList(resultAttributes), newArrayList(queryMeasures), resultOrderings,
-										drillDownsAndChains.drilldowns, drillDownsAndChains.chains,
-										Maps.newHashMap(filterAttributes), false, true);
-								resultCallback.setResult(result);
-							}
-						});
-					}
-				});
-				return;
-			}
-
 			StreamConsumers.ToList consumer = StreamConsumers.toList(eventloop);
 			StreamProducer queryResultProducer = queryRawStream(newArrayList(queryDimensions), newArrayList(resultStoredMeasures),
 					queryPredicate, resultClass, queryClassLoader);
@@ -1367,7 +1293,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 
 			QueryResult result = QueryResult.create(recordScheme, resultRecords, totalRecord, totalCount,
 					newArrayList(resultAttributes), newArrayList(queryMeasures), resultOrderings,
-					drillDownsAndChains.drilldowns, drillDownsAndChains.chains, filterAttributes, false, false);
+					drillDownsAndChains.drilldowns, drillDownsAndChains.chains, filterAttributes, false, true);
 			callback.setResult(result);
 		}
 

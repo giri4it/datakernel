@@ -323,18 +323,16 @@ public class ReportingTest {
 				new LogItem(1, 3, 3, 3, 80, 5, 0, 0.60, 1, 8, 0, 0),
 				new LogItem(2, 1, 1, 1, 15, 2, 0, 0.22, 1, 3, 0, 0),
 				new LogItem(3, 1, 1, 1, 30, 5, 2, 0.30, 3, 4, 0, 0));
-		// totals:          -, -, -, -, 245, 20, 3, 1.6, -, 17, -, -
 
 		List<LogItem> logItemsForAffiliatesAggregation = asList(
-				new LogItem(1, 0, 0, 0, 0, 3, 1, 0.12, 0, 2, 1, 3),     //1
+				new LogItem(1, 0, 0, 0, 10, 3, 1, 0.12, 0, 2, 1, 3),
 				new LogItem(1, 0, 0, 0, 15, 2, 0, 0.22, 0, 3, 2, 3),
 				new LogItem(1, 0, 0, 0, 30, 5, 2, 0.30, 0, 4, 2, 3),
-				new LogItem(1, 0, 0, 0, 100, 5, 0, 0.36, 0, 0, 3, 2),   //2
-				new LogItem(1, 0, 0, 0, 80, 5, 0, 0.60, 0, 8, 4, 1),    //3
-				new LogItem(2, 0, 0, 0, 20, 1, 12, 0.8, 0, 3, 4, 1),    //4
-				new LogItem(2, 0, 0, 0, 30, 2, 13, 0.9, 0, 2, 4, 1),    //5
-				new LogItem(3, 0, 0, 0, 40, 3, 2, 1.0, 0, 1, 4, 1));    //6
-		// totals:          -, -, -, -, 315, 20, 3, 1.6, -, 17, -, -
+				new LogItem(1, 0, 0, 0, 100, 5, 0, 0.36, 0, 0, 3, 2),
+				new LogItem(1, 0, 0, 0, 80, 5, 0, 0.60, 0, 8, 4, 1),
+				new LogItem(2, 0, 0, 0, 20, 1, 12, 0.8, 0, 3, 4, 1),
+				new LogItem(2, 0, 0, 0, 30, 2, 13, 0.9, 0, 2, 4, 1),
+				new LogItem(3, 0, 0, 0, 40, 3, 2, 1.0, 0, 1, 4, 1));
 
 		StreamProducers.OfIterator<LogItem> producerOfRandomLogItems = new StreamProducers.OfIterator<>(eventloop,
 				concat(logItemsForAdvertisersAggregations, logItemsForAffiliatesAggregation).iterator());
@@ -444,7 +442,7 @@ public class ReportingTest {
 	@Test
 	public void testImpressionsByDate() throws Exception {
 		CubeQuery query = CubeQuery.create()
-				.withAttributes("date", "advertiser")
+				.withAttributes("date")
 				.withMeasures("impressions");
 
 		final QueryResult queryResult = getQueryResult(query);
@@ -454,7 +452,7 @@ public class ReportingTest {
 
 		Record r1 = records.get(0);
 		assertEquals(LocalDate.parse("2000-01-02"), r1.get("date"));
-		assertEquals(425, (long) r1.get("impressions"));
+		assertEquals(435, (long) r1.get("impressions"));
 
 		Record r2 = records.get(1);
 		assertEquals(LocalDate.parse("2000-01-03"), r2.get("date"));
@@ -483,7 +481,9 @@ public class ReportingTest {
 				.withAttributes("date", "advertiser.name", "advertiser")
 				.withMeasures("impressions")
 				.withOrderings(asc("date"), asc("advertiser.name"))
-				.withWhere(between("date", LocalDate.parse("2000-01-01"), LocalDate.parse("2000-01-04")))
+				.withWhere(and(
+						between("date", LocalDate.parse("2000-01-01"), LocalDate.parse("2000-01-04")),
+						and(not(eq("advertiser", 0)), not(eq("campaign", 0)), not(eq("banner", 0)))))
 				.withHaving(and(
 						or(eq("advertiser.name", null), regexp("advertiser.name", ".*f.*")),
 						between("date", LocalDate.parse("2000-01-01"), LocalDate.parse("2000-01-03"))));
@@ -491,84 +491,27 @@ public class ReportingTest {
 		final QueryResult queryResult = getQueryResult(query);
 
 		List<Record> records = queryResult.getRecords();
-		assertEquals(4, records.size());
+		assertEquals(3, records.size());
 		assertEquals(newHashSet("date", "advertiser", "advertiser.name"), newHashSet(queryResult.getAttributes()));
 		assertEquals(newHashSet("impressions"), newHashSet(queryResult.getMeasures()));
 
 		assertEquals(LocalDate.parse("2000-01-02"), records.get(0).get("date"));
-		assertEquals(0, (int) records.get(0).get("advertiser"));
+		assertEquals(2, (int) records.get(0).get("advertiser"));
 		assertEquals(null, (String) records.get(0).get("advertiser.name"));
-		assertEquals(225, (long) records.get(0).get("impressions"));
-
-		assertEquals(LocalDate.parse("2000-01-02"), records.get(1).get("date"));
-		assertEquals(2, (int) records.get(1).get("advertiser"));
-		assertEquals(100, (long) records.get(1).get("impressions"));
-
-		assertEquals(LocalDate.parse("2000-01-02"), records.get(2).get("date"));
-		assertEquals(1, (int) records.get(2).get("advertiser"));
-		assertEquals(20, (long) records.get(2).get("impressions"));
-
-		assertEquals(LocalDate.parse("2000-01-03"), records.get(3).get("date"));
-		assertEquals(1, (int) records.get(3).get("advertiser"));
-		assertEquals(15, (long) records.get(3).get("impressions"));
-
-		Record totals = queryResult.getTotals();
-		assertEquals(490, (long) totals.get("impressions"));
-		assertEquals(newHashSet("date", "advertiser.name"), newHashSet(queryResult.getSortedBy()));
-	}
-
-	@Test
-	public void testQueryByDateAndAdvertiserIncludesAffiliatesMeasuresInTotals() {
-		CubeQuery query = CubeQuery.create()
-				.withAttributes("date")
-				.withMeasures("impressions", "revenue")
-				.withOrderings(asc("date"));
-
-		final QueryResult queryResult = getQueryResult(query);
-
-		List<Record> records = queryResult.getRecords();
-		assertEquals(8, records.size());
-		assertEquals(newHashSet("date", "advertiser"), newHashSet(queryResult.getAttributes()));
-		assertEquals(newHashSet("impressions", "revenue"), newHashSet(queryResult.getMeasures()));
-
-		// Pseudorecord, to be used in totals
-		// aggregating stats from 'affiliates' aggregation for date 2000-01-02
-		assertEquals(LocalDate.parse("2000-01-02"), records.get(0).get("date"));
-		assertEquals(0, (int) records.get(0).get("advertiser"));
-		assertEquals(225, (long) records.get(0).get("impressions"));
+		assertEquals(100, (long) records.get(0).get("impressions"));
 
 		assertEquals(LocalDate.parse("2000-01-02"), records.get(1).get("date"));
 		assertEquals(1, (int) records.get(1).get("advertiser"));
 		assertEquals(20, (long) records.get(1).get("impressions"));
 
-		assertEquals(LocalDate.parse("2000-01-02"), records.get(2).get("date"));
-		assertEquals(2, (int) records.get(2).get("advertiser"));
-		assertEquals(100, (long) records.get(2).get("impressions"));
-
-		assertEquals(LocalDate.parse("2000-01-02"), records.get(3).get("date"));
-		assertEquals(3, (int) records.get(3).get("advertiser"));
-		assertEquals(80, (long) records.get(3).get("impressions"));
-
-		assertEquals(LocalDate.parse("2000-01-03"), records.get(4).get("date"));
-		assertEquals(0, (int) records.get(4).get("advertiser"));
-		assertEquals(50, (long) records.get(4).get("impressions"));
-
-		assertEquals(LocalDate.parse("2000-01-03"), records.get(5).get("date"));
-		assertEquals(1, (int) records.get(5).get("advertiser"));
-		assertEquals(15, (long) records.get(5).get("impressions"));
-
-		assertEquals(LocalDate.parse("2000-01-04"), records.get(6).get("date"));
-		assertEquals(0, (int) records.get(6).get("advertiser"));
-		assertEquals(40, (long) records.get(6).get("impressions"));
-
-		assertEquals(LocalDate.parse("2000-01-04"), records.get(7).get("date"));
-		assertEquals(1, (int) records.get(7).get("advertiser"));
-		assertEquals(30, (long) records.get(7).get("impressions"));
+		assertEquals(LocalDate.parse("2000-01-03"), records.get(2).get("date"));
+		assertEquals(1, (int) records.get(2).get("advertiser"));
+		assertEquals(15, (long) records.get(2).get("impressions"));
 
 		Record totals = queryResult.getTotals();
-		assertEquals(560, (long) totals.get("impressions"));
-		assertEquals(5.9, (double) totals.get("revenue"), DELTA);
-		//	assertEquals(newHashSet("date", "advertiser.name"), newHashSet(queryResult.getSortedBy()));
+		// totals evaluated before applying having predicate
+		assertEquals(245, (long) totals.get("impressions"));
+		assertEquals(newHashSet("date", "advertiser.name"), newHashSet(queryResult.getSortedBy()));
 	}
 
 	@Test
@@ -576,6 +519,7 @@ public class ReportingTest {
 		CubeQuery query = CubeQuery.create()
 				.withAttributes("advertiser.name")
 				.withMeasures("impressions")
+				.withWhere(and(not(eq("advertiser", 0)), not(eq("campaign", 0)), not(eq("banner", 0))))
 				.withHaving(or(between("advertiser.name", "a", "z"), eq("advertiser.name", null)));
 
 		final QueryResult queryResult = getQueryResult(query);
@@ -610,7 +554,6 @@ public class ReportingTest {
 		assertEquals(15, (long) records.get(0).get("impressions"));
 		assertEquals(2.0 / 15.0 * 100.0, (double) records.get(0).get("ctr"), DELTA);
 		assertEquals(4, queryResult.getTotalCount());
-
 	}
 
 	@Test
@@ -618,7 +561,7 @@ public class ReportingTest {
 		CubeQuery query = CubeQuery.create()
 				.withAttributes("date", "advertiser.name")
 				.withMeasures("impressions")
-				.withWhere(eq("advertiser", 2))
+				.withWhere(and(eq("advertiser", 2), not(eq("advertiser", 0)), not(eq("campaign", 0)), not(eq("banner", 0))))
 				.withOrderings(asc("advertiser.name"))
 				.withHaving(eq("advertiser.name", null))
 				.withResolveAttributes();
@@ -784,7 +727,7 @@ public class ReportingTest {
 	}
 
 	@Test
-	public void testTotalsConsistency() {
+	public void testAdvertisersAggregationTotals() {
 		CubeQuery queryAdvertisers = CubeQuery.create()
 				.withAttributes("date", "advertiser")
 				.withMeasures(newArrayList("clicks", "impressions", "revenue", "errors"))
@@ -802,34 +745,47 @@ public class ReportingTest {
 		assertEquals(13, advertisersClicks);
 		assertEquals(1.08, advertisersRevenue, Double.MIN_VALUE);
 		assertEquals(10, advertisersErrors);
+	}
 
+	@Test
+	public void testAffiliatesAggregationTotals() {
 		CubeQuery queryAffiliates = CubeQuery.create()
-				.withAttributes("date", "affiliate", "site")
+				.withAttributes("date", "affiliate")
 				.withMeasures(newArrayList("clicks", "impressions", "revenue", "errors"))
 				.withWhere(and(not(eq("affiliate", 0)), not(eq("site", 0)),
 						between("date", LocalDate.parse("2000-01-02"), LocalDate.parse("2000-01-02"))));
 
-
-		final QueryResult resultByAffiliates = cubeHttpClient.query(queryAffiliates);
-		eventloop.run();
+		final QueryResult resultByAffiliates = getQueryResult(queryAffiliates);
 
 		Record affiliatesTotals = resultByAffiliates.getTotals();
 		long affiliatesImpressions = (long) affiliatesTotals.get("impressions");
 		long affiliatesClicks = (long) affiliatesTotals.get("clicks");
 		double affiliatesRevenue = (double) affiliatesTotals.get("revenue");
 		long affiliatesErrors = (long) affiliatesTotals.get("errors");
-		assertEquals(200, affiliatesImpressions);
-		assertEquals(13, affiliatesClicks);
-		assertEquals(1.08, affiliatesRevenue, Double.MIN_VALUE);
-		assertEquals(10, affiliatesErrors);
+		assertEquals(235, affiliatesImpressions);
+		assertEquals(20, affiliatesClicks);
+		assertEquals(1.60, affiliatesRevenue, Double.MIN_VALUE);
+		assertEquals(17, affiliatesErrors);
+	}
 
-		CubeQuery queryDaily = CubeQuery.create()
+	@Test
+	public void testTotalsByDate() {
+		CubeQuery queryDate = CubeQuery.create()
 				.withAttributes("date")
 				.withMeasures(newArrayList("clicks", "impressions", "revenue", "errors"))
 				.withWhere(between("date", LocalDate.parse("2000-01-02"), LocalDate.parse("2000-01-02")));
 
-		final QueryResult resultByDate = getQueryResult(queryAffiliates);
+		final QueryResult resultByDate = getQueryResult(queryDate);
 
+		Record dailyTotals = resultByDate.getTotals();
+		long dailyImpressions = (long) dailyTotals.get("impressions");
+		long dailyClicks = (long) dailyTotals.get("clicks");
+		double dailyRevenue = (double) dailyTotals.get("revenue");
+		long dailyErrors = (long) dailyTotals.get("errors");
+		assertEquals(435, dailyImpressions);
+		assertEquals(33, dailyClicks);
+		assertEquals(2.68, dailyRevenue, Double.MIN_VALUE);
+		assertEquals(27, dailyErrors);
 	}
 
 	private static int getAggregationItemsCount(Aggregation aggregation) {
