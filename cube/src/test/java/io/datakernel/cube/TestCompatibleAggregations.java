@@ -27,6 +27,7 @@ import org.junit.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static io.datakernel.aggregation.AggregationPredicates.*;
@@ -124,6 +125,14 @@ public class TestCompatibleAggregations {
 			.withMeasures(MEASURES.keySet())
 			.withPredicate(DETAILED_AFFILIATES_AGGREGATION_PREDICATE);
 
+	private static final AggregationPredicate LIMITED_DATES_AGGREGATION_PREDICATE =
+			and(between("date", LocalDate.parse("2001-01-01"), LocalDate.parse("2001-01-10")));
+	private static final Cube.AggregationConfig LIMITED_DATES_AGGREGATION = id("detailed_affiliates")
+			.withDimensions(DIMENSIONS_DAILY_AGGREGATION.keySet())
+			.withDimensions("placement")
+			.withMeasures(MEASURES.keySet())
+			.withPredicate(LIMITED_DATES_AGGREGATION_PREDICATE);
+
 	private Cube cube;
 	private Cube cubeWithDetailedAggregation;
 
@@ -155,41 +164,41 @@ public class TestCompatibleAggregations {
 	@Test
 	public void withAlwaysTrueDataPredicate_MatchesAllAggregations() {
 		final AggregationPredicate dataPredicate = alwaysTrue();
-		Map<String, Cube.AggregationContainer> compatibleAggregations =
-				cube.getCompatibleAggregationsForDataInput(DATA_ITEM_DIMENSIONS, DATA_ITEM_MEASURES, dataPredicate);
+		Set<String> compatibleAggregations = cube.getCompatibleAggregationsIntersectionsForDataInput(
+				DATA_ITEM_DIMENSIONS, DATA_ITEM_MEASURES, dataPredicate).keySet();
 
 		assertEquals(3, compatibleAggregations.size());
-		assertTrue(compatibleAggregations.containsKey(DAILY_AGGREGATION.getId()));
-		assertTrue(compatibleAggregations.containsKey(ADVERTISERS_AGGREGATION.getId()));
-		assertTrue(compatibleAggregations.containsKey(AFFILIATES_AGGREGATION.getId()));
+		assertTrue(compatibleAggregations.contains(DAILY_AGGREGATION.getId()));
+		assertTrue(compatibleAggregations.contains(ADVERTISERS_AGGREGATION.getId()));
+		assertTrue(compatibleAggregations.contains(AFFILIATES_AGGREGATION.getId()));
 	}
 
 	@Test
 	public void withCompatibleDataPredicate_MatchesAggregationWithPredicateThatSubsetOfDataPredicate() {
 		final AggregationPredicate dataPredicate = and(not(eq("advertiser", 0)), not(eq("campaign", 0)), not(eq("banner", 0)));
-		Map<String, Cube.AggregationContainer> compatibleAggregations =
-				cube.getCompatibleAggregationsForDataInput(DATA_ITEM_DIMENSIONS, DATA_ITEM_MEASURES, dataPredicate);
+		Set<String> compatibleAggregations = cube.getCompatibleAggregationsIntersectionsForDataInput(
+				DATA_ITEM_DIMENSIONS, DATA_ITEM_MEASURES, dataPredicate).keySet();
 
 		assertEquals(1, compatibleAggregations.size());
-		assertTrue(compatibleAggregations.containsKey(ADVERTISERS_AGGREGATION.getId()));
+		assertTrue(compatibleAggregations.contains(ADVERTISERS_AGGREGATION.getId()));
 	}
 
 	@Test
 	public void withCompatibleDataPredicate_MatchesAggregationWithPredicateThatSubsetOfDataPredicate2() {
 		final AggregationPredicate dataPredicate = and(not(eq("affiliate", 0)), not(eq("site", 0)));
-		Map<String, Cube.AggregationContainer> compatibleAggregations =
-				cube.getCompatibleAggregationsForDataInput(DATA_ITEM_DIMENSIONS, DATA_ITEM_MEASURES, dataPredicate);
+		Set<String> compatibleAggregations = cube.getCompatibleAggregationsIntersectionsForDataInput(
+				DATA_ITEM_DIMENSIONS, DATA_ITEM_MEASURES, dataPredicate).keySet();
 
 		assertEquals(1, compatibleAggregations.size());
-		assertTrue(compatibleAggregations.containsKey(AFFILIATES_AGGREGATION.getId()));
+		assertTrue(compatibleAggregations.contains(AFFILIATES_AGGREGATION.getId()));
 	}
 
 	@Test
 	public void withIncompatibleDataPredicate_DoesNotMatchAnyAggregation() {
 		final AggregationPredicate dataPredicate = and(not(eq("affiliate", 0)), not(eq("site", 0)),
 				between("date", LocalDate.parse("2009-01-01"), LocalDate.parse("2010-01-01")));
-		Map<String, Cube.AggregationContainer> compatibleAggregations =
-				cube.getCompatibleAggregationsForDataInput(DATA_ITEM_DIMENSIONS, DATA_ITEM_MEASURES, dataPredicate);
+		Set<String> compatibleAggregations = cube.getCompatibleAggregationsIntersectionsForDataInput(
+				DATA_ITEM_DIMENSIONS, DATA_ITEM_MEASURES, dataPredicate).keySet();
 
 		assertEquals(0, compatibleAggregations.size());
 	}
@@ -197,23 +206,23 @@ public class TestCompatibleAggregations {
 	@Test
 	public void withCompatibleDataPredicate_MatchesSeveralAggregations() {
 		final AggregationPredicate dataPredicate = and(not(eq("affiliate", 0)), not(eq("site", 0)));
-		Map<String, Cube.AggregationContainer> compatibleAggregations =
-				cubeWithDetailedAggregation.getCompatibleAggregationsForDataInput(DATA_ITEM_DIMENSIONS, DATA_ITEM_MEASURES, dataPredicate);
+		Set<String> compatibleAggregations = cubeWithDetailedAggregation.getCompatibleAggregationsIntersectionsForDataInput(
+				DATA_ITEM_DIMENSIONS, DATA_ITEM_MEASURES, dataPredicate).keySet();
 
 		assertEquals(2, compatibleAggregations.size());
-		assertTrue(compatibleAggregations.containsKey(AFFILIATES_AGGREGATION.getId()));
-		assertTrue(compatibleAggregations.containsKey(DETAILED_AFFILIATES_AGGREGATION.getId()));
+		assertTrue(compatibleAggregations.contains(AFFILIATES_AGGREGATION.getId()));
+		assertTrue(compatibleAggregations.contains(DETAILED_AFFILIATES_AGGREGATION.getId()));
 	}
 
 	@Test
 	public void withCompatibleDataPredicate_MatchesSeveralAggregations2() {
 		final AggregationPredicate dataPredicate = and(not(eq("affiliate", 0)), not(eq("site", 0)));
-		Map<String, Cube.AggregationContainer> compatibleAggregations =
-				cubeWithDetailedAggregation.getCompatibleAggregationsForDataInput(DATA_ITEM_DIMENSIONS, DATA_ITEM_MEASURES, dataPredicate);
+		Set<String> compatibleAggregations = cubeWithDetailedAggregation.getCompatibleAggregationsIntersectionsForDataInput(
+				DATA_ITEM_DIMENSIONS, DATA_ITEM_MEASURES, dataPredicate).keySet();
 
 		assertEquals(2, compatibleAggregations.size());
-		assertTrue(compatibleAggregations.containsKey(AFFILIATES_AGGREGATION.getId()));
-		assertTrue(compatibleAggregations.containsKey(DETAILED_AFFILIATES_AGGREGATION.getId()));
+		assertTrue(compatibleAggregations.contains(AFFILIATES_AGGREGATION.getId()));
+		assertTrue(compatibleAggregations.contains(DETAILED_AFFILIATES_AGGREGATION.getId()));
 	}
 	// endregion
 
