@@ -2,6 +2,9 @@ package io.datakernel.aggregation;
 
 import org.junit.Test;
 
+import java.util.List;
+
+import static com.google.common.collect.Lists.newArrayList;
 import static io.datakernel.aggregation.AggregationPredicates.*;
 import static org.junit.Assert.assertEquals;
 
@@ -22,14 +25,12 @@ public class PredicatesTest {
 
 	@Test
 	public void testPredicateNotEqAndPredicateEqSimplification() {
-		AggregationPredicate expectedIntersection = eq("x", 10);
-		AggregationPredicate actualIntersection = and(notEq("x", 12), eq("x", 10));
-		AggregationPredicate actualIntersection2 = and(eq("x", 10), notEq("x", 12));
-		AggregationPredicate simplifiedActualIntersection = actualIntersection.simplify();
-		AggregationPredicate simplifiedActualIntersection2 = actualIntersection2.simplify();
-		assertEquals(expectedIntersection, simplifiedActualIntersection);
+		AggregationPredicate expected = eq("x", 10);
+		AggregationPredicate actual = and(notEq("x", 12), eq("x", 10));
+		AggregationPredicate actual2 = and(eq("x", 10), notEq("x", 12));
+		assertEquals(expected, actual.simplify());
 		// test symmetry
-		assertEquals(simplifiedActualIntersection, simplifiedActualIntersection2);
+		assertEquals(actual.simplify(), actual2.simplify());
 	}
 
 	@Test
@@ -69,4 +70,39 @@ public class PredicatesTest {
 		assertEquals(eq("x", 2), and(between("x", 1, 2), between("x", 2, 6)).simplify());
 	}
 
+	@Test
+	public void testBetweenPredicatesIntersection_hasNotEqPredicate_WhenPredicateNotEqInRange() {
+		AggregationPredicate predicate;
+		predicate = and(notEq("x", 6), between("x", 5, 10));
+		assertEquals(predicate, predicate.simplify());
+
+		predicate = and(notEq("x", 5), between("x", 5, 10));
+		assertEquals(predicate, predicate.simplify());
+
+		predicate = and(notEq("x", 10), between("x", 5, 10));
+		assertEquals(predicate, predicate.simplify());
+
+		predicate = and(notEq("x", 12), between("x", 5, 10));
+		assertEquals(between("x", 5, 10), predicate.simplify());
+	}
+
+	static class Value {
+		final int x;
+
+		Value(int x) {this.x = x;}
+	}
+
+	@Test
+	public void testPredicateNotEqFiltersPrimitiveCollection() {
+		List<Value> values = newArrayList();
+		values.add(new Value(-1));
+		values.add(new Value(-2));
+		values.add(new Value(-3));
+		values.add(new Value(0));
+		values.add(new Value(0));
+		values.add(new Value(4));
+		values.add(new Value(0));
+
+		notEq("x", 0).createPredicateDef();
+	}
 }

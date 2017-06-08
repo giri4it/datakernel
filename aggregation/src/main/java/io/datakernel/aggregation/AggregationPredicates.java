@@ -144,6 +144,16 @@ public class AggregationPredicates {
 				return alwaysFalse();
 			}
 		});
+		register(PredicateEq.class, PredicateBetween.class, new PredicateSimplifier<PredicateEq, PredicateBetween>() {
+			@Override
+			public AggregationPredicate simplifyAnd(PredicateEq left, PredicateBetween right) {
+				if (!left.key.equals(right.key))
+					return null;
+				if (right.from.compareTo(left.value) <= 0 && right.to.compareTo(left.value) >= 0)
+					return left;
+				return alwaysFalse();
+			}
+		});
 		register(PredicateNotEq.class, PredicateEq.class, new PredicateSimplifier<PredicateNotEq, PredicateEq>() {
 			@Override
 			public AggregationPredicate simplifyAnd(PredicateNotEq left, PredicateEq right) {
@@ -159,18 +169,11 @@ public class AggregationPredicates {
 			public AggregationPredicate simplifyAnd(PredicateNotEq left, PredicateBetween right) {
 				if(!right.key.equals(left.key))
 					return null;
-				if(right.from.compareTo())
+				if(right.from.compareTo(left.value) > 0 && right.to.compareTo(left.value) > 0)
+					return right;
+				if(right.from.compareTo(left.value) < 0 && right.to.compareTo(left.value) < 0)
+					return right;
 				return null;
-			}
-		});
-		register(PredicateEq.class, PredicateBetween.class, new PredicateSimplifier<PredicateEq, PredicateBetween>() {
-			@Override
-			public AggregationPredicate simplifyAnd(PredicateEq left, PredicateBetween right) {
-				if (!left.key.equals(right.key))
-					return null;
-				if (right.from.compareTo(left.value) <= 0 && right.to.compareTo(left.value) >= 0)
-					return left;
-				return alwaysFalse();
 			}
 		});
 		register(PredicateBetween.class, PredicateBetween.class, new PredicateSimplifier<PredicateBetween, PredicateBetween>() {
