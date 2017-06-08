@@ -36,6 +36,7 @@ import static io.datakernel.aggregation.AggregationPredicates.*;
 
 final class AggregationPredicateGsonAdapter extends TypeAdapter<AggregationPredicate> {
 	public static final String EQ = "eq";
+	public static final String NOT_EQ = "notEq";
 	public static final String BETWEEN = "between";
 	public static final String REGEXP = "regexp";
 	public static final String AND = "and";
@@ -65,6 +66,13 @@ final class AggregationPredicateGsonAdapter extends TypeAdapter<AggregationPredi
 	@SuppressWarnings("unchecked")
 	private void writeEq(JsonWriter writer, PredicateEq predicate) throws IOException {
 		writer.name(predicate.getKey());
+		TypeAdapter typeAdapter = attributeAdapters.get(predicate.getKey());
+		typeAdapter.write(writer, predicate.getValue());
+	}
+
+	@SuppressWarnings("unchecked")
+	private void  writeNotEq(JsonWriter writer, PredicateNotEq predicate) throws IOException {
+		writer.value(predicate.getKey());
 		TypeAdapter typeAdapter = attributeAdapters.get(predicate.getKey());
 		typeAdapter.write(writer, predicate.getValue());
 	}
@@ -110,7 +118,10 @@ final class AggregationPredicateGsonAdapter extends TypeAdapter<AggregationPredi
 			writer.endObject();
 		} else {
 			writer.beginArray();
-			if (predicate instanceof PredicateBetween) {
+			if (predicate instanceof PredicateNotEq) {
+				writer.value(NOT_EQ);
+				writeNotEq(writer, (PredicateNotEq) predicate);
+			} else if (predicate instanceof PredicateBetween) {
 				writer.value(BETWEEN);
 				writeBetween(writer, (PredicateBetween) predicate);
 			} else if (predicate instanceof PredicateRegexp) {
@@ -151,6 +162,13 @@ final class AggregationPredicateGsonAdapter extends TypeAdapter<AggregationPredi
 		TypeAdapter typeAdapter = attributeAdapters.get(field);
 		Object value = typeAdapter.read(reader);
 		return eq(field, value);
+	}
+
+	private AggregationPredicate readNotEq(JsonReader reader) throws IOException {
+		String field = reader.nextString();
+		TypeAdapter typeAdapter = attributeAdapters.get(field);
+		Object value = typeAdapter.read(reader);
+		return notEq(field, value);
 	}
 
 	private AggregationPredicate readBetween(JsonReader reader) throws IOException {
@@ -202,6 +220,8 @@ final class AggregationPredicateGsonAdapter extends TypeAdapter<AggregationPredi
 			String type = reader.nextString();
 			if (EQ.equals(type))
 				predicate = readEq(reader);
+			if (NOT_EQ.equals(type))
+				predicate = readNotEq(reader);
 			if (BETWEEN.equals(type))
 				predicate = readBetween(reader);
 			if (REGEXP.equals(type))

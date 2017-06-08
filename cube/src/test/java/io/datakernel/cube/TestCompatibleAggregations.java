@@ -126,8 +126,8 @@ public class TestCompatibleAggregations {
 			.withPredicate(DETAILED_AFFILIATES_AGGREGATION_PREDICATE);
 
 	private static final AggregationPredicate LIMITED_DATES_AGGREGATION_PREDICATE =
-			and(between("date", LocalDate.parse("2001-01-01"), LocalDate.parse("2001-01-10")));
-	private static final Cube.AggregationConfig LIMITED_DATES_AGGREGATION = id("detailed_affiliates")
+			and(between("date", LocalDate.parse("2001-01-01"), LocalDate.parse("2010-01-01")));
+	private static final Cube.AggregationConfig LIMITED_DATES_AGGREGATION = id("limited_date")
 			.withDimensions(DIMENSIONS_DAILY_AGGREGATION.keySet())
 			.withDimensions("placement")
 			.withMeasures(MEASURES.keySet())
@@ -157,14 +157,15 @@ public class TestCompatibleAggregations {
 				.withDimensions(DIMENSIONS_DETAILED_AFFILIATES_AGGREGATION)
 
 				.withAggregations(asList(DAILY_AGGREGATION, ADVERTISERS_AGGREGATION, AFFILIATES_AGGREGATION))
-				.withAggregation(DETAILED_AFFILIATES_AGGREGATION);
+				.withAggregation(DETAILED_AFFILIATES_AGGREGATION)
+				.withAggregation(LIMITED_DATES_AGGREGATION.withPredicate(LIMITED_DATES_AGGREGATION_PREDICATE));
 	}
 
 	// region test getCompatibleAggregationsForQuery for data input
 	@Test
 	public void withAlwaysTrueDataPredicate_MatchesAllAggregations() {
 		final AggregationPredicate dataPredicate = alwaysTrue();
-		Set<String> compatibleAggregations = cube.getCompatibleAggregationsIntersectionsForDataInput(
+		Set<String> compatibleAggregations = cube.getCompatibleAggregationsForDataInput(
 				DATA_ITEM_DIMENSIONS, DATA_ITEM_MEASURES, dataPredicate).keySet();
 
 		assertEquals(3, compatibleAggregations.size());
@@ -176,7 +177,7 @@ public class TestCompatibleAggregations {
 	@Test
 	public void withCompatibleDataPredicate_MatchesAggregationWithPredicateThatSubsetOfDataPredicate() {
 		final AggregationPredicate dataPredicate = and(not(eq("advertiser", 0)), not(eq("campaign", 0)), not(eq("banner", 0)));
-		Set<String> compatibleAggregations = cube.getCompatibleAggregationsIntersectionsForDataInput(
+		Set<String> compatibleAggregations = cube.getCompatibleAggregationsForDataInput(
 				DATA_ITEM_DIMENSIONS, DATA_ITEM_MEASURES, dataPredicate).keySet();
 
 		assertEquals(1, compatibleAggregations.size());
@@ -186,7 +187,7 @@ public class TestCompatibleAggregations {
 	@Test
 	public void withCompatibleDataPredicate_MatchesAggregationWithPredicateThatSubsetOfDataPredicate2() {
 		final AggregationPredicate dataPredicate = and(not(eq("affiliate", 0)), not(eq("site", 0)));
-		Set<String> compatibleAggregations = cube.getCompatibleAggregationsIntersectionsForDataInput(
+		Set<String> compatibleAggregations = cube.getCompatibleAggregationsForDataInput(
 				DATA_ITEM_DIMENSIONS, DATA_ITEM_MEASURES, dataPredicate).keySet();
 
 		assertEquals(1, compatibleAggregations.size());
@@ -197,7 +198,7 @@ public class TestCompatibleAggregations {
 	public void withIncompatibleDataPredicate_DoesNotMatchAnyAggregation() {
 		final AggregationPredicate dataPredicate = and(not(eq("affiliate", 0)), not(eq("site", 0)),
 				between("date", LocalDate.parse("2009-01-01"), LocalDate.parse("2010-01-01")));
-		Set<String> compatibleAggregations = cube.getCompatibleAggregationsIntersectionsForDataInput(
+		Set<String> compatibleAggregations = cube.getCompatibleAggregationsForDataInput(
 				DATA_ITEM_DIMENSIONS, DATA_ITEM_MEASURES, dataPredicate).keySet();
 
 		assertEquals(0, compatibleAggregations.size());
@@ -206,7 +207,7 @@ public class TestCompatibleAggregations {
 	@Test
 	public void withCompatibleDataPredicate_MatchesSeveralAggregations() {
 		final AggregationPredicate dataPredicate = and(not(eq("affiliate", 0)), not(eq("site", 0)));
-		Set<String> compatibleAggregations = cubeWithDetailedAggregation.getCompatibleAggregationsIntersectionsForDataInput(
+		Set<String> compatibleAggregations = cubeWithDetailedAggregation.getCompatibleAggregationsForDataInput(
 				DATA_ITEM_DIMENSIONS, DATA_ITEM_MEASURES, dataPredicate).keySet();
 
 		assertEquals(2, compatibleAggregations.size());
@@ -216,13 +217,24 @@ public class TestCompatibleAggregations {
 
 	@Test
 	public void withCompatibleDataPredicate_MatchesSeveralAggregations2() {
-		final AggregationPredicate dataPredicate = and(not(eq("affiliate", 0)), not(eq("site", 0)));
-		Set<String> compatibleAggregations = cubeWithDetailedAggregation.getCompatibleAggregationsIntersectionsForDataInput(
+		final AggregationPredicate dataPredicate = and(notEq("affiliate", 0), notEq("site", 0));
+		Set<String> compatibleAggregations = cubeWithDetailedAggregation.getCompatibleAggregationsForDataInput(
 				DATA_ITEM_DIMENSIONS, DATA_ITEM_MEASURES, dataPredicate).keySet();
 
 		assertEquals(2, compatibleAggregations.size());
 		assertTrue(compatibleAggregations.contains(AFFILIATES_AGGREGATION.getId()));
 		assertTrue(compatibleAggregations.contains(DETAILED_AFFILIATES_AGGREGATION.getId()));
+	}
+	
+	@Test
+	public void withSubsetBetweenDataPredicate_MatchesAggregation() {
+		final AggregationPredicate dataPredicate = and(notEq("date", LocalDate.parse("2001-01-04")),
+				between("date", LocalDate.parse("2001-01-01"), LocalDate.parse("2004-01-01")));
+
+		Set<String> compatibleAggregations = cubeWithDetailedAggregation.getCompatibleAggregationsForDataInput(
+				DATA_ITEM_DIMENSIONS, DATA_ITEM_MEASURES, dataPredicate).keySet();
+
+		System.out.println(compatibleAggregations);
 	}
 	// endregion
 

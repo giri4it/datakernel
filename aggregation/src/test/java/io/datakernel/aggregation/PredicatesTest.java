@@ -2,9 +2,6 @@ package io.datakernel.aggregation;
 
 import org.junit.Test;
 
-import java.util.List;
-
-import static com.google.common.collect.Lists.newArrayList;
 import static io.datakernel.aggregation.AggregationPredicates.*;
 import static org.junit.Assert.assertEquals;
 
@@ -30,7 +27,7 @@ public class PredicatesTest {
 		AggregationPredicate actual2 = and(eq("x", 10), notEq("x", 12));
 		assertEquals(expected, actual.simplify());
 		// test symmetry
-		assertEquals(actual.simplify(), actual2.simplify());
+		assertEquals(expected, actual2.simplify());
 	}
 
 	@Test
@@ -86,7 +83,7 @@ public class PredicatesTest {
 		assertEquals(between("x", 5, 10), predicate.simplify());
 	}
 
-	static class Value {
+	/*static class Value {
 		final int x;
 
 		Value(int x) {this.x = x;}
@@ -104,5 +101,5 @@ public class PredicatesTest {
 		values.add(new Value(0));
 
 		notEq("x", 0).createPredicateDef();
-	}
+	}*/
 }

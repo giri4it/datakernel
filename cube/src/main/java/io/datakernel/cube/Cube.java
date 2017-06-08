@@ -508,7 +508,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 		final StreamSplitter<T> streamSplitter = StreamSplitter.create(eventloop);
 		final AsyncResultsTrackerMultimap<String, AggregationChunk.NewChunk> tracker = ofMultimap(callback);
 
-		Map<String, AggregationPredicate> compatibleAggregations = getCompatibleAggregationsIntersectionsForDataInput(dimensionFields, measureFields, dataPredicate);
+		Map<String, AggregationPredicate> compatibleAggregations = getCompatibleAggregationsForDataInput(dimensionFields, measureFields, dataPredicate);
 		for (final Map.Entry<String, AggregationPredicate> aggregationWithIntersection : compatibleAggregations.entrySet()) {
 			final AggregationContainer aggregationContainer = aggregations.get(aggregationWithIntersection.getKey());
 			final Aggregation aggregation = aggregationContainer.aggregation;
@@ -547,9 +547,9 @@ public final class Cube implements ICube, EventloopJmxMBean {
 		return streamSplitter.getInput();
 	}
 
-	Map<String, AggregationPredicate> getCompatibleAggregationsIntersectionsForDataInput(final Map<String, String> dimensionFields,
-	                                                                                     final Map<String, String> measureFields,
-	                                                                                     final AggregationPredicate predicate) {
+	Map<String, AggregationPredicate> getCompatibleAggregationsForDataInput(final Map<String, String> dimensionFields,
+	                                                                        final Map<String, String> measureFields,
+	                                                                        final AggregationPredicate predicate) {
 		AggregationPredicate dataPredicate = predicate.simplify();
 		Map<String, AggregationPredicate> compatibleAggregationsWithIntersection = newHashMap();
 		for (Map.Entry<String, AggregationContainer> aggregationContainer : aggregations.entrySet()) {
@@ -559,9 +559,15 @@ public final class Cube implements ICube, EventloopJmxMBean {
 				continue;
 
 			AggregationPredicate containerPredicate = container.predicate.simplify();
+
 			AggregationPredicate intersection = AggregationPredicates.and(containerPredicate, dataPredicate).simplify();
 
-			if (intersection.equals(alwaysFalse()))
+			if (containerPredicate.equals(AggregationPredicates.alwaysTrue())) {
+				compatibleAggregationsWithIntersection.put(aggregationContainer.getKey(), intersection);
+				continue;
+			}
+
+			if (intersection.equals(AggregationPredicates.alwaysFalse()))
 				continue;
 
 			if (!intersection.equals(containerPredicate))
@@ -570,7 +576,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 			Map<String, String> aggregationMeasureFields = filterKeys(measureFields, in(container.measures));
 			if (aggregationMeasureFields.isEmpty())
 				continue;
-			compatibleAggregationsWithIntersection.put(aggregationContainer.getKey(), intersection);
+			compatibleAggregationsWithIntersection.put(aggregationContainer.getKey(), AggregationPredicates.alwaysTrue());
 		}
 		return compatibleAggregationsWithIntersection;
 	}
