@@ -68,7 +68,7 @@ public class PredicatesTest {
 	}
 
 	@Test
-	public void testBetweenPredicatesIntersection_hasNotEqPredicate_WhenPredicateNotEqInRange() {
+	public void testBetweenPredicatesIntersection_hasNotEqPredicate_WhenPredicateNotEq_IsNotInRange() {
 		AggregationPredicate predicate;
 		predicate = and(notEq("x", 6), between("x", 5, 10));
 		assertEquals(predicate, predicate.simplify());

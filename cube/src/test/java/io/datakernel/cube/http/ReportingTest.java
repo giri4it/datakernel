@@ -17,10 +17,7 @@
 package io.datakernel.cube.http;
 
 import com.google.common.collect.ImmutableMap;
-import io.datakernel.aggregation.Aggregation;
-import io.datakernel.aggregation.AggregationChunk;
-import io.datakernel.aggregation.AggregationChunkStorage;
-import io.datakernel.aggregation.LocalFsChunkStorage;
+import io.datakernel.aggregation.*;
 import io.datakernel.aggregation.annotation.Key;
 import io.datakernel.aggregation.annotation.Measures;
 import io.datakernel.aggregation.fieldtype.FieldType;
@@ -43,10 +40,12 @@ import org.joda.time.LocalDate;
 import org.jooq.Configuration;
 import org.jooq.SQLDialect;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -81,6 +80,7 @@ public class ReportingTest {
 	private AsyncHttpClient httpClient;
 	private CubeHttpClient cubeHttpClient;
 	private Cube cube;
+	private static Configuration jooqConfiguration;
 
 	@Rule
 	public TemporaryFolder temporaryFolder = new TemporaryFolder();
@@ -257,7 +257,7 @@ public class ReportingTest {
 
 		@Override
 		protected void addOutputs() {
-			dateAggregator = addOutput(LogItem.class);
+			dateAggregator = addOutput(LogItem.class, AggregationPredicates.notEq("advertiser", 2));
 		}
 
 		@Override
@@ -266,8 +266,13 @@ public class ReportingTest {
 		}
 	}
 
+	@BeforeClass
+	public static void initJooqConfiguration() throws IOException {
+		jooqConfiguration = getJooqConfiguration(DATABASE_PROPERTIES_PATH, DATABASE_DIALECT);
+	}
+
 	@Before
-	public void setUp() throws Exception {
+	public void setUp() throws IOException {
 		ExecutorService executor = Executors.newCachedThreadPool();
 
 		DefiningClassLoader classLoader = DefiningClassLoader.create();
@@ -275,7 +280,6 @@ public class ReportingTest {
 		Path aggregationsDir = temporaryFolder.newFolder().toPath();
 		Path logsDir = temporaryFolder.newFolder().toPath();
 
-		Configuration jooqConfiguration = getJooqConfiguration(DATABASE_PROPERTIES_PATH, DATABASE_DIALECT);
 		AggregationChunkStorage aggregationChunkStorage =
 				LocalFsChunkStorage.create(eventloop, executor, aggregationsDir);
 		CubeMetadataStorageSql cubeMetadataStorageSql =
@@ -296,12 +300,12 @@ public class ReportingTest {
 				.withAggregation(id("advertisers")
 						.withDimensions(DIMENSIONS_ADVERTISERS_AGGREGATION.keySet())
 						.withMeasures(MEASURES.keySet())
-						.withPredicate(and(not(eq("advertiser", 0)), not(eq("campaign", 0)), not(eq("banner", 0)))))
+						.withPredicate(and(notEq("advertiser", 0), notEq("campaign", 0), notEq("banner", 0))))
 
 				.withAggregation(id("affiliates")
 						.withDimensions(DIMENSIONS_AFFILIATES_AGGREGATION.keySet())
 						.withMeasures(MEASURES.keySet())
-						.withPredicate(and(not(eq("affiliate", 0)), not(eq("site", 0)))))
+						.withPredicate(and(notEq("affiliate", 0), notEq("site", 0))))
 
 				.withAggregation(id("daily")
 						.withDimensions(DIMENSIONS_DATE_AGGREGATION.keySet())
@@ -385,19 +389,19 @@ public class ReportingTest {
 		assertEquals(newHashSet("date"), newHashSet(queryResult.getAttributes()));
 		assertEquals(newHashSet("impressions", "clicks", "ctr", "revenue"), newHashSet(queryResult.getMeasures()));
 		assertEquals(LocalDate.parse("2000-01-03"), records.get(0).get("date"));
-		assertEquals(2, (long) records.get(0).get("clicks"));
-		assertEquals(15, (long) records.get(0).get("impressions"));
-		assertEquals(2.0 / 15.0 * 100.0, (double) records.get(0).get("ctr"), DELTA);
+		assertEquals(5, (long) records.get(0).get("clicks"));
+		assertEquals(65, (long) records.get(0).get("impressions"));
+		assertEquals(5.0 / 65.0 * 100.0, (double) records.get(0).get("ctr"), DELTA);
 		assertEquals(LocalDate.parse("2000-01-02"), records.get(1).get("date"));
-		assertEquals(3, (long) records.get(1).get("clicks"));
-		assertEquals(20, (long) records.get(1).get("impressions"));
-		assertEquals(3.0 / 20.0 * 100.0, (double) records.get(1).get("ctr"), DELTA);
+		assertEquals(33, (long) records.get(1).get("clicks"));
+		assertEquals(435, (long) records.get(1).get("impressions"));
+		assertEquals(33.0 / 435.0 * 100.0, (double) records.get(1).get("ctr"), DELTA);
 		assertEquals(2, queryResult.getTotalCount());
 		Record totals = queryResult.getTotals();
-		assertEquals(35, (long) totals.get("impressions"));
-		assertEquals(5, (long) totals.get("clicks"));
-		assertEquals(5.0 / 35.0 * 100.0, (double) totals.get("ctr"), DELTA);
-		assertEquals(newHashSet("campaign", "ctr"), newHashSet(queryResult.getSortedBy()));
+		assertEquals(38, (long) totals.get("clicks"));
+		assertEquals(500, (long) totals.get("impressions"));
+		assertEquals(38.0 / 500.0 * 100.0, (double) totals.get("ctr"), DELTA);
+		assertEquals(newHashSet("date"), newHashSet(queryResult.getSortedBy()));
 	}
 
 	@Test
@@ -477,7 +481,7 @@ public class ReportingTest {
 				.withOrderings(asc("date"), asc("advertiser.name"))
 				.withWhere(and(
 						between("date", LocalDate.parse("2000-01-01"), LocalDate.parse("2000-01-04")),
-						and(not(eq("advertiser", 0)), not(eq("campaign", 0)), not(eq("banner", 0)))))
+						and(notEq("advertiser", 0), notEq("campaign", 0), notEq("banner", 0))))
 				.withHaving(and(
 						or(eq("advertiser.name", null), regexp("advertiser.name", ".*f.*")),
 						between("date", LocalDate.parse("2000-01-01"), LocalDate.parse("2000-01-03"))));
@@ -513,7 +517,7 @@ public class ReportingTest {
 		CubeQuery query = CubeQuery.create()
 				.withAttributes("advertiser.name")
 				.withMeasures("impressions")
-				.withWhere(and(not(eq("advertiser", 0)), not(eq("campaign", 0)), not(eq("banner", 0))))
+				.withWhere(and(notEq("advertiser", 0), notEq("campaign", 0), notEq("banner", 0)))
 				.withHaving(or(between("advertiser.name", "a", "z"), eq("advertiser.name", null)));
 
 		final QueryResult queryResult = getQueryResult(query);
@@ -555,7 +559,7 @@ public class ReportingTest {
 		CubeQuery query = CubeQuery.create()
 				.withAttributes("date", "advertiser.name")
 				.withMeasures("impressions")
-				.withWhere(and(eq("advertiser", 2), not(eq("advertiser", 0)), not(eq("campaign", 0)), not(eq("banner", 0))))
+				.withWhere(and(eq("advertiser", 2), notEq("advertiser", 0), notEq("campaign", 0), notEq("banner", 0)))
 				.withOrderings(asc("advertiser.name"))
 				.withHaving(eq("advertiser.name", null))
 				.withResolveAttributes();
@@ -573,7 +577,7 @@ public class ReportingTest {
 		CubeQuery query = CubeQuery.create()
 				.withAttributes("advertiser.name")
 				.withMeasures("clicks")
-				.withWhere(not(and(eq("advertiser", 0), eq("campaign", 0), eq("banner", 0))))
+				.withWhere(and(not(eq("advertiser", 0)), notEq("campaign", 0), notEq("banner", 0)))
 				.withHaving(or(regexp("advertiser.name", ".*s.*"), eq("advertiser.name", null)));
 
 		final QueryResult queryResult = getQueryResult(query);
@@ -713,7 +717,7 @@ public class ReportingTest {
 		CubeQuery queryAdvertisers = CubeQuery.create()
 				.withAttributes("date", "advertiser")
 				.withMeasures(newArrayList("clicks", "impressions", "revenue", "errors"))
-				.withWhere(and(notEq("advertiser", 0), not(eq("campaign", 0)), not(eq("banner", 0)),
+				.withWhere(and(notEq("advertiser", 0), notEq("campaign", 0), notEq("banner", 0),
 						between("date", LocalDate.parse("2000-01-02"), LocalDate.parse("2000-01-02"))));
 
 		final QueryResult resultByAdvertisers = getQueryResult(queryAdvertisers);
@@ -734,7 +738,7 @@ public class ReportingTest {
 		CubeQuery queryAffiliates = CubeQuery.create()
 				.withAttributes("date", "affiliate")
 				.withMeasures(newArrayList("clicks", "impressions", "revenue", "errors"))
-				.withWhere(and(notEq("affiliate", 0), not(eq("site", 0)),
+				.withWhere(and(notEq("affiliate", 0), notEq("site", 0),
 						between("date", LocalDate.parse("2000-01-02"), LocalDate.parse("2000-01-02"))));
 
 		final QueryResult resultByAffiliates = getQueryResult(queryAffiliates);

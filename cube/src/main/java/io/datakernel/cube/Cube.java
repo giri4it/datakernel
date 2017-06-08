@@ -509,8 +509,8 @@ public final class Cube implements ICube, EventloopJmxMBean {
 		final AsyncResultsTrackerMultimap<String, AggregationChunk.NewChunk> tracker = ofMultimap(callback);
 
 		Map<String, AggregationPredicate> compatibleAggregations = getCompatibleAggregationsForDataInput(dimensionFields, measureFields, dataPredicate);
-		for (final Map.Entry<String, AggregationPredicate> aggregationWithIntersection : compatibleAggregations.entrySet()) {
-			final AggregationContainer aggregationContainer = aggregations.get(aggregationWithIntersection.getKey());
+		for (final Map.Entry<String, AggregationPredicate> aggregationToDataInputFilterPredicate : compatibleAggregations.entrySet()) {
+			final AggregationContainer aggregationContainer = aggregations.get(aggregationToDataInputFilterPredicate.getKey());
 			final Aggregation aggregation = aggregationContainer.aggregation;
 
 			Map<String, String> aggregationKeyFields = filterKeys(dimensionFields, in(aggregation.getKeys()));
@@ -523,7 +523,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 					new ResultCallback<List<AggregationChunk.NewChunk>>() {
 						@Override
 						public void onResult(List<AggregationChunk.NewChunk> chunks) {
-							tracker.completeWithResults(aggregationWithIntersection.getKey(), chunks);
+							tracker.completeWithResults(aggregationToDataInputFilterPredicate.getKey(), chunks);
 						}
 
 						@Override
@@ -532,9 +532,9 @@ public final class Cube implements ICube, EventloopJmxMBean {
 						}
 					});
 
-			final boolean isFilter = !dataPredicate.equals(aggregationWithIntersection.getValue());
-			if (isFilter) {
-				Predicate<T> filterPredicate = createPredicate(inputClass, aggregationWithIntersection.getValue(), getClassLoader(), fieldTypes);
+			AggregationPredicate dataInputFilterPredicate = aggregationToDataInputFilterPredicate.getValue();
+			if (!dataInputFilterPredicate.equals(AggregationPredicates.alwaysTrue())) {
+				Predicate<T> filterPredicate = createPredicate(inputClass, dataInputFilterPredicate, getClassLoader(), fieldTypes);
 				StreamFilter<T> filter = StreamFilter.create(eventloop, filterPredicate);
 				streamSplitter.newOutput().streamTo(filter.getInput());
 				filter.getOutput().streamTo(groupReducer);
@@ -551,34 +551,31 @@ public final class Cube implements ICube, EventloopJmxMBean {
 	                                                                        final Map<String, String> measureFields,
 	                                                                        final AggregationPredicate predicate) {
 		AggregationPredicate dataPredicate = predicate.simplify();
-		Map<String, AggregationPredicate> compatibleAggregationsWithIntersection = newHashMap();
+		Map<String, AggregationPredicate> aggregationToDataInputFilterPredicate = newHashMap();
 		for (Map.Entry<String, AggregationContainer> aggregationContainer : aggregations.entrySet()) {
 			final AggregationContainer container = aggregationContainer.getValue();
 			final Aggregation aggregation = container.aggregation;
 			if (!all(aggregation.getKeys(), in(dimensionFields.keySet())))
 				continue;
 
-			AggregationPredicate containerPredicate = container.predicate.simplify();
-
-			AggregationPredicate intersection = AggregationPredicates.and(containerPredicate, dataPredicate).simplify();
-
-			if (containerPredicate.equals(AggregationPredicates.alwaysTrue())) {
-				compatibleAggregationsWithIntersection.put(aggregationContainer.getKey(), intersection);
-				continue;
-			}
-
-			if (intersection.equals(AggregationPredicates.alwaysFalse()))
-				continue;
-
-			if (!intersection.equals(containerPredicate))
-				continue;
-
 			Map<String, String> aggregationMeasureFields = filterKeys(measureFields, in(container.measures));
 			if (aggregationMeasureFields.isEmpty())
 				continue;
-			compatibleAggregationsWithIntersection.put(aggregationContainer.getKey(), AggregationPredicates.alwaysTrue());
+
+			AggregationPredicate containerPredicate = container.predicate.simplify();
+
+			AggregationPredicate intersection = AggregationPredicates.and(containerPredicate, dataPredicate).simplify();
+			if (intersection.equals(AggregationPredicates.alwaysFalse()))
+				continue;
+
+			if (containerPredicate.equals(AggregationPredicates.alwaysTrue())) {
+				aggregationToDataInputFilterPredicate.put(aggregationContainer.getKey(), AggregationPredicates.alwaysTrue());
+				continue;
+			}
+
+			aggregationToDataInputFilterPredicate.put(aggregationContainer.getKey(), intersection);
 		}
-		return compatibleAggregationsWithIntersection;
+		return aggregationToDataInputFilterPredicate;
 	}
 
 	private Predicate createPredicate(Class<?> inputClass,

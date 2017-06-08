@@ -186,12 +186,17 @@ public class TestCompatibleAggregations {
 
 	@Test
 	public void withCompatibleDataPredicate_MatchesAggregationWithPredicateThatSubsetOfDataPredicate2() {
-		final AggregationPredicate dataPredicate = and(not(eq("affiliate", 0)), not(eq("site", 0)));
-		Set<String> compatibleAggregations = cube.getCompatibleAggregationsForDataInput(
-				DATA_ITEM_DIMENSIONS, DATA_ITEM_MEASURES, dataPredicate).keySet();
+		final AggregationPredicate dataPredicate = and(notEq("affiliate", 0), notEq("site", 0));
+		Map<String, AggregationPredicate> compatibleAggregations = cube.getCompatibleAggregationsForDataInput(
+				DATA_ITEM_DIMENSIONS, DATA_ITEM_MEASURES, dataPredicate);
 
-		assertEquals(1, compatibleAggregations.size());
-		assertTrue(compatibleAggregations.contains(AFFILIATES_AGGREGATION.getId()));
+		assertEquals(2, compatibleAggregations.size());
+
+		assertTrue(compatibleAggregations.containsKey(AFFILIATES_AGGREGATION.getId()));
+		assertEquals(alwaysTrue(), compatibleAggregations.get(AFFILIATES_AGGREGATION.getId()));
+
+		assertTrue(compatibleAggregations.containsKey(DETAILED_AFFILIATES_AGGREGATION.getId()));
+		assertEquals(alwaysTrue(), compatibleAggregations.get(AFFILIATES_AGGREGATION.getId()));
 	}
 
 	@Test
