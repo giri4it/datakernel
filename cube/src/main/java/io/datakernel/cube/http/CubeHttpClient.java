@@ -115,6 +115,10 @@ public final class CubeHttpClient implements ICube {
 			urlParams.put(LIMIT_PARAM, query.getLimit().toString());
 		if (query.getOffset() != null)
 			urlParams.put(OFFSET_PARAM, query.getOffset().toString());
+		if (query.isMetaOnly())
+			urlParams.put(META_ONLY_PARAM, String.valueOf(query.isMetaOnly()));
+		if (query.isResolveAttributes())
+			urlParams.put(RESOLVE_ATTRIBUTES_PARAM, String.valueOf(query.isResolveAttributes()));
 
 		String url = this.url + "/" + "?" + HttpUtils.urlQueryString(urlParams);
 

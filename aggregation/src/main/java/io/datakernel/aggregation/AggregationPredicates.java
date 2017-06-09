@@ -98,6 +98,7 @@ public class AggregationPredicates {
 		register(PredicateAlwaysFalse.class, PredicateAlwaysTrue.class, simplifierAlwaysFalse);
 		register(PredicateAlwaysFalse.class, PredicateNot.class, simplifierAlwaysFalse);
 		register(PredicateAlwaysFalse.class, PredicateEq.class, simplifierAlwaysFalse);
+		register(PredicateAlwaysFalse.class, PredicateNotEq.class, simplifierAlwaysFalse);
 		register(PredicateAlwaysFalse.class, PredicateHas.class, simplifierAlwaysFalse);
 		register(PredicateAlwaysFalse.class, PredicateBetween.class, simplifierAlwaysFalse);
 		register(PredicateAlwaysFalse.class, PredicateRegexp.class, simplifierAlwaysFalse);
@@ -113,6 +114,7 @@ public class AggregationPredicates {
 		register(PredicateAlwaysTrue.class, PredicateAlwaysTrue.class, simplifierAlwaysTrue);
 		register(PredicateAlwaysTrue.class, PredicateNot.class, simplifierAlwaysTrue);
 		register(PredicateAlwaysTrue.class, PredicateEq.class, simplifierAlwaysTrue);
+		register(PredicateAlwaysTrue.class, PredicateNotEq.class, simplifierAlwaysTrue);
 		register(PredicateAlwaysTrue.class, PredicateHas.class, simplifierAlwaysTrue);
 		register(PredicateAlwaysTrue.class, PredicateBetween.class, simplifierAlwaysTrue);
 		register(PredicateAlwaysTrue.class, PredicateRegexp.class, simplifierAlwaysTrue);
@@ -128,7 +130,6 @@ public class AggregationPredicates {
 			}
 		};
 		register(PredicateNot.class, PredicateNot.class, simplifierNot);
-		register(PredicateNot.class, PredicateEq.class, simplifierNot);
 		register(PredicateNot.class, PredicateHas.class, simplifierNot);
 		register(PredicateNot.class, PredicateBetween.class, simplifierNot);
 		register(PredicateNot.class, PredicateRegexp.class, simplifierNot);
@@ -151,6 +152,28 @@ public class AggregationPredicates {
 				if (right.from.compareTo(left.value) <= 0 && right.to.compareTo(left.value) >= 0)
 					return left;
 				return alwaysFalse();
+			}
+		});
+		register(PredicateNotEq.class, PredicateEq.class, new PredicateSimplifier<PredicateNotEq, PredicateEq>() {
+			@Override
+			public AggregationPredicate simplifyAnd(PredicateNotEq left, PredicateEq right) {
+				if (!left.key.equals(right.key))
+					return null;
+				if (!left.value.equals(right.value))
+					return right;
+				return alwaysFalse();
+			}
+		});
+		register(PredicateNotEq.class, PredicateBetween.class, new PredicateSimplifier<PredicateNotEq, PredicateBetween>() {
+			@Override
+			public AggregationPredicate simplifyAnd(PredicateNotEq left, PredicateBetween right) {
+				if(!right.key.equals(left.key))
+					return null;
+				if(right.from.compareTo(left.value) > 0 && right.to.compareTo(left.value) > 0)
+					return right;
+				if(right.from.compareTo(left.value) < 0 && right.to.compareTo(left.value) < 0)
+					return right;
+				return null;
 			}
 		});
 		register(PredicateBetween.class, PredicateBetween.class, new PredicateSimplifier<PredicateBetween, PredicateBetween>() {
@@ -273,6 +296,12 @@ public class AggregationPredicates {
 		public AggregationPredicate simplify() {
 			if (predicate instanceof PredicateNot)
 				return ((PredicateNot) predicate).predicate.simplify();
+
+			if (predicate instanceof PredicateEq)
+				return new PredicateNotEq(((PredicateEq) this.predicate).key, ((PredicateEq) this.predicate).value);
+
+			if (predicate instanceof PredicateNotEq)
+				return new PredicateEq(((PredicateNotEq) this.predicate).key, ((PredicateNotEq) this.predicate).value);
 			return not(predicate.simplify());
 		}
 
@@ -375,6 +404,71 @@ public class AggregationPredicates {
 		@Override
 		public String toString() {
 			return key + '=' + value;
+		}
+	}
+
+	public static final class PredicateNotEq implements AggregationPredicate {
+		final String key;
+		final Object value;
+
+		private PredicateNotEq(String key, Object value) {
+			this.key = key;
+			this.value = value;
+		}
+
+		public String getKey() {
+			return key;
+		}
+
+		public Object getValue() {
+			return value;
+		}
+
+		@Override
+		public AggregationPredicate simplify() {
+			return this;
+		}
+
+		@Override
+		public Set<String> getDimensions() {
+			return singleton(key);
+		}
+
+		@Override
+		public Map<String, Object> getFullySpecifiedDimensions() {
+			return singletonMap(key, value);
+		}
+
+		@SuppressWarnings("unchecked")
+		@Override
+		public PredicateDef createPredicateDef(final Expression record, final Map<String, FieldType> fields) {
+			return (fields.get(key) == null)
+					? Expressions.isNotNull(field(record, key.replace('.', '$')))
+					: Expressions.or(isNull(field(record, key.replace('.', '$')), fields.get(key)),
+					cmpNe(field(record, key.replace('.', '$')), value(toInternalValue(fields, key, value))));
+		}
+
+		@Override
+		public boolean equals(Object o) {
+			if (this == o) return true;
+			if (o == null || getClass() != o.getClass()) return false;
+
+			PredicateNotEq that = (PredicateNotEq) o;
+
+			if (!key.equals(that.key)) return false;
+			return value != null ? value.equals(that.value) : that.value == null;
+		}
+
+		@Override
+		public int hashCode() {
+			int result = key.hashCode();
+			result = 31 * result + (value != null ? value.hashCode() : 0);
+			return result;
+		}
+
+		@Override
+		public String toString() {
+			return key + "!=" + value;
 		}
 	}
 
@@ -771,6 +865,10 @@ public class AggregationPredicates {
 		return new PredicateEq(key, value);
 	}
 
+	public static AggregationPredicate notEq(String key, Object value) {
+		return new PredicateNotEq(key, value);
+	}
+
 	public static AggregationPredicate has(String key) {
 		return new PredicateHas(key);
 	}
@@ -831,6 +929,12 @@ public class AggregationPredicates {
 		return (fieldType != null && fieldType.getInternalDataType().isPrimitive())
 				? Expressions.alwaysTrue()
 				: Expressions.isNotNull(field);
+	}
+
+	private static PredicateDef isNull(Expression field, FieldType fieldType) {
+		return (fieldType != null && fieldType.getInternalDataType().isPrimitive())
+				? Expressions.alwaysFalse()
+				: Expressions.isNull(field);
 	}
 
 	private static Object toInternalValue(Map<String, FieldType> fields, String key, Object value) {

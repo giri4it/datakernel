@@ -539,4 +539,10 @@ public class CubeTest {
 		assertFalse(intersection.equals(query));
 	}
 
+	@Test
+	public void testPredicateNotEq() {
+		AggregationPredicate query = and(eq("x", 1), notEq("x", 1));
+		assertTrue(query.simplify().equals(AggregationPredicates.alwaysFalse()));
+	}
+
 }
