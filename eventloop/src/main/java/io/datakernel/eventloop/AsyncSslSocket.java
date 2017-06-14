@@ -259,6 +259,10 @@ public final class AsyncSslSocket implements AsyncTcpSocket, AsyncTcpSocket.Even
 		} catch (SSLException e) {
 			dstBuf.recycle();
 			throw e;
+		} catch (RuntimeException e) {
+			// https://bugs.openjdk.java.net/browse/JDK-8169970?filter=-4&jql=text%20~%20%22ECDHKeyAgreement%22%20ORDER%20BY%20createdDate%20DESC
+			dstBuf.recycle();
+			throw new SSLException(e);
 		}
 
 		app2engine.ofReadByteBuffer(srcBuffer);
