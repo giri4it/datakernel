@@ -643,7 +643,6 @@ public final class Cube implements ICube, EventloopJmxMBean {
 
 		Class resultKeyClass = createKeyClass(projectKeys(dimensionTypes, dimensions), queryClassLoader);
 
-		CubeQueryPlan queryPlan = CubeQueryPlan.create();
 
 		StreamReducer<Comparable, T, Object> streamReducer = StreamReducer.create(eventloop, Ordering.natural());
 		StreamProducer<T> queryResultProducer = streamReducer.getOutput();
@@ -656,7 +655,6 @@ public final class Cube implements ICube, EventloopJmxMBean {
 				continue;
 			storedMeasures.removeAll(compatibleMeasures);
 
-			queryPlan.addAggregationMeasures(aggregationContainer.aggregation, compatibleMeasures);
 
 			Class aggregationClass = createRecordClass(projectKeys(dimensionTypes, dimensions),
 					measuresAsFields(projectMeasures(measures, compatibleMeasures)), queryClassLoader);
@@ -674,7 +672,6 @@ public final class Cube implements ICube, EventloopJmxMBean {
 				StreamMap streamMap = StreamMap.create(eventloop, mapper);
 				aggregationProducer.streamTo(streamMap.getInput());
 				queryResultProducer = streamMap.getOutput();
-				queryPlan.setOptimizedAwayReducer(true);
 				break;
 			}
 
@@ -687,12 +684,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 
 			aggregationProducer.streamTo(streamReducerInput);
 		}
-
-		if (!storedMeasures.isEmpty()) {
-			logger.info("Could not build query plan for {}. Incomplete plan: {}", storedMeasures, queryPlan);
-		} else {
-			logger.info("Picked following aggregations ({}) for {}", queryPlan.getNumberOfAggregations(), queryPlan);
-		}
+		// TODO: 14.06.17 introduce new query plan
 
 		return queryResultProducer;
 	}
