@@ -173,7 +173,6 @@ public class ReportingTest {
 	public static class LogItem {
 		static final int EXCLUDE_AFFILIATE = 0;
 		static final String EXCLUDE_SITE = "--";
-		static final Object EXCLUDE_PLACEMENT = 0;
 
 		static final int EXCLUDE_ADVERTISER = 0;
 		static final int EXCLUDE_CAMPAIGN = 0;
@@ -636,6 +635,10 @@ public class ReportingTest {
 		String[] attributes = {"date", "advertiser", "advertiser.name"};
 		CubeQuery onlyMetaQuery = CubeQuery.create()
 				.withAttributes(attributes)
+				.withWhere(and(
+						notEq("advertiser", EXCLUDE_ADVERTISER),
+						notEq("banner", EXCLUDE_BANNER),
+						notEq("campaign", EXCLUDE_CAMPAIGN)))
 				.withMeasures("clicks", "ctr", "conversions")
 				.withOrderingDesc("date")
 				.withOrderingAsc("advertiser.name")
@@ -669,6 +672,10 @@ public class ReportingTest {
 		CubeQuery queryAffectingNonCompatibleAggregations = CubeQuery.create()
 				.withAttributes("date", "advertiser")
 				.withMeasures("impressions", "incompatible_measure", "clicks")
+				.withWhere(and(
+						notEq("advertiser", EXCLUDE_ADVERTISER),
+						notEq("campaign", EXCLUDE_CAMPAIGN),
+						notEq("banner", EXCLUDE_BANNER)))
 				.withMetaOnly();
 
 		final QueryResult metadata = getQueryResult(queryAffectingNonCompatibleAggregations);

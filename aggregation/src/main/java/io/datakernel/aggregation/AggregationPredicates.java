@@ -482,6 +482,134 @@ public class AggregationPredicates {
 		}
 	}
 
+	public static final class PredicateLe implements AggregationPredicate {
+		final String key;
+		final Comparable value;
+
+		private PredicateLe(String key, Comparable value) {
+			this.key = key;
+			this.value = value;
+		}
+
+		public String getKey() {
+			return key;
+		}
+
+		public Object getValue() {
+			return value;
+		}
+
+		@Override
+		public AggregationPredicate simplify() {
+			return this;
+		}
+
+		@Override
+		public Set<String> getDimensions() {
+			return singleton(key);
+		}
+
+		@Override
+		public Map<String, Object> getFullySpecifiedDimensions() {
+			return emptyMap();
+		}
+
+		@SuppressWarnings("unchecked")
+		@Override
+		public PredicateDef createPredicateDef(final Expression record, final Map<String, FieldType> fields) {
+			VarField field = field(record, key.replace('.', '$'));
+			return Expressions.and(isNotNull(field, fields.get(key)),
+					cmpLe(field, value(toInternalValue(fields, key, value))));
+		}
+
+		@Override
+		public boolean equals(Object o) {
+			if (this == o) return true;
+			if (o == null || getClass() != o.getClass()) return false;
+
+			PredicateLe that = (PredicateLe) o;
+
+			if (!key.equals(that.key)) return false;
+			return value != null ? value.equals(that.value) : that.value == null;
+		}
+
+		@Override
+		public int hashCode() {
+			int result = key.hashCode();
+			result = 31 * result + (value != null ? value.hashCode() : 0);
+			return result;
+		}
+
+		@Override
+		public String toString() {
+			return key + "<=" + value;
+		}
+	}
+
+	public static final class PredicateGe implements AggregationPredicate {
+		final String key;
+		final Comparable value;
+
+		private PredicateGe(String key, Comparable value) {
+			this.key = key;
+			this.value = value;
+		}
+
+		public String getKey() {
+			return key;
+		}
+
+		public Comparable getValue() {
+			return value;
+		}
+
+		@Override
+		public AggregationPredicate simplify() {
+			return this;
+		}
+
+		@Override
+		public Set<String> getDimensions() {
+			return singleton(key);
+		}
+
+		@Override
+		public Map<String, Object> getFullySpecifiedDimensions() {
+			return emptyMap();
+		}
+
+		@SuppressWarnings("unchecked")
+		@Override
+		public PredicateDef createPredicateDef(final Expression record, final Map<String, FieldType> fields) {
+			VarField field = field(record, key.replace('.', '$'));
+			return Expressions.and(isNotNull(field, fields.get(key)),
+					cmpGe(field, value(toInternalValue(fields, key, value))));
+		}
+
+		@Override
+		public boolean equals(Object o) {
+			if (this == o) return true;
+			if (o == null || getClass() != o.getClass()) return false;
+
+			PredicateGe that = (PredicateGe) o;
+
+			if (!key.equals(that.key)) return false;
+			return value != null ? value.equals(that.value) : that.value == null;
+		}
+
+		@Override
+		public int hashCode() {
+			int result = key.hashCode();
+			result = 31 * result + (value != null ? value.hashCode() : 0);
+			return result;
+		}
+
+		@Override
+		public String toString() {
+			return key + ">=" + value;
+		}
+	}
+
 	public static final class PredicateHas implements AggregationPredicate {
 		final String key;
 
@@ -877,6 +1005,14 @@ public class AggregationPredicates {
 
 	public static AggregationPredicate notEq(String key, Object value) {
 		return new PredicateNotEq(key, value);
+	}
+
+	public static AggregationPredicate ge(String key, Comparable value) {
+		return new PredicateGe(key, value);
+	}
+
+	public static AggregationPredicate le(String key, Comparable value) {
+		return new PredicateLe(key, value);
 	}
 
 	public static AggregationPredicate has(String key) {
