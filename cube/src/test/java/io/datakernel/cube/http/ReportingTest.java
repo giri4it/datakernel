@@ -52,14 +52,12 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import static com.google.common.collect.Iterables.concat;
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Sets.newHashSet;
-import static com.google.common.collect.Sets.newLinkedHashSet;
 import static io.datakernel.aggregation.AggregationPredicates.*;
 import static io.datakernel.aggregation.fieldtype.FieldTypes.*;
 import static io.datakernel.aggregation.measure.Measures.*;
@@ -67,6 +65,7 @@ import static io.datakernel.cube.ComputedMeasures.*;
 import static io.datakernel.cube.Cube.AggregationConfig.id;
 import static io.datakernel.cube.CubeQuery.Ordering.asc;
 import static io.datakernel.cube.CubeTestUtils.*;
+import static io.datakernel.cube.http.ReportingTest.LogItem.*;
 import static io.datakernel.eventloop.FatalErrorHandlers.rethrowOnAnyError;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
@@ -102,7 +101,7 @@ public class ReportingTest {
 			.put("campaign", ofInt())
 			.put("banner", ofInt())
 			.put("affiliate", ofInt())
-			.put("site", ofInt())
+			.put("site", ofString())
 			.build();
 
 	private static final Map<String, FieldType> DIMENSIONS_DATE_AGGREGATION = ImmutableMap.<String, FieldType>builder()
@@ -119,7 +118,7 @@ public class ReportingTest {
 	private static final Map<String, FieldType> DIMENSIONS_AFFILIATES_AGGREGATION = ImmutableMap.<String, FieldType>builder()
 			.put("date", ofLocalDate(LocalDate.parse("2000-01-01")))
 			.put("affiliate", ofInt())
-			.put("site", ofInt())
+			.put("site", ofString())
 			.build();
 
 	private static final Map<String, Measure> MEASURES = ImmutableMap.<String, Measure>builder()
@@ -172,6 +171,14 @@ public class ReportingTest {
 
 	@Measures({"eventCount"})
 	public static class LogItem {
+		static final int EXCLUDE_AFFILIATE = 0;
+		static final String EXCLUDE_SITE = "--";
+		static final Object EXCLUDE_PLACEMENT = 0;
+
+		static final int EXCLUDE_ADVERTISER = 0;
+		static final int EXCLUDE_CAMPAIGN = 0;
+		static final int EXCLUDE_BANNER = 0;
+
 		@Key
 		@Serialize(order = 0)
 		public int date;
@@ -194,7 +201,7 @@ public class ReportingTest {
 
 		@Key
 		@Serialize(order = 11)
-		public int site;
+		public String site;
 
 		@io.datakernel.aggregation.annotation.Measure
 		@Serialize(order = 4)
@@ -224,7 +231,7 @@ public class ReportingTest {
 		}
 
 		public LogItem(int date, int advertiser, int campaign, int banner, long impressions, long clicks,
-		               long conversions, double revenue, int userId, int errors, int affiliate, int site) {
+		               long conversions, double revenue, int userId, int errors, int affiliate, String site) {
 			this.date = date;
 			this.advertiser = advertiser;
 			this.campaign = campaign;
@@ -261,15 +268,15 @@ public class ReportingTest {
 
 		@Override
 		protected void addOutputs() {
-			dateAggregator = addOutput(LogItem.class, and(notEq("advertiser", 0), notEq("campaign", 0), notEq("banner", 0)));
-			dateAggregator2 = addOutput(LogItem.class, and(notEq("affiliate", 0), notEq("site", 0)));
+			dateAggregator = addOutput(LogItem.class, and(notEq("advertiser", EXCLUDE_ADVERTISER), notEq("campaign", EXCLUDE_CAMPAIGN), notEq("banner", EXCLUDE_BANNER)));
+			dateAggregator2 = addOutput(LogItem.class, and(notEq("affiliate", EXCLUDE_AFFILIATE), notEq("site", EXCLUDE_SITE)));
 		}
 
 		@Override
 		protected void processItem(LogItem item) {
-			if(item.advertiser !=0 && item.campaign != 0 && item.banner !=0){
+			if (item.advertiser != EXCLUDE_ADVERTISER && item.campaign != EXCLUDE_CAMPAIGN && item.banner != EXCLUDE_BANNER) {
 				dateAggregator.onData(item);
-			} else if (item.affiliate !=0 && item.site !=0){
+			} else if (item.affiliate != 0 && !EXCLUDE_SITE.equals(item.site)) {
 				dateAggregator2.onData(item);
 			}
 		}
@@ -309,12 +316,12 @@ public class ReportingTest {
 				.withAggregation(id("advertisers")
 						.withDimensions(DIMENSIONS_ADVERTISERS_AGGREGATION.keySet())
 						.withMeasures(MEASURES.keySet())
-						.withPredicate(and(notEq("advertiser", 0), notEq("campaign", 0), notEq("banner", 0))))
+						.withPredicate(and(notEq("advertiser", EXCLUDE_ADVERTISER), notEq("campaign", EXCLUDE_CAMPAIGN), notEq("banner", EXCLUDE_BANNER))))
 
 				.withAggregation(id("affiliates")
 						.withDimensions(DIMENSIONS_AFFILIATES_AGGREGATION.keySet())
 						.withMeasures(MEASURES.keySet())
-						.withPredicate(and(notEq("affiliate", 0), notEq("site", 0))))
+						.withPredicate(and(notEq("affiliate", 0), notEq("site", EXCLUDE_SITE))))
 
 				.withAggregation(id("daily")
 						.withDimensions(DIMENSIONS_DATE_AGGREGATION.keySet())
@@ -327,21 +334,21 @@ public class ReportingTest {
 				LogItemSplitter.factory(), LOG_NAME, LOG_PARTITIONS, logToCubeMetadataStorage);
 
 		List<LogItem> logItemsForAdvertisersAggregations = asList(
-				new LogItem(1, 1, 1, 1, 20, 3, 1, 0.12, 2, 2, 0, 0),
-				new LogItem(1, 2, 2, 2, 100, 5, 0, 0.36, 10, 0, 0, 0),
-				new LogItem(1, 3, 3, 3, 80, 5, 0, 0.60, 1, 8, 0, 0),
-				new LogItem(2, 1, 1, 1, 15, 2, 0, 0.22, 1, 3, 0, 0),
-				new LogItem(3, 1, 1, 1, 30, 5, 2, 0.30, 3, 4, 0, 0));
+				new LogItem(1, 1, 1, 1, 20, 3, 1, 0.12, 2, 2, 0, EXCLUDE_SITE),
+				new LogItem(1, 2, 2, 2, 100, 5, 0, 0.36, 10, 0, 0, EXCLUDE_SITE),
+				new LogItem(1, 3, 3, 3, 80, 5, 0, 0.60, 1, 8, 0, EXCLUDE_SITE),
+				new LogItem(2, 1, 1, 1, 15, 2, 0, 0.22, 1, 3, 0, EXCLUDE_SITE),
+				new LogItem(3, 1, 1, 1, 30, 5, 2, 0.30, 3, 4, 0, EXCLUDE_SITE));
 
 		List<LogItem> logItemsForAffiliatesAggregation = asList(
-				new LogItem(1, 0, 0, 0, 10, 3, 1, 0.12, 0, 2, 1, 3),
-				new LogItem(1, 0, 0, 0, 15, 2, 0, 0.22, 0, 3, 2, 3),
-				new LogItem(1, 0, 0, 0, 30, 5, 2, 0.30, 0, 4, 2, 3),
-				new LogItem(1, 0, 0, 0, 100, 5, 0, 0.36, 0, 0, 3, 2),
-				new LogItem(1, 0, 0, 0, 80, 5, 0, 0.60, 0, 8, 4, 1),
-				new LogItem(2, 0, 0, 0, 20, 1, 12, 0.8, 0, 3, 4, 1),
-				new LogItem(2, 0, 0, 0, 30, 2, 13, 0.9, 0, 2, 4, 1),
-				new LogItem(3, 0, 0, 0, 40, 3, 2, 1.0, 0, 1, 4, 1));
+				new LogItem(1, 0, 0, 0, 10, 3, 1, 0.12, 0, 2, 1, "site3.com"),
+				new LogItem(1, 0, 0, 0, 15, 2, 0, 0.22, 0, 3, 2, "site3.com"),
+				new LogItem(1, 0, 0, 0, 30, 5, 2, 0.30, 0, 4, 2, "site3.com"),
+				new LogItem(1, 0, 0, 0, 100, 5, 0, 0.36, 0, 0, 3, "site2.com"),
+				new LogItem(1, 0, 0, 0, 80, 5, 0, 0.60, 0, 8, 4, "site1.com"),
+				new LogItem(2, 0, 0, 0, 20, 1, 12, 0.8, 0, 3, 4, "site1.com"),
+				new LogItem(2, 0, 0, 0, 30, 2, 13, 0.9, 0, 2, 4, "site1.com"),
+				new LogItem(3, 0, 0, 0, 40, 3, 2, 1.0, 0, 1, 4, "site1.com"));
 
 		StreamProducers.OfIterator<LogItem> producerOfRandomLogItems = new StreamProducers.OfIterator<>(eventloop,
 				concat(logItemsForAdvertisersAggregations, logItemsForAffiliatesAggregation).iterator());
@@ -368,7 +375,7 @@ public class ReportingTest {
 				.withAttribute("campaign", int.class)
 				.withAttribute("banner", int.class)
 				.withAttribute("affiliate", int.class)
-				.withAttribute("site", int.class)
+				.withAttribute("site", String.class)
 				.withAttribute("advertiser.name", String.class)
 				.withMeasure("impressions", long.class)
 				.withMeasure("clicks", long.class)
@@ -421,7 +428,7 @@ public class ReportingTest {
 				.withWhere(and(
 						eq("banner", 1),
 						between("date", LocalDate.parse("2000-01-02"), LocalDate.parse("2000-01-03")),
-						and(notEq("advertiser", 0), notEq("banner", 0), notEq("campaign", 0))))
+						and(notEq("advertiser", EXCLUDE_ADVERTISER), notEq("banner", EXCLUDE_BANNER), notEq("campaign", EXCLUDE_CAMPAIGN))))
 				.withOrderings(asc("ctr"));
 
 		final QueryResult queryResult = getQueryResult(query);
@@ -490,7 +497,7 @@ public class ReportingTest {
 				.withOrderings(asc("date"), asc("advertiser.name"))
 				.withWhere(and(
 						between("date", LocalDate.parse("2000-01-01"), LocalDate.parse("2000-01-04")),
-						and(notEq("advertiser", 0), notEq("campaign", 0), notEq("banner", 0))))
+						and(notEq("advertiser", EXCLUDE_ADVERTISER), notEq("campaign", EXCLUDE_CAMPAIGN), notEq("banner", EXCLUDE_BANNER))))
 				.withHaving(and(
 						or(eq("advertiser.name", null), regexp("advertiser.name", ".*f.*")),
 						between("date", LocalDate.parse("2000-01-01"), LocalDate.parse("2000-01-03"))));
@@ -526,7 +533,7 @@ public class ReportingTest {
 		CubeQuery query = CubeQuery.create()
 				.withAttributes("advertiser.name")
 				.withMeasures("impressions")
-				.withWhere(and(notEq("advertiser", 0), notEq("campaign", 0), notEq("banner", 0)))
+				.withWhere(and(notEq("advertiser", EXCLUDE_ADVERTISER), notEq("campaign", EXCLUDE_CAMPAIGN), notEq("banner", EXCLUDE_BANNER)))
 				.withHaving(or(between("advertiser.name", "a", "z"), eq("advertiser.name", null)));
 
 		final QueryResult queryResult = getQueryResult(query);
@@ -539,40 +546,11 @@ public class ReportingTest {
 	}
 
 	@Test
-	public void testPaginationAndDrillDowns() throws Exception {
-		CubeQuery query = CubeQuery.create()
-				.withAttributes("date")
-				.withMeasures("impressions", "revenue", "ctr")
-				.withLimit(1)
-				.withOffset(2);
-
-		final QueryResult queryResult = getQueryResult(query);
-
-		Set<QueryResult.Drilldown> drilldowns = newLinkedHashSet();
-		drilldowns.add(QueryResult.Drilldown.create(asList("advertiser", "campaign"), newHashSet("revenue", "impressions")));
-		drilldowns.add(QueryResult.Drilldown.create(asList("advertiser"), newHashSet("revenue", "impressions")));
-		drilldowns.add(QueryResult.Drilldown.create(asList("affiliate"), newHashSet("revenue", "impressions")));
-		drilldowns.add(QueryResult.Drilldown.create(asList("advertiser", "campaign", "banner"), newHashSet("revenue", "impressions")));
-		drilldowns.add(QueryResult.Drilldown.create(asList("affiliate", "site"), newHashSet("revenue", "impressions")));
-		assertEquals(drilldowns, newHashSet(queryResult.getDrilldowns()));
-
-		List<Record> records = queryResult.getRecords();
-		assertEquals(1, records.size());
-
-		assertEquals(4, records.get(0).getScheme().getFields().size());
-		assertEquals(LocalDate.parse("2000-01-04"), records.get(0).get("date"));
-		assertEquals(70, (long) records.get(0).get("impressions"));
-		assertEquals(1.3, records.get(0).get("revenue"));
-		assertEquals(8 / 70.0 * 100.0, (double) records.get(0).get("ctr"), DELTA);
-		assertEquals(3, queryResult.getTotalCount());
-	}
-
-	@Test
 	public void testFilterAttributes() throws Exception {
 		CubeQuery query = CubeQuery.create()
 				.withAttributes("date", "advertiser.name")
 				.withMeasures("impressions")
-				.withWhere(and(eq("advertiser", 2), notEq("advertiser", 0), notEq("campaign", 0), notEq("banner", 0)))
+				.withWhere(and(eq("advertiser", 2), notEq("advertiser", EXCLUDE_ADVERTISER), notEq("campaign", EXCLUDE_CAMPAIGN), notEq("banner", EXCLUDE_BANNER)))
 				.withOrderings(asc("advertiser.name"))
 				.withHaving(eq("advertiser.name", null))
 				.withResolveAttributes();
@@ -590,7 +568,7 @@ public class ReportingTest {
 		CubeQuery query = CubeQuery.create()
 				.withAttributes("advertiser.name")
 				.withMeasures("clicks")
-				.withWhere(and(not(eq("advertiser", 0)), notEq("campaign", 0), notEq("banner", 0)))
+				.withWhere(and(not(eq("advertiser", EXCLUDE_ADVERTISER)), notEq("campaign", EXCLUDE_CAMPAIGN), notEq("banner", EXCLUDE_BANNER)))
 				.withHaving(or(regexp("advertiser.name", ".*s.*"), eq("advertiser.name", null)));
 
 		final QueryResult queryResult = getQueryResult(query);
@@ -672,19 +650,7 @@ public class ReportingTest {
 		assertTrue(metadata.getFilterAttributes().isEmpty());
 
 		assertThat(metadata.getAttributes(), containsInAnyOrder(attributes));
-		assertFalse(metadata.getDrilldowns().isEmpty());
-		assertEquals(2, metadata.getDrilldowns().size());
-		assertEquals(1, metadata.getChains().size());
 		assertEquals(2, metadata.getSortedBy().size());
-
-		Set<QueryResult.Drilldown> expectedDrilldowns = newLinkedHashSet();
-		expectedDrilldowns.add(QueryResult.Drilldown.create(asList("campaign"), newLinkedHashSet(asList("conversions", "clicks"))));
-		expectedDrilldowns.add(QueryResult.Drilldown.create(asList("campaign", "banner"), newLinkedHashSet(asList("conversions", "clicks"))));
-		assertTrue(metadata.getDrilldowns().containsAll(expectedDrilldowns));
-
-		Set<List<String>> expectedChains = newHashSet();
-		expectedChains.add(asList("advertiser", "campaign", "banner"));
-		assertTrue(metadata.getChains().containsAll(expectedChains));
 	}
 
 	@Test
@@ -731,7 +697,7 @@ public class ReportingTest {
 		CubeQuery queryAdvertisers = CubeQuery.create()
 				.withAttributes("date", "advertiser")
 				.withMeasures(newArrayList("clicks", "impressions", "revenue", "errors"))
-				.withWhere(and(notEq("advertiser", 0), notEq("campaign", 0), notEq("banner", 0),
+				.withWhere(and(notEq("advertiser", EXCLUDE_ADVERTISER), notEq("campaign", EXCLUDE_CAMPAIGN), notEq("banner", EXCLUDE_BANNER),
 						between("date", LocalDate.parse("2000-01-02"), LocalDate.parse("2000-01-02"))));
 
 		final QueryResult resultByAdvertisers = getQueryResult(queryAdvertisers);
@@ -752,7 +718,7 @@ public class ReportingTest {
 		CubeQuery queryAffiliates = CubeQuery.create()
 				.withAttributes("date", "affiliate")
 				.withMeasures(newArrayList("clicks", "impressions", "revenue", "errors"))
-				.withWhere(and(notEq("affiliate", 0), notEq("site", 0),
+				.withWhere(and(notEq("affiliate", 0), notEq("site", EXCLUDE_SITE),
 						between("date", LocalDate.parse("2000-01-02"), LocalDate.parse("2000-01-02"))));
 
 		final QueryResult resultByAffiliates = getQueryResult(queryAffiliates);
@@ -786,6 +752,19 @@ public class ReportingTest {
 		assertEquals(33, dailyClicks);
 		assertEquals(2.68, dailyRevenue, DELTA);
 		assertEquals(27, dailyErrors);
+	}
+
+	@Test
+	public void testPredicateNotEq() {
+		CubeQuery advertiserNotEqOne = CubeQuery.create()
+				.withAttributes("advertiser")
+				.withMeasures("clicks", "impressions")
+				.withWhere(and(notEq("advertiser", 1), notEq("advertiser", 0), notEq("campaign", 0), notEq("banner", 0)));
+
+		final QueryResult resultAdvertiserNotEqOne = getQueryResult(advertiserNotEqOne);
+		for (Record record : resultAdvertiserNotEqOne.getRecords()) {
+			System.out.println(record.get("advertiser"));
+		}
 	}
 
 	private static int getAggregationItemsCount(Aggregation aggregation) {

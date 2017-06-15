@@ -18,7 +18,10 @@ package io.datakernel.cube;
 
 import com.google.common.base.MoreObjects;
 
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 public final class QueryResult {
 	private final RecordScheme recordScheme;
@@ -30,22 +33,17 @@ public final class QueryResult {
 	private final Record totals;
 	private final int totalCount;
 
-	private final Collection<Drilldown> drilldowns;
-	private final Collection<List<String>> chains;
 	private final Map<String, Object> filterAttributes;
 	private final boolean metaOnly;
 	private boolean resolveAttributes;
 
 	private QueryResult(RecordScheme recordScheme, List<Record> records, Record totals, int totalCount,
 	                    List<String> attributes, List<String> measures, List<String> sortedBy,
-	                    Collection<Drilldown> drilldowns, Collection<List<String>> chains,
 	                    Map<String, Object> filterAttributes, boolean metaOnly, boolean resolveAttributes) {
 		this.recordScheme = recordScheme;
 		this.records = records;
 		this.totals = totals;
 		this.totalCount = totalCount;
-		this.drilldowns = drilldowns;
-		this.chains = chains;
 		this.attributes = attributes;
 		this.measures = measures;
 		this.sortedBy = sortedBy;
@@ -56,10 +54,9 @@ public final class QueryResult {
 
 	public static QueryResult create(RecordScheme recordScheme, List<Record> records, Record totals, int totalCount,
 	                                 List<String> attributes, List<String> measures, List<String> sortedBy,
-	                                 Collection<Drilldown> drilldowns, Collection<List<String>> chains,
 	                                 Map<String, Object> filterAttributes, boolean onlyMeta, boolean resolveAttributes) {
-		return new QueryResult(recordScheme, records, totals, totalCount, attributes, measures, sortedBy, drilldowns,
-				chains, filterAttributes, onlyMeta, resolveAttributes);
+		return new QueryResult(recordScheme, records, totals, totalCount, attributes, measures, sortedBy,
+				filterAttributes, onlyMeta, resolveAttributes);
 	}
 
 	public RecordScheme getRecordScheme() {
@@ -86,14 +83,6 @@ public final class QueryResult {
 		return totalCount;
 	}
 
-	public Collection<Drilldown> getDrilldowns() {
-		return drilldowns;
-	}
-
-	public Collection<List<String>> getChains() {
-		return chains;
-	}
-
 	public Map<String, Object> getFilterAttributes() {
 		return filterAttributes;
 	}
@@ -116,8 +105,6 @@ public final class QueryResult {
 				.add("records", records)
 				.add("totals", totals)
 				.add("count", totalCount)
-				.add("drillDowns", drilldowns)
-				.add("chains", chains)
 				.add("measures", measures)
 				.add("sortedBy", sortedBy)
 				.add("metaOnly", metaOnly)

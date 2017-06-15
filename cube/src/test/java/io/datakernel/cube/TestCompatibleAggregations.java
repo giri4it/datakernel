@@ -75,13 +75,13 @@ public class TestCompatibleAggregations {
 	private static final Map<String, FieldType> DIMENSIONS_AFFILIATES_AGGREGATION = ImmutableMap.<String, FieldType>builder()
 			.put("date", ofLocalDate(LocalDate.parse("2000-01-01")))
 			.put("affiliate", ofInt())
-			.put("site", ofInt())
+			.put("site", ofString())
 			.build();
 
 	private static final Map<String, FieldType> DIMENSIONS_DETAILED_AFFILIATES_AGGREGATION = ImmutableMap.<String, FieldType>builder()
 			.put("date", ofLocalDate(LocalDate.parse("2000-01-01")))
 			.put("affiliate", ofInt())
-			.put("site", ofInt())
+			.put("site", ofString())
 			.put("placement", ofInt())
 			.build();
 
@@ -103,22 +103,30 @@ public class TestCompatibleAggregations {
 			.withMeasures(MEASURES.keySet())
 			.withPredicate(DAILY_AGGREGATION_PREDICATE);
 
+	private static final int EXCLUDE_AFFILIATE = 0;
+	private static final String EXCLUDE_SITE = "--";
+	private static final Object EXCLUDE_PLACEMENT = 0;
+
+	private static final int EXCLUDE_ADVERTISER = 0;
+	private static final int EXCLUDE_CAMPAIGN = 0;
+	private static final int EXCLUDE_BANNER = 0;
+
 	private static final AggregationPredicate ADVERTISER_AGGREGATION_PREDICATE =
-			and(not(eq("advertiser", 0)), not(eq("banner", 0)), not(eq("campaign", 0)));
+			and(not(eq("advertiser", EXCLUDE_ADVERTISER)), not(eq("banner", EXCLUDE_BANNER)), not(eq("campaign", EXCLUDE_CAMPAIGN)));
 	private static final Cube.AggregationConfig ADVERTISERS_AGGREGATION = id("advertisers")
 			.withDimensions(DIMENSIONS_ADVERTISERS_AGGREGATION.keySet())
 			.withMeasures(MEASURES.keySet())
 			.withPredicate(ADVERTISER_AGGREGATION_PREDICATE);
 
 	private static final AggregationPredicate AFFILIATES_AGGREGATION_PREDICATE =
-			and(not(eq("affiliate", 0)), not(eq("site", 0)));
+			and(not(eq("affiliate", EXCLUDE_AFFILIATE)), not(eq("site", EXCLUDE_SITE)));
 	private static final Cube.AggregationConfig AFFILIATES_AGGREGATION = id("affiliates")
 			.withDimensions(DIMENSIONS_AFFILIATES_AGGREGATION.keySet())
 			.withMeasures(MEASURES.keySet())
 			.withPredicate(AFFILIATES_AGGREGATION_PREDICATE);
 
 	private static final AggregationPredicate DETAILED_AFFILIATES_AGGREGATION_PREDICATE =
-			and(notEq("affiliate", 0), not(eq("site", 0)), not(eq("placement", 0)));
+			and(notEq("affiliate", EXCLUDE_AFFILIATE), not(eq("site", EXCLUDE_SITE)), not(eq("placement", EXCLUDE_PLACEMENT)));
 	private static final Cube.AggregationConfig DETAILED_AFFILIATES_AGGREGATION = id("detailed_affiliates")
 			.withDimensions(DIMENSIONS_DETAILED_AFFILIATES_AGGREGATION.keySet())
 			.withMeasures(MEASURES.keySet())
@@ -173,33 +181,27 @@ public class TestCompatibleAggregations {
 
 	@Test
 	public void withCompatibleDataPredicate_MatchesAggregationWithPredicateThatSubsetOfDataPredicate2() {
-		final AggregationPredicate dataPredicate = and(notEq("affiliate", 0), notEq("site", 0));
-		Map<String, AggregationPredicate> compatibleAggregations = cube.getCompatibleAggregationsForDataInput(
+		final AggregationPredicate dataPredicate = and(notEq("affiliate", EXCLUDE_AFFILIATE), notEq("site", EXCLUDE_SITE));
+		Map<String, AggregationPredicate> compatibleAggregationsWithFilterPredicate = cube.getCompatibleAggregationsForDataInput(
 				DATA_ITEM_DIMENSIONS, DATA_ITEM_MEASURES, dataPredicate);
 
-		assertEquals(3, compatibleAggregations.size());
+		assertEquals(3, compatibleAggregationsWithFilterPredicate.size());
 
 		// matches aggregation with optimization
 		// (if dataPredicate equals aggregationPredicate -> do not use stream filter)
-		assertTrue(compatibleAggregations.containsKey(AFFILIATES_AGGREGATION.getId()));
-		assertEquals(alwaysTrue(), compatibleAggregations.get(AFFILIATES_AGGREGATION.getId()));
+		assertTrue(compatibleAggregationsWithFilterPredicate.containsKey(AFFILIATES_AGGREGATION.getId()));
+		assertEquals(alwaysTrue(), compatibleAggregationsWithFilterPredicate.get(AFFILIATES_AGGREGATION.getId()));
 
-		assertTrue(compatibleAggregations.containsKey(ADVERTISERS_AGGREGATION.getId()));
-		AggregationPredicate expected = and(notEq("affiliate", 0),
-				notEq("site", 0),
-				notEq("advertiser", 0),
-				notEq("campaign", 0),
-				notEq("banner", 0)).simplify();
-		assertEquals(expected, compatibleAggregations.get(ADVERTISERS_AGGREGATION.getId()));
+		assertTrue(compatibleAggregationsWithFilterPredicate.containsKey(ADVERTISERS_AGGREGATION.getId()));
+		assertEquals(ADVERTISER_AGGREGATION_PREDICATE.simplify(), compatibleAggregationsWithFilterPredicate.get(ADVERTISERS_AGGREGATION.getId()));
 
-
-		assertTrue(compatibleAggregations.containsKey(DAILY_AGGREGATION.getId()));
-		assertEquals(alwaysTrue(), compatibleAggregations.get(DAILY_AGGREGATION.getId()));
+		assertTrue(compatibleAggregationsWithFilterPredicate.containsKey(DAILY_AGGREGATION.getId()));
+		assertEquals(alwaysTrue(), compatibleAggregationsWithFilterPredicate.get(DAILY_AGGREGATION.getId()));
 	}
 
 	@Test
 	public void withIncompatibleDataPredicate_DoesNotMatchAggregationWithLimitedDateRange() {
-		final AggregationPredicate dataPredicate = and(not(eq("affiliate", 0)), not(eq("site", 0)),
+		final AggregationPredicate dataPredicate = and(not(eq("affiliate", EXCLUDE_AFFILIATE)), not(eq("site", EXCLUDE_SITE)),
 				between("date", LocalDate.parse("2012-01-01"), LocalDate.parse("2016-01-01")));
 		Set<String> compatibleAggregations = cubeWithDetailedAggregation.getCompatibleAggregationsForDataInput(
 				DATA_ITEM_DIMENSIONS, DATA_ITEM_MEASURES, dataPredicate).keySet();
@@ -217,20 +219,19 @@ public class TestCompatibleAggregations {
 
 		//matches all aggregations, but with different filtering logic
 		assertTrue(compatibleAggregations.containsKey(LIMITED_DATES_AGGREGATION.getId()));
-		assertEquals(and(notEq("date", LocalDate.parse("2001-01-04")),
-				between("date", LocalDate.parse("2001-01-01"), LocalDate.parse("2004-01-01"))), compatibleAggregations.get(LIMITED_DATES_AGGREGATION.getId()));
+		assertEquals(LIMITED_DATES_AGGREGATION_PREDICATE.simplify(), compatibleAggregations.get(LIMITED_DATES_AGGREGATION.getId()));
 
 		assertTrue(compatibleAggregations.containsKey(DAILY_AGGREGATION.getId()));
 		assertEquals(AggregationPredicates.alwaysTrue(), compatibleAggregations.get(DAILY_AGGREGATION.getId()));
 
 		assertTrue(compatibleAggregations.containsKey(ADVERTISERS_AGGREGATION.getId()));
-		assertEquals(and(ADVERTISER_AGGREGATION_PREDICATE, dataPredicate).simplify(), compatibleAggregations.get(ADVERTISERS_AGGREGATION.getId()));
+		assertEquals(ADVERTISER_AGGREGATION_PREDICATE.simplify(), compatibleAggregations.get(ADVERTISERS_AGGREGATION.getId()));
 
 		assertTrue(compatibleAggregations.containsKey(AFFILIATES_AGGREGATION.getId()));
-		assertEquals(and(AFFILIATES_AGGREGATION_PREDICATE, dataPredicate).simplify(), compatibleAggregations.get(AFFILIATES_AGGREGATION.getId()));
+		assertEquals(AFFILIATES_AGGREGATION_PREDICATE.simplify(), compatibleAggregations.get(AFFILIATES_AGGREGATION.getId()));
 
 		assertTrue(compatibleAggregations.containsKey(DETAILED_AFFILIATES_AGGREGATION.getId()));
-		assertEquals(and(DETAILED_AFFILIATES_AGGREGATION_PREDICATE, dataPredicate).simplify(), compatibleAggregations.get(DETAILED_AFFILIATES_AGGREGATION.getId()));
+		assertEquals(DETAILED_AFFILIATES_AGGREGATION_PREDICATE.simplify(), compatibleAggregations.get(DETAILED_AFFILIATES_AGGREGATION.getId()));
 	}
 	// endregion
 
@@ -251,9 +252,9 @@ public class TestCompatibleAggregations {
 	@Test
 	public void withWherePredicateForAdvertisersAggregation_MatchesAdvertisersAggregation() {
 		final AggregationPredicate whereQueryPredicate = and(
-				not(eq("advertiser", 0)),
-				not(eq("campaign", 0)),
-				not(eq("banner", 0)));
+				not(eq("advertiser", EXCLUDE_AFFILIATE)),
+				not(eq("campaign", EXCLUDE_CAMPAIGN)),
+				not(eq("banner", EXCLUDE_BANNER)));
 
 		List<Cube.AggregationContainer> actualAggregations = cube.getCompatibleAggregationsForQuery(
 				asList("advertiser", "campaign", "banner"), newArrayList(MEASURES.keySet()), whereQueryPredicate);
@@ -266,7 +267,7 @@ public class TestCompatibleAggregations {
 
 	@Test
 	public void withWherePredicateForAffiliatesAggregation_MatchesAffiliatesAggregation() {
-		final AggregationPredicate whereQueryPredicate = and(not(eq("affiliate", 0)), not(eq("site", 0)));
+		final AggregationPredicate whereQueryPredicate = and(not(eq("affiliate", EXCLUDE_AFFILIATE)), not(eq("site", EXCLUDE_SITE)));
 
 		List<Cube.AggregationContainer> actualAggregations = cube.getCompatibleAggregationsForQuery(
 				asList("affiliate", "site"), newArrayList(MEASURES.keySet()), whereQueryPredicate);
@@ -280,9 +281,9 @@ public class TestCompatibleAggregations {
 	@Test
 	public void withWherePredicateForBothAffiliatesAggregations_MatchesAffiliatesAggregation() {
 		final AggregationPredicate whereQueryPredicate = and(
-				not(eq("affiliate", 0)),
-				not(eq("site", 0)),
-				not(eq("placement", 0)));
+				not(eq("affiliate", EXCLUDE_AFFILIATE)),
+				not(eq("site", EXCLUDE_SITE)),
+				not(eq("placement", EXCLUDE_PLACEMENT)));
 
 		List<Cube.AggregationContainer> actualAggregations =
 				cubeWithDetailedAggregation.getCompatibleAggregationsForQuery(
@@ -296,7 +297,7 @@ public class TestCompatibleAggregations {
 
 	@Test
 	public void withWherePredicateForDetailedAffiliatesAggregations_MatchesDetailedAffiliatesAggregation() {
-		final AggregationPredicate whereQueryPredicate = and(not(eq("affiliate", 0)), not(eq("site", 0)), not(eq("placement", 0)));
+		final AggregationPredicate whereQueryPredicate = and(not(eq("affiliate", EXCLUDE_AFFILIATE)), not(eq("site", EXCLUDE_SITE)), not(eq("placement", EXCLUDE_PLACEMENT)));
 
 		List<Cube.AggregationContainer> actualAggregations =
 				cubeWithDetailedAggregation.getCompatibleAggregationsForQuery(
@@ -327,7 +328,7 @@ public class TestCompatibleAggregations {
 	@Test
 	public void withWherePredicateForAdvertisersAggregation_MatchesOneAggregation() {
 		final AggregationPredicate whereQueryPredicate = and(
-				not(eq("advertiser", 0)), not(eq("campaign", 0)), not(eq("banner", 0)),
+				not(eq("advertiser", EXCLUDE_ADVERTISER)), not(eq("campaign", EXCLUDE_CAMPAIGN)), not(eq("banner", EXCLUDE_BANNER)),
 				between("date", LocalDate.parse("2001-01-01"), LocalDate.parse("2004-01-01")));
 
 		List<Cube.AggregationContainer> actualAggregations =

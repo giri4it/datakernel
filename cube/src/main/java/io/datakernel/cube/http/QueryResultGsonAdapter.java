@@ -23,32 +23,25 @@ import com.google.gson.reflect.TypeToken;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
 import io.datakernel.cube.QueryResult;
-import io.datakernel.cube.QueryResult.Drilldown;
 import io.datakernel.cube.Record;
 import io.datakernel.cube.RecordScheme;
 
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
 import static com.google.common.base.MoreObjects.firstNonNull;
 import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newLinkedHashMap;
-import static com.google.common.collect.Sets.newHashSet;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 
 final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
-	private static final String DIMENSIONS_FIELD = "dimensions";
 	private static final String MEASURES_FIELD = "measures";
 	private static final String ATTRIBUTES_FIELD = "attributes";
 	private static final String FILTER_ATTRIBUTES_FIELD = "filterAttributes";
-	private static final String DRILLDOWNS_FIELD = "drillDowns";
-	private static final String CHAINS_FIELD = "chains";
 	private static final String RECORDS_FIELD = "records";
 	private static final String TOTALS_FIELD = "totals";
 	private static final String COUNT_FIELD = "count";
@@ -62,15 +55,13 @@ final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
 	private final Map<String, Class<?>> attributeTypes;
 	private final Map<String, Class<?>> measureTypes;
 
-	private final TypeAdapter<Collection<List<String>>> chainsAdapter;
 	private final TypeAdapter<List<String>> stringListAdapter;
 
-	public QueryResultGsonAdapter(Map<String, TypeAdapter<?>> attributeAdapters, Map<String, TypeAdapter<?>> measureAdapters, Map<String, Class<?>> attributeTypes, Map<String, Class<?>> measureTypes, TypeAdapter<Collection<List<String>>> chainsAdapter, TypeAdapter<List<String>> stringListAdapter) {
+	public QueryResultGsonAdapter(Map<String, TypeAdapter<?>> attributeAdapters, Map<String, TypeAdapter<?>> measureAdapters, Map<String, Class<?>> attributeTypes, Map<String, Class<?>> measureTypes, TypeAdapter<List<String>> stringListAdapter) {
 		this.attributeAdapters = attributeAdapters;
 		this.measureAdapters = measureAdapters;
 		this.attributeTypes = attributeTypes;
 		this.measureTypes = measureTypes;
-		this.chainsAdapter = chainsAdapter;
 		this.stringListAdapter = stringListAdapter;
 	}
 
@@ -89,10 +80,9 @@ final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
 			measureAdapters.put(measure, gson.getAdapter(typeToken));
 			measureRawTypes.put(measure, typeToken.getRawType());
 		}
-		TypeAdapter<Collection<List<String>>> chainsAdapter = gson.getAdapter(new TypeToken<Collection<List<String>>>() {});
 		TypeAdapter<List<String>> stringListAdapter = gson.getAdapter(new TypeToken<List<String>>() {});
 		return new QueryResultGsonAdapter(attributeAdapters, measureAdapters, attributeRawTypes, measureRawTypes,
-				chainsAdapter, stringListAdapter);
+				stringListAdapter);
 	}
 
 	@Override
@@ -107,12 +97,6 @@ final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
 
 		checkArgument(MEASURES_FIELD.equals(reader.nextName()));
 		List<String> measures = stringListAdapter.read(reader);
-
-		checkArgument(DRILLDOWNS_FIELD.equals(reader.nextName()));
-		List<Drilldown> drilldowns = readDrilldowns(reader);
-
-		checkArgument(CHAINS_FIELD.equals(reader.nextName()));
-		Collection<List<String>> chains = chainsAdapter.read(reader);
 
 		checkArgument(SORTED_BY_FIELD.equals(reader.nextName()));
 		List<String> sortedBy = stringListAdapter.read(reader);
@@ -148,8 +132,8 @@ final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
 		reader.endObject();
 
 		return QueryResult.create(recordScheme, records, totals, count,
-				attributes, measures, sortedBy, drilldowns,
-				chains, filterAttributes, metaOnly, isResolveAttributes);
+				attributes, measures, sortedBy,
+				filterAttributes, metaOnly, isResolveAttributes);
 	}
 
 	private List<Record> readRecords(JsonReader reader, RecordScheme recordScheme) throws JsonParseException, IOException {
@@ -188,24 +172,6 @@ final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
 		return totals;
 	}
 
-	private List<Drilldown> readDrilldowns(JsonReader reader) throws IOException {
-		List<Drilldown> drilldowns = newArrayList();
-
-		reader.beginArray();
-		while (reader.hasNext()) {
-			reader.beginObject();
-			checkArgument(DIMENSIONS_FIELD.equals(reader.nextName()));
-			List<String> dimensions = stringListAdapter.read(reader);
-			checkArgument(MEASURES_FIELD.equals(reader.nextName()));
-			List<String> measures = stringListAdapter.read(reader);
-			drilldowns.add(Drilldown.create(dimensions, newHashSet(measures)));
-			reader.endObject();
-		}
-		reader.endArray();
-
-		return drilldowns;
-	}
-
 	private Map<String, Object> readFilterAttributes(JsonReader reader) throws JsonParseException, IOException {
 		reader.beginObject();
 		Map<String, Object> result = newLinkedHashMap();
@@ -230,12 +196,6 @@ final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
 
 		writer.name(MEASURES_FIELD);
 		stringListAdapter.write(writer, result.getMeasures());
-
-		writer.name(DRILLDOWNS_FIELD);
-		writeDrilldowns(writer, result.getDrilldowns());
-
-		writer.name(CHAINS_FIELD);
-		chainsAdapter.write(writer, result.getChains());
 
 		writer.name(SORTED_BY_FIELD);
 		stringListAdapter.write(writer, result.getSortedBy());
@@ -301,24 +261,6 @@ final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
 			typeAdapter.write(writer, value);
 		}
 		writer.endObject();
-	}
-
-	private void writeDrilldowns(JsonWriter writer, Collection<Drilldown> drilldowns) throws IOException {
-		writer.beginArray();
-
-		for (Drilldown drilldown : drilldowns) {
-			writer.beginObject();
-
-			writer.name(DIMENSIONS_FIELD);
-			stringListAdapter.write(writer, drilldown.getChain());
-
-			writer.name(MEASURES_FIELD);
-			stringListAdapter.write(writer, newArrayList(drilldown.getMeasures()));
-
-			writer.endObject();
-		}
-
-		writer.endArray();
 	}
 
 	public RecordScheme recordScheme(List<String> attributes, List<String> measures) {

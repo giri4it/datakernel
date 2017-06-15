@@ -44,6 +44,7 @@ final class AggregationPredicateGsonAdapter extends TypeAdapter<AggregationPredi
 	public static final String NOT = "not";
 	public static final String TRUE = "true";
 	public static final String FALSE = "false";
+	public static final String NEGATE_SIGN = "!";
 	private final Map<String, TypeAdapter<?>> attributeAdapters;
 
 	private AggregationPredicateGsonAdapter(Map<String, TypeAdapter<?>> attributeAdapters) {
@@ -71,7 +72,7 @@ final class AggregationPredicateGsonAdapter extends TypeAdapter<AggregationPredi
 	}
 
 	@SuppressWarnings("unchecked")
-	private void  writeNotEq(JsonWriter writer, PredicateNotEq predicate) throws IOException {
+	private void writeNotEq(JsonWriter writer, PredicateNotEq predicate) throws IOException {
 		writer.value(predicate.getKey());
 		TypeAdapter typeAdapter = attributeAdapters.get(predicate.getKey());
 		typeAdapter.write(writer, predicate.getValue());
@@ -146,13 +147,15 @@ final class AggregationPredicateGsonAdapter extends TypeAdapter<AggregationPredi
 		}
 	}
 
-	private AggregationPredicate readEqOfObject(JsonReader reader) throws IOException {
+	private AggregationPredicate readEqualityOfObject(JsonReader reader) throws IOException {
 		List<AggregationPredicate> predicates = newArrayList();
 		while (reader.hasNext()) {
 			String field = reader.nextName();
+			boolean isNegate = (field.startsWith(NEGATE_SIGN));
+			field = (isNegate) ? field.substring(1) : field;
 			TypeAdapter typeAdapter = attributeAdapters.get(field);
 			Object value = typeAdapter.read(reader);
-			predicates.add(eq(field, value));
+			predicates.add((isNegate) ? notEq(field, value) : eq(field, value));
 		}
 		return predicates.size() == 1 ? predicates.get(0) : and(predicates);
 	}
@@ -213,7 +216,7 @@ final class AggregationPredicateGsonAdapter extends TypeAdapter<AggregationPredi
 		AggregationPredicate predicate = null;
 		if (reader.peek() == JsonToken.BEGIN_OBJECT) {
 			reader.beginObject();
-			predicate = readEqOfObject(reader);
+			predicate = readEqualityOfObject(reader);
 			reader.endObject();
 		} else {
 			reader.beginArray();
