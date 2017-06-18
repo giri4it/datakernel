@@ -186,6 +186,66 @@ public class AggregationPredicates {
 				return null;
 			}
 		});
+		register(PredicateGe.class, PredicateGt.class, new PredicateSimplifier<PredicateGe, PredicateGt>() {
+			@Override
+			public AggregationPredicate simplifyAnd(PredicateGe left, PredicateGt right) {
+				if (!right.key.equals(left.key))
+					return null;
+				if (right.value.compareTo(left.value) >= 0)
+					return gt(right.key, right.value);
+				return left;
+			}
+		});
+		register(PredicateGe.class, PredicateGe.class, new PredicateSimplifier<PredicateGe, PredicateGe>() {
+			@Override
+			public AggregationPredicate simplifyAnd(PredicateGe left, PredicateGe right) {
+				if (!right.key.equals(left.key))
+					return null;
+				if(right.value.compareTo(left.value) >= 0)
+					return right;
+				return left;
+			}
+		});
+		register(PredicateGt.class, PredicateGt.class, new PredicateSimplifier<PredicateGt, PredicateGt>() {
+			@Override
+			public AggregationPredicate simplifyAnd(PredicateGt left, PredicateGt right) {
+				if (!right.key.equals(left.key))
+					return null;
+				if(right.value.compareTo(left.value) >= 0)
+					return right;
+				return left;
+			}
+		});
+		register(PredicateLe.class, PredicateLt.class, new PredicateSimplifier<PredicateLe, PredicateLt>() {
+			@Override
+			public AggregationPredicate simplifyAnd(PredicateLe left, PredicateLt right) {
+				if (!right.key.equals(left.key))
+					return null;
+				if(right.value.compareTo(left.value) <= 0)
+					return right;
+				return left;
+			}
+		});
+		register(PredicateLe.class, PredicateLe.class, new PredicateSimplifier<PredicateLe, PredicateLe>() {
+			@Override
+			public AggregationPredicate simplifyAnd(PredicateLe left, PredicateLe right) {
+				if (!right.key.equals(left.key))
+					return null;
+				if(right.value.compareTo(left.value) <= 0)
+					return right;
+				return left;
+			}
+		});
+		register(PredicateLt.class, PredicateLt.class, new PredicateSimplifier<PredicateLt, PredicateLt>() {
+			@Override
+			public AggregationPredicate simplifyAnd(PredicateLt left, PredicateLt right) {
+				if (!right.key.equals(left.key))
+					return null;
+				if(right.value.compareTo(left.value) >= 0)
+					return right;
+				return left;
+			}
+		});
 		register(PredicateBetween.class, PredicateBetween.class, new PredicateSimplifier<PredicateBetween, PredicateBetween>() {
 			@Override
 			public AggregationPredicate simplifyAnd(PredicateBetween left, PredicateBetween right) {
@@ -546,6 +606,70 @@ public class AggregationPredicates {
 		}
 	}
 
+	public static final class PredicateLt implements AggregationPredicate {
+		final String key;
+		final Comparable value;
+
+		private PredicateLt(String key, Comparable value) {
+			this.key = key;
+			this.value = value;
+		}
+
+		public String getKey() {
+			return key;
+		}
+
+		public Object getValue() {
+			return value;
+		}
+
+		@Override
+		public AggregationPredicate simplify() {
+			return this;
+		}
+
+		@Override
+		public Set<String> getDimensions() {
+			return singleton(key);
+		}
+
+		@Override
+		public Map<String, Object> getFullySpecifiedDimensions() {
+			return emptyMap();
+		}
+
+		@SuppressWarnings("unchecked")
+		@Override
+		public PredicateDef createPredicateDef(final Expression record, final Map<String, FieldType> fields) {
+			VarField field = field(record, key.replace('.', '$'));
+			return Expressions.and(isNotNull(field, fields.get(key)),
+					cmpLt(field, value(toInternalValue(fields, key, value))));
+		}
+
+		@Override
+		public boolean equals(Object o) {
+			if (this == o) return true;
+			if (o == null || getClass() != o.getClass()) return false;
+
+			PredicateLt that = (PredicateLt) o;
+
+			if (!key.equals(that.key)) return false;
+			return value != null ? value.equals(that.value) : that.value == null;
+		}
+
+		@Override
+		public int hashCode() {
+			int result = key.hashCode();
+			result = 31 * result + (value != null ? value.hashCode() : 0);
+			return result;
+		}
+
+		@Override
+		public String toString() {
+			return key + "<" + value;
+		}
+	}
+
 	public static final class PredicateGe implements AggregationPredicate {
 		final String key;
 		final Comparable value;
@@ -607,6 +731,70 @@ public class AggregationPredicates {
 		@Override
 		public String toString() {
 			return key + ">=" + value;
+		}
+	}
+
+	public static final class PredicateGt implements AggregationPredicate {
+		final String key;
+		final Comparable value;
+
+		private PredicateGt(String key, Comparable value) {
+			this.key = key;
+			this.value = value;
+		}
+
+		public String getKey() {
+			return key;
+		}
+
+		public Comparable getValue() {
+			return value;
+		}
+
+		@Override
+		public AggregationPredicate simplify() {
+			return this;
+		}
+
+		@Override
+		public Set<String> getDimensions() {
+			return singleton(key);
+		}
+
+		@Override
+		public Map<String, Object> getFullySpecifiedDimensions() {
+			return emptyMap();
+		}
+
+		@SuppressWarnings("unchecked")
+		@Override
+		public PredicateDef createPredicateDef(final Expression record, final Map<String, FieldType> fields) {
+			VarField field = field(record, key.replace('.', '$'));
+			return Expressions.and(isNotNull(field, fields.get(key)),
+					cmpGt(field, value(toInternalValue(fields, key, value))));
+		}
+
+		@Override
+		public boolean equals(Object o) {
+			if (this == o) return true;
+			if (o == null || getClass() != o.getClass()) return false;
+
+			PredicateGt that = (PredicateGt) o;
+
+			if (!key.equals(that.key)) return false;
+			return value != null ? value.equals(that.value) : that.value == null;
+		}
+
+		@Override
+		public int hashCode() {
+			int result = key.hashCode();
+			result = 31 * result + (value != null ? value.hashCode() : 0);
+			return result;
+		}
+
+		@Override
+		public String toString() {
+			return key + ">" + value;
 		}
 	}
 
@@ -1013,6 +1201,14 @@ public class AggregationPredicates {
 
 	public static AggregationPredicate le(String key, Comparable value) {
 		return new PredicateLe(key, value);
+	}
+
+	public static AggregationPredicate gt(String key, Comparable value) {
+		return new PredicateGt(key, value);
+	}
+
+	public static AggregationPredicate lt(String key, Comparable value) {
+		return new PredicateLt(key, value);
 	}
 
 	public static AggregationPredicate has(String key) {

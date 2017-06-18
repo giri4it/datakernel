@@ -51,7 +51,9 @@ final class AggregationPredicateGsonAdapter extends TypeAdapter<AggregationPredi
 	public static final String EQ_SIGN = "==";
 	public static final String NOT_EQ_SIGN = "<>";
 	public static final String GE_SIGN = ">=";
+	public static final String GT_SIGN = ">";
 	public static final String LE_SIGN = "<=";
+	public static final String LT_SIGN = "<";
 	private final Map<String, TypeAdapter<?>> attributeAdapters;
 
 	private AggregationPredicateGsonAdapter(Map<String, TypeAdapter<?>> attributeAdapters) {

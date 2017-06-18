@@ -50,7 +50,7 @@ public class PredicatesTest {
 	}
 
 	@Test
-	public void testUnnecessaryPredicates_areRemoved_WhenSimplified() {
+	public void testUnnecessaryPredicates_areRemoved_whenSimplified() {
 		AggregationPredicate predicate = and(
 				not(eq("x", 1)),
 				notEq("x", 1),
@@ -81,5 +81,76 @@ public class PredicatesTest {
 
 		predicate = and(notEq("x", 12), between("x", 5, 10));
 		assertEquals(between("x", 5, 10), predicate.simplify());
+	}
+
+	@Test
+	public void testPredicateGtAndPredicateGe() {
+		AggregationPredicate predicate;
+		predicate = and(ge("x", 10), gt("x", 10));
+		assertEquals(gt("x", 10), predicate.simplify());
+
+		predicate = and(gt("x", 10), ge("x", 10));
+		assertEquals(gt("x", 10), predicate.simplify());
+
+		predicate = and(gt("x", 11), ge("x", 10));
+		assertEquals(gt("x", 11), predicate.simplify());
+
+		predicate = and(ge("x", 11), gt("x", 10));
+		assertEquals(ge("x", 11), predicate.simplify());
+
+		predicate = and(ge("x", 10), gt("x", 11));
+		assertEquals(gt("x", 11), predicate.simplify());
+	}
+
+	@Test
+	public void testPredicateGeAndPredicateGe() {
+		AggregationPredicate predicate;
+		predicate = and(ge("x", 10), ge("x", 11));
+		assertEquals(ge("x", 11), predicate.simplify());
+
+		predicate = and(ge("x", 11), ge("x", 10));
+		assertEquals(ge("x", 11), predicate.simplify());
+
+		predicate = and(ge("x", 10), ge("x", 10));
+		assertEquals(ge("x", 10), predicate.simplify());
+	}
+
+	@Test
+	public void testPredicateGtAndPredicateGt() {
+		AggregationPredicate predicate;
+		predicate = and(gt("x", 10), gt("x", 11));
+		assertEquals(gt("x", 11), predicate.simplify());
+
+		predicate = and(gt("x", 11), gt("x", 10));
+		assertEquals(gt("x", 11), predicate.simplify());
+
+		predicate = and(gt("x", 10), gt("x", 10));
+		assertEquals(gt("x", 10), predicate.simplify());
+	}
+
+	@Test
+	public void testPredicateLeAndPredicateLe() {
+		AggregationPredicate predicate;
+		predicate = and(le("x", 10), le("x", 11));
+		assertEquals(le("x", 10), predicate.simplify());
+
+		predicate = and(le("x", 11), le("x", 10));
+		assertEquals(le("x", 10), predicate.simplify());
+
+		predicate = and(le("x", 10), le("x", 10));
+		assertEquals(le("x", 10), predicate.simplify());
+	}
+
+	@Test
+	public void testPredicateLeAndPredicateLt() {
+		AggregationPredicate predicate;
+		predicate = and(le("x", 11), lt("x", 11));
+		assertEquals(lt("x", 11), predicate.simplify());
+
+		predicate = and(le("x", 11), lt("x", 10));
+		assertEquals(lt("x", 10), predicate.simplify());
+
+		predicate = and(le("x", 10), lt("x", 11));
+		assertEquals(le("x", 10), predicate.simplify());
 	}
 }
