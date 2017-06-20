@@ -37,14 +37,7 @@ public class PredicatesTest {
 	}
 
 	@Test
-	public void testPredicateEqAndPredicateNotEqIntersection_isCorrect_WhenKeysAreNotEqual() {
-		AggregationPredicate expected = and(eq("x", 10), notEq("y", 12));
-		AggregationPredicate actual = expected.simplify();
-		assertEquals(expected, actual);
-	}
-
-	@Test
-	public void testPredicateEqAndPredicateNotEqIntersection_isAlwaysFalse_WhenPredicatesKeysAndValuesAreEqual() {
+	public void testPredicateNotEqAndPredicateEq() {
 		assertEquals(alwaysFalse(), and(eq("x", 10), notEq("x", 10)).simplify());
 		assertEquals(alwaysFalse(), and(notEq("x", 10), eq("x", 10)).simplify());
 	}
@@ -61,14 +54,7 @@ public class PredicatesTest {
 	}
 
 	@Test
-	public void testBetweenPredicatesIntersection_isCorrect_WhenNoOverlap() {
-		assertEquals(alwaysFalse(), and(between("x", 5, 10), between("x", 1, 1)).simplify());
-		assertEquals(between("x", 5, 6), and(between("x", 5, 10), between("x", 2, 6)).simplify());
-		assertEquals(eq("x", 2), and(between("x", 1, 2), between("x", 2, 6)).simplify());
-	}
-
-	@Test
-	public void testBetweenPredicatesIntersectionWithPredicateNotEq() {
+	public void testBetweenPredicateAndPredicateNotEq() {
 		AggregationPredicate predicate;
 		predicate = and(notEq("x", 6), between("x", 5, 10));
 		assertEquals(predicate, predicate.simplify());
@@ -152,5 +138,276 @@ public class PredicatesTest {
 
 		predicate = and(le("x", 10), lt("x", 11));
 		assertEquals(le("x", 10), predicate.simplify());
+	}
+
+	@Test
+	public void testPredicateGeAndPredicateLe() {
+		AggregationPredicate predicate;
+		predicate = and(ge("x", 11), le("x", 11));
+		assertEquals(eq("x", 11), predicate.simplify());
+
+		predicate = and(ge("x", 11), le("x", 10));
+		assertEquals(AggregationPredicates.alwaysFalse(), predicate.simplify());
+
+		predicate = and(ge("x", 10), le("x", 11));
+		assertEquals(between("x", 10, 11), predicate.simplify());
+	}
+
+	@Test
+	public void testPredicateLtAndPredicateLt() {
+		AggregationPredicate predicate;
+		predicate = and(lt("x", 11), lt("x", 11));
+		assertEquals(lt("x", 11), predicate.simplify());
+
+		predicate = and(lt("x", 11), lt("x", 10));
+		assertEquals(lt("x", 10), predicate.simplify());
+
+		predicate = and(lt("x", 10), lt("x", 11));
+		assertEquals(lt("x", 10), predicate.simplify());
+	}
+
+	@Test
+	public void testPredicateLtAndPredicateGe() {
+		AggregationPredicate predicate;
+		predicate = and(lt("x", 11), ge("x", 11));
+		assertEquals(AggregationPredicates.alwaysFalse(), predicate.simplify());
+
+		predicate = and(lt("x", 10), ge("x", 11));
+		assertEquals(AggregationPredicates.alwaysFalse(), predicate.simplify());
+
+		predicate = and(lt("x", 11), ge("x", 10));
+		assertEquals(predicate, predicate.simplify());
+	}
+
+	@Test
+	public void testPredicateLeAndPredicateGt() {
+		AggregationPredicate predicate;
+		predicate = and(le("x", 11), gt("x", 11));
+		assertEquals(AggregationPredicates.alwaysFalse(), predicate.simplify());
+
+		predicate = and(le("x", 11), gt("x", 10));
+		assertEquals(predicate, predicate.simplify());
+
+		predicate = and(le("x", 10), gt("x", 11));
+		assertEquals(AggregationPredicates.alwaysFalse(), predicate.simplify());
+	}
+
+	@Test
+	public void testPredicateLtAndPredicateGt() {
+		AggregationPredicate predicate;
+		predicate = and(lt("x", 11), gt("x", 11));
+		assertEquals(AggregationPredicates.alwaysFalse(), predicate.simplify());
+
+		predicate = and(lt("x", 11), gt("x", 10));
+		assertEquals(predicate, predicate.simplify());
+
+		predicate = and(lt("x", 10), gt("x", 11));
+		assertEquals(AggregationPredicates.alwaysFalse(), predicate.simplify());
+	}
+
+	@Test
+	public void testPredicateBetweenAndPredicateLe() {
+		AggregationPredicate predicate;
+		predicate = and(between("x", -5, 5), le("x", -6));
+		assertEquals(AggregationPredicates.alwaysFalse(), predicate.simplify());
+
+		predicate = and(between("x", -5, 5), le("x", -5));
+		assertEquals(eq("x", -5), predicate.simplify());
+
+		predicate = and(between("x", -5, 5), le("x", 0));
+		assertEquals(between("x", -5, 0), predicate.simplify());
+
+		predicate = and(between("x", -5, 5), le("x", 5));
+		assertEquals(between("x", -5, 5), predicate.simplify());
+
+		predicate = and(between("x", -5, 5), le("x", 6));
+		assertEquals(between("x", -5, 5), predicate.simplify());
+	}
+
+	@Test
+	public void testPredicateBetweenAndPredicateLt() {
+		AggregationPredicate predicate;
+		predicate = and(between("x", -5, 5), lt("x", -6));
+		assertEquals(AggregationPredicates.alwaysFalse(), predicate.simplify());
+
+		predicate = and(between("x", -5, 5), lt("x", -5));
+		assertEquals(AggregationPredicates.alwaysFalse(), predicate.simplify());
+
+		predicate = and(between("x", -5, 5), lt("x", 0));
+		assertEquals(predicate, predicate.simplify());
+
+		predicate = and(between("x", -5, 5), lt("x", 5));
+		assertEquals(predicate, predicate.simplify());
+
+		predicate = and(between("x", -5, 5), lt("x", 6));
+		assertEquals(between("x", -5, 5), predicate.simplify());
+	}
+
+	@Test
+	public void testPredicateBetweenAndPredicateGe() {
+		AggregationPredicate predicate;
+		predicate = and(between("x", -5, 5), ge("x", -6));
+		assertEquals(between("x", -5, 5), predicate.simplify());
+
+		predicate = and(between("x", -5, 5), ge("x", -5));
+		assertEquals(between("x", -5, 5), predicate.simplify());
+
+		predicate = and(between("x", -5, 5), ge("x", 0));
+		assertEquals(between("x", 0, 5), predicate.simplify());
+
+		predicate = and(between("x", -5, 5), ge("x", 5));
+		assertEquals(eq("x", 5), predicate.simplify());
+
+		predicate = and(between("x", -5, 5), ge("x", 6));
+		assertEquals(AggregationPredicates.alwaysFalse(), predicate.simplify());
+	}
+
+	@Test
+	public void testPredicateBetweenAndPredicateGt() {
+		AggregationPredicate predicate;
+		predicate = and(between("x", -5, 5), gt("x", -6));
+		assertEquals(between("x", -5, 5), predicate.simplify());
+
+		predicate = and(between("x", -5, 5), gt("x", -5));
+		assertEquals(predicate, predicate.simplify());
+
+		predicate = and(between("x", -5, 5), gt("x", 0));
+		assertEquals(predicate, predicate.simplify());
+
+		predicate = and(between("x", -5, 5), gt("x", 5));
+		assertEquals(AggregationPredicates.alwaysFalse(), predicate.simplify());
+
+		predicate = and(between("x", -5, 5), gt("x", 6));
+		assertEquals(AggregationPredicates.alwaysFalse(), predicate.simplify());
+	}
+
+	@Test
+	public void testPredicateBetweenAndPredicateBetween() {
+		AggregationPredicate predicate;
+		predicate = and(between("x", -5, 5), between("x", 5, 10));
+		assertEquals(eq("x", 5), predicate.simplify());
+
+		predicate = and(between("x", -5, 5), between("x", 4, 6));
+		assertEquals(between("x", 4, 5), predicate.simplify());
+
+		predicate = and(between("x", -5, 5), between("x", -6, 6));
+		assertEquals(between("x", -5, 5), predicate.simplify());
+
+		predicate = and(between("x", -5, 5), between("x", 6, 7));
+		assertEquals(AggregationPredicates.alwaysFalse(), predicate.simplify());
+	}
+
+	@Test
+	public void testPredicateNotEqAndPredicateLe() {
+		AggregationPredicate predicate;
+		predicate = and(notEq("x", -5), le("x", -4));
+		assertEquals(predicate, predicate.simplify());
+
+		predicate = and(notEq("x", -5), le("x", -5));
+		assertEquals(lt("x", -5), predicate.simplify());
+
+		predicate = and(notEq("x", -5), le("x", -6));
+		assertEquals(le("x", -6), predicate.simplify());
+	}
+
+	@Test
+	public void testPredicateNotEqAndPredicateLt() {
+		AggregationPredicate predicate;
+		predicate = and(notEq("x", -5), lt("x", -4));
+		assertEquals(predicate, predicate.simplify());
+
+		predicate = and(notEq("x", -5), lt("x", -5));
+		assertEquals(lt("x", -5), predicate.simplify());
+
+		predicate = and(notEq("x", -5), lt("x", -6));
+		assertEquals(lt("x", -6), predicate.simplify());
+	}
+
+	@Test
+	public void testPredicateNotEqAndPredicateGe() {
+		AggregationPredicate predicate;
+		predicate = and(notEq("x", -5), ge("x", -4));
+		assertEquals(ge("x", -4), predicate.simplify());
+
+		predicate = and(notEq("x", -5), ge("x", -5));
+		assertEquals(gt("x", -5), predicate.simplify());
+
+		predicate = and(notEq("x", -5), ge("x", -6));
+		assertEquals(predicate, predicate.simplify());
+	}
+
+	@Test
+	public void testPredicateNotEqAndPredicateGt() {
+		AggregationPredicate predicate;
+		predicate = and(notEq("x", -5), gt("x", -4));
+		assertEquals(predicate, predicate.simplify());
+
+		predicate = and(notEq("x", -5), gt("x", -5));
+		assertEquals(gt("x", -5), predicate.simplify());
+
+		predicate = and(notEq("x", -5), gt("x", -6));
+		assertEquals(gt("x", -6), predicate.simplify());
+	}
+
+	@Test
+	public void testPredicateEqAndPredicateLe() {
+		AggregationPredicate predicate;
+		predicate = and(eq("x", -5), le("x", -4));
+		assertEquals(eq("x", -5), predicate.simplify());
+
+		predicate = and(eq("x", -5), le("x", -5));
+		assertEquals(eq("x", -5), predicate.simplify());
+
+		predicate = and(eq("x", -5), le("x", -6));
+		assertEquals(alwaysFalse(), predicate.simplify());
+	}
+
+	@Test
+	public void testPredicateEqAndPredicateLt() {
+		AggregationPredicate predicate;
+		predicate = and(eq("x", -5), lt("x", -4));
+		assertEquals(eq("x", -5), predicate.simplify());
+
+		predicate = and(eq("x", -5), lt("x", -5));
+		assertEquals(alwaysFalse(), predicate.simplify());
+
+		predicate = and(eq("x", -5), lt("x", -6));
+		assertEquals(alwaysFalse(), predicate.simplify());
+	}
+
+	@Test
+	public void testPredicateEqAndPredicateGe() {
+		AggregationPredicate predicate;
+		predicate = and(eq("x", -5), ge("x", -4));
+		assertEquals(alwaysFalse(), predicate.simplify());
+
+		predicate = and(eq("x", -5), ge("x", -5));
+		assertEquals(eq("x", -5), predicate.simplify());
+
+		predicate = and(eq("x", -5), ge("x", -6));
+		assertEquals(eq("x", -5), predicate.simplify());
+	}
+
+	@Test
+	public void testPredicateEqAndPredicateGt() {
+		AggregationPredicate predicate;
+		predicate = and(eq("x", -5), gt("x", -4));
+		assertEquals(alwaysFalse(), predicate.simplify());
+
+		predicate = and(eq("x", -5), gt("x", -5));
+		assertEquals(alwaysFalse(), predicate.simplify());
+
+		predicate = and(eq("x", -5), gt("x", -6));
+		assertEquals(eq("x", -5), predicate.simplify());
+	}
+
+	@Test
+	public void testPredicateNotEqAndPredicateNotEq() {
+		AggregationPredicate predicate;
+		predicate = and(notEq("x", -5), notEq("x", -5));
+		assertEquals(notEq("x", -5), predicate.simplify());
+
+		predicate = and(notEq("x", -5), notEq("x", -6));
+		assertEquals(predicate, predicate.simplify());
 	}
 }

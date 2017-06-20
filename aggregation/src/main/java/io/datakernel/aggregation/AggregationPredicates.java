@@ -99,6 +99,10 @@ public class AggregationPredicates {
 		register(PredicateAlwaysFalse.class, PredicateNot.class, simplifierAlwaysFalse);
 		register(PredicateAlwaysFalse.class, PredicateEq.class, simplifierAlwaysFalse);
 		register(PredicateAlwaysFalse.class, PredicateNotEq.class, simplifierAlwaysFalse);
+		register(PredicateAlwaysFalse.class, PredicateLe.class, simplifierAlwaysFalse);
+		register(PredicateAlwaysFalse.class, PredicateLt.class, simplifierAlwaysFalse);
+		register(PredicateAlwaysFalse.class, PredicateGe.class, simplifierAlwaysFalse);
+		register(PredicateAlwaysFalse.class, PredicateGt.class, simplifierAlwaysFalse);
 		register(PredicateAlwaysFalse.class, PredicateHas.class, simplifierAlwaysFalse);
 		register(PredicateAlwaysFalse.class, PredicateBetween.class, simplifierAlwaysFalse);
 		register(PredicateAlwaysFalse.class, PredicateRegexp.class, simplifierAlwaysFalse);
@@ -115,6 +119,10 @@ public class AggregationPredicates {
 		register(PredicateAlwaysTrue.class, PredicateNot.class, simplifierAlwaysTrue);
 		register(PredicateAlwaysTrue.class, PredicateEq.class, simplifierAlwaysTrue);
 		register(PredicateAlwaysTrue.class, PredicateNotEq.class, simplifierAlwaysTrue);
+		register(PredicateAlwaysTrue.class, PredicateLe.class, simplifierAlwaysFalse);
+		register(PredicateAlwaysTrue.class, PredicateLt.class, simplifierAlwaysTrue);
+		register(PredicateAlwaysTrue.class, PredicateGe.class, simplifierAlwaysTrue);
+		register(PredicateAlwaysTrue.class, PredicateGt.class, simplifierAlwaysTrue);
 		register(PredicateAlwaysTrue.class, PredicateHas.class, simplifierAlwaysTrue);
 		register(PredicateAlwaysTrue.class, PredicateBetween.class, simplifierAlwaysTrue);
 		register(PredicateAlwaysTrue.class, PredicateRegexp.class, simplifierAlwaysTrue);
@@ -135,6 +143,10 @@ public class AggregationPredicates {
 		register(PredicateNot.class, PredicateRegexp.class, simplifierNot);
 		register(PredicateNot.class, PredicateAnd.class, simplifierNot);
 		register(PredicateNot.class, PredicateOr.class, simplifierNot);
+		register(PredicateNot.class, PredicateGe.class, simplifierNot);
+		register(PredicateNot.class, PredicateLe.class, simplifierNot);
+		register(PredicateNot.class, PredicateGt.class, simplifierNot);
+		register(PredicateNot.class, PredicateLt.class, simplifierNot);
 
 		register(PredicateEq.class, PredicateEq.class, new PredicateSimplifier<PredicateEq, PredicateEq>() {
 			@Override
@@ -201,7 +213,7 @@ public class AggregationPredicates {
 			public AggregationPredicate simplifyAnd(PredicateGe left, PredicateGe right) {
 				if (!right.key.equals(left.key))
 					return null;
-				if(right.value.compareTo(left.value) >= 0)
+				if (right.value.compareTo(left.value) >= 0)
 					return right;
 				return left;
 			}
@@ -211,7 +223,7 @@ public class AggregationPredicates {
 			public AggregationPredicate simplifyAnd(PredicateGt left, PredicateGt right) {
 				if (!right.key.equals(left.key))
 					return null;
-				if(right.value.compareTo(left.value) >= 0)
+				if (right.value.compareTo(left.value) >= 0)
 					return right;
 				return left;
 			}
@@ -221,7 +233,7 @@ public class AggregationPredicates {
 			public AggregationPredicate simplifyAnd(PredicateLe left, PredicateLt right) {
 				if (!right.key.equals(left.key))
 					return null;
-				if(right.value.compareTo(left.value) <= 0)
+				if (right.value.compareTo(left.value) <= 0)
 					return right;
 				return left;
 			}
@@ -231,7 +243,7 @@ public class AggregationPredicates {
 			public AggregationPredicate simplifyAnd(PredicateLe left, PredicateLe right) {
 				if (!right.key.equals(left.key))
 					return null;
-				if(right.value.compareTo(left.value) <= 0)
+				if (right.value.compareTo(left.value) <= 0)
 					return right;
 				return left;
 			}
@@ -241,9 +253,53 @@ public class AggregationPredicates {
 			public AggregationPredicate simplifyAnd(PredicateLt left, PredicateLt right) {
 				if (!right.key.equals(left.key))
 					return null;
-				if(right.value.compareTo(left.value) >= 0)
-					return right;
-				return left;
+				if (right.value.compareTo(left.value) >= 0)
+					return left;
+				return right;
+			}
+		});
+		register(PredicateGe.class, PredicateLe.class, new PredicateSimplifier<PredicateGe, PredicateLe>() {
+			@Override
+			public AggregationPredicate simplifyAnd(PredicateGe left, PredicateLe right) {
+				if (!right.key.equals(left.key))
+					return null;
+				if (right.value.compareTo(left.value) < 0)
+					return alwaysFalse();
+				if (right.value.compareTo(left.value) > 0)
+					return between(left.key, left.value, right.value);
+				if (right.value.compareTo(left.value) == 0)
+					return eq(right.key, right.value);
+				return null;
+			}
+		});
+		register(PredicateGe.class, PredicateLt.class, new PredicateSimplifier<PredicateGe, PredicateLt>() {
+			@Override
+			public AggregationPredicate simplifyAnd(PredicateGe left, PredicateLt right) {
+				if (!right.key.equals(left.key))
+					return null;
+				if (right.value.compareTo(left.value) <= 0)
+					return alwaysFalse();
+				return null;
+			}
+		});
+		register(PredicateGt.class, PredicateLe.class, new PredicateSimplifier<PredicateGt, PredicateLe>() {
+			@Override
+			public AggregationPredicate simplifyAnd(PredicateGt left, PredicateLe right) {
+				if (!right.key.equals(left.key))
+					return null;
+				if (right.value.compareTo(left.value) <= 0)
+					return alwaysFalse();
+				return null;
+			}
+		});
+		register(PredicateGt.class, PredicateLt.class, new PredicateSimplifier<PredicateGt, PredicateLt>() {
+			@Override
+			public AggregationPredicate simplifyAnd(PredicateGt left, PredicateLt right) {
+				if (!right.key.equals(left.key))
+					return null;
+				if (right.value.compareTo(left.value) <= 0)
+					return alwaysFalse();
+				return null;
 			}
 		});
 		register(PredicateBetween.class, PredicateBetween.class, new PredicateSimplifier<PredicateBetween, PredicateBetween>() {
@@ -254,6 +310,143 @@ public class AggregationPredicates {
 				Comparable from = left.from.compareTo(right.from) >= 0 ? left.from : right.from;
 				Comparable to = left.to.compareTo(right.to) <= 0 ? left.to : right.to;
 				return between(left.key, from, to).simplify();
+			}
+		});
+		register(PredicateBetween.class, PredicateLe.class, new PredicateSimplifier<PredicateBetween, PredicateLe>() {
+			@Override
+			public AggregationPredicate simplifyAnd(PredicateBetween left, PredicateLe right) {
+				if (!left.key.equals(right.key))
+					return null;
+				if (left.from.compareTo(right.value) > 0)
+					return alwaysFalse();
+				if (left.from.compareTo(right.value) == 0)
+					return eq(left.key, left.from);
+				if (left.to.compareTo(right.value) <= 0)
+					return left;
+				return between(left.key, left.from, right.value).simplify();
+			}
+		});
+		register(PredicateBetween.class, PredicateLt.class, new PredicateSimplifier<PredicateBetween, PredicateLt>() {
+			@Override
+			public AggregationPredicate simplifyAnd(PredicateBetween left, PredicateLt right) {
+				if (!left.key.equals(right.key))
+					return null;
+				if (left.from.compareTo(right.value) >= 0)
+					return alwaysFalse();
+				if (left.to.compareTo(right.value) < 0)
+					return left;
+				return null;
+			}
+		});
+		register(PredicateBetween.class, PredicateGe.class, new PredicateSimplifier<PredicateBetween, PredicateGe>() {
+			@Override
+			public AggregationPredicate simplifyAnd(PredicateBetween left, PredicateGe right) {
+				if (!left.key.equals(right.key))
+					return null;
+				if (left.to.compareTo(right.value) < 0)
+					return alwaysFalse();
+				if (left.to.compareTo(right.value) == 0)
+					return eq(left.key, left.to);
+				if (left.from.compareTo(right.value) >= 0)
+					return left;
+				return between(left.key, right.value, left.to).simplify();
+			}
+		});
+		register(PredicateBetween.class, PredicateGt.class, new PredicateSimplifier<PredicateBetween, PredicateGt>() {
+			@Override
+			public AggregationPredicate simplifyAnd(PredicateBetween left, PredicateGt right) {
+				if (!left.key.equals(right.key))
+					return null;
+				if (left.to.compareTo(right.value) <= 0)
+					return alwaysFalse();
+				if (left.from.compareTo(right.value) > 0)
+					return left;
+				return null;
+			}
+		});
+		register(PredicateNotEq.class, PredicateGt.class, new PredicateSimplifier<PredicateNotEq, PredicateGt>() {
+			@Override
+			public AggregationPredicate simplifyAnd(PredicateNotEq left, PredicateGt right) {
+				if (!left.key.equals(right.key))
+					return null;
+				if (right.value.compareTo(left.value) >= 0)
+					return right;
+				return null;
+			}
+		});
+		register(PredicateNotEq.class, PredicateGe.class, new PredicateSimplifier<PredicateNotEq, PredicateGe>() {
+			@Override
+			public AggregationPredicate simplifyAnd(PredicateNotEq left, PredicateGe right) {
+				if (!left.key.equals(right.key))
+					return null;
+				if (right.value.compareTo(left.value) > 0)
+					return right;
+				if (right.value.compareTo(left.value) == 0)
+					return gt(left.key, right.value);
+				return null;
+			}
+		});
+		register(PredicateNotEq.class, PredicateLt.class, new PredicateSimplifier<PredicateNotEq, PredicateLt>() {
+			@Override
+			public AggregationPredicate simplifyAnd(PredicateNotEq left, PredicateLt right) {
+				if (!left.key.equals(right.key))
+					return null;
+				if (right.value.compareTo(left.value) <= 0)
+					return right;
+				return null;
+			}
+		});
+		register(PredicateNotEq.class, PredicateLe.class, new PredicateSimplifier<PredicateNotEq, PredicateLe>() {
+			@Override
+			public AggregationPredicate simplifyAnd(PredicateNotEq left, PredicateLe right) {
+				if (!left.key.equals(right.key))
+					return null;
+				if (right.value.compareTo(left.value) < 0)
+					return right;
+				if (right.value.compareTo(left.value) == 0)
+					return lt(left.key, right.value);
+				return null;
+			}
+		});
+
+		register(PredicateEq.class, PredicateGt.class, new PredicateSimplifier<PredicateEq, PredicateGt>() {
+			@Override
+			public AggregationPredicate simplifyAnd(PredicateEq left, PredicateGt right) {
+				if (!left.key.equals(right.key))
+					return null;
+				if (right.value.compareTo(left.value) < 0)
+					return left;
+				return alwaysFalse();
+			}
+		});
+		register(PredicateEq.class, PredicateGe.class, new PredicateSimplifier<PredicateEq, PredicateGe>() {
+			@Override
+			public AggregationPredicate simplifyAnd(PredicateEq left, PredicateGe right) {
+				if (!left.key.equals(right.key))
+					return null;
+				if (right.value.compareTo(left.value) <= 0)
+					return left;
+				return alwaysFalse();
+			}
+		});
+		register(PredicateEq.class, PredicateLt.class, new PredicateSimplifier<PredicateEq, PredicateLt>() {
+			@Override
+			public AggregationPredicate simplifyAnd(PredicateEq left, PredicateLt right) {
+				if (!left.key.equals(right.key))
+					return null;
+				if (right.value.compareTo(left.value) > 0)
+					return left;
+				return alwaysFalse();
+			}
+		});
+		register(PredicateEq.class, PredicateLe.class, new PredicateSimplifier<PredicateEq, PredicateLe>() {
+			@Override
+			public AggregationPredicate simplifyAnd(PredicateEq left, PredicateLe right) {
+				if (!left.key.equals(right.key))
+					return null;
+				if (right.value.compareTo(left.value) >= 0)
+					return left;
+				return alwaysFalse();
 			}
 		});
 
@@ -270,6 +463,11 @@ public class AggregationPredicates {
 			}
 		};
 		register(PredicateHas.class, PredicateEq.class, simplifierHas);
+		register(PredicateHas.class, PredicateNotEq.class, simplifierHas);
+		register(PredicateHas.class, PredicateGe.class, simplifierHas);
+		register(PredicateHas.class, PredicateLe.class, simplifierHas);
+		register(PredicateHas.class, PredicateGt.class, simplifierHas);
+		register(PredicateHas.class, PredicateLt.class, simplifierHas);
 		register(PredicateHas.class, PredicateBetween.class, simplifierHas);
 		register(PredicateHas.class, PredicateAnd.class, simplifierHas);
 		register(PredicateHas.class, PredicateOr.class, simplifierHas);
