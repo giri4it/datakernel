@@ -42,8 +42,7 @@ public final class CubeHttpClient implements ICube {
 	private final Map<String, Type> attributeTypes = newLinkedHashMap();
 	private final Map<String, Type> measureTypes = newLinkedHashMap();
 
-	private CubeHttpClient(Eventloop eventloop, IAsyncHttpClient httpClient,
-	                       String url) {
+	private CubeHttpClient(Eventloop eventloop, IAsyncHttpClient httpClient, String url) {
 		this.eventloop = eventloop;
 		this.url = url.replaceAll("/$", "");
 		this.httpClient = httpClient;
@@ -116,12 +115,19 @@ public final class CubeHttpClient implements ICube {
 		if (query.getOffset() != null)
 			urlParams.put(OFFSET_PARAM, query.getOffset().toString());
 		if (query.isMetaOnly())
-			urlParams.put(META_ONLY_PARAM, String.valueOf(query.isMetaOnly()));
-		if (query.isResolveAttributes())
-			urlParams.put(RESOLVE_ATTRIBUTES_PARAM, String.valueOf(query.isResolveAttributes()));
+			urlParams.put(REPORT_TYPE_PARAM, META_REPORT);
+		else if (query.isTotalsOnly())
+			urlParams.put(REPORT_TYPE_PARAM, TOTALS_REPORT);
+		else if (query.isDimensionsOnly())
+			urlParams.put(REPORT_TYPE_PARAM, DIMENSIONS_REPORT);
+		else if (query.isResolveAttributesOnly())
+			urlParams.put(REPORT_TYPE_PARAM, RESOLVE_ATTRIBUTES_REPORT);
+		else if (query.isMeasuresOnly())
+			urlParams.put(REPORT_TYPE_PARAM, MEASURES_REPORT);
 
 		String url = this.url + "/" + "?" + HttpUtils.urlQueryString(urlParams);
-
+		// TODO: 20.06.17 tmp
+		System.out.println(url);
 		return HttpRequest.get(url);
 	}
 }

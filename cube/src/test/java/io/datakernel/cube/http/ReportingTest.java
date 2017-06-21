@@ -50,6 +50,7 @@ import org.junit.rules.TemporaryFolder;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -70,8 +71,8 @@ import static io.datakernel.eventloop.FatalErrorHandlers.rethrowOnAnyError;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
 import static junit.framework.TestCase.assertEquals;
-import static org.hamcrest.collection.IsIterableContainingInAnyOrder.containsInAnyOrder;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public class ReportingTest {
 	public static final double DELTA = 1E-3;
@@ -333,21 +334,21 @@ public class ReportingTest {
 				LogItemSplitter.factory(), LOG_NAME, LOG_PARTITIONS, logToCubeMetadataStorage);
 
 		List<LogItem> logItemsForAdvertisersAggregations = asList(
-				new LogItem(1, 1, 1, 1, 20, 3, 1, 0.12, 2, 2, 0, EXCLUDE_SITE),
-				new LogItem(1, 2, 2, 2, 100, 5, 0, 0.36, 10, 0, 0, EXCLUDE_SITE),
-				new LogItem(1, 3, 3, 3, 80, 5, 0, 0.60, 1, 8, 0, EXCLUDE_SITE),
-				new LogItem(2, 1, 1, 1, 15, 2, 0, 0.22, 1, 3, 0, EXCLUDE_SITE),
-				new LogItem(3, 1, 1, 1, 30, 5, 2, 0.30, 3, 4, 0, EXCLUDE_SITE));
+				new LogItem(1, 1, 1, 1, 20, 3, 1, 0.12, 2, 2, EXCLUDE_AFFILIATE, EXCLUDE_SITE),
+				new LogItem(1, 2, 2, 2, 100, 5, 0, 0.36, 10, 0, EXCLUDE_AFFILIATE, EXCLUDE_SITE),
+				new LogItem(1, 3, 3, 3, 80, 5, 0, 0.60, 1, 8, EXCLUDE_AFFILIATE, EXCLUDE_SITE),
+				new LogItem(2, 1, 1, 1, 15, 2, 0, 0.22, 1, 3, EXCLUDE_AFFILIATE, EXCLUDE_SITE),
+				new LogItem(3, 1, 1, 1, 30, 5, 2, 0.30, 3, 4, EXCLUDE_AFFILIATE, EXCLUDE_SITE));
 
 		List<LogItem> logItemsForAffiliatesAggregation = asList(
-				new LogItem(1, 0, 0, 0, 10, 3, 1, 0.12, 0, 2, 1, "site3.com"),
-				new LogItem(1, 0, 0, 0, 15, 2, 0, 0.22, 0, 3, 2, "site3.com"),
-				new LogItem(1, 0, 0, 0, 30, 5, 2, 0.30, 0, 4, 2, "site3.com"),
-				new LogItem(1, 0, 0, 0, 100, 5, 0, 0.36, 0, 0, 3, "site2.com"),
-				new LogItem(1, 0, 0, 0, 80, 5, 0, 0.60, 0, 8, 4, "site1.com"),
-				new LogItem(2, 0, 0, 0, 20, 1, 12, 0.8, 0, 3, 4, "site1.com"),
-				new LogItem(2, 0, 0, 0, 30, 2, 13, 0.9, 0, 2, 4, "site1.com"),
-				new LogItem(3, 0, 0, 0, 40, 3, 2, 1.0, 0, 1, 4, "site1.com"));
+				new LogItem(1, EXCLUDE_ADVERTISER, EXCLUDE_CAMPAIGN, EXCLUDE_BANNER, 10, 3, 1, 0.12, 0, 2, 1, "site3.com"),
+				new LogItem(1, EXCLUDE_ADVERTISER, EXCLUDE_CAMPAIGN, EXCLUDE_BANNER, 15, 2, 0, 0.22, 0, 3, 2, "site3.com"),
+				new LogItem(1, EXCLUDE_ADVERTISER, EXCLUDE_CAMPAIGN, EXCLUDE_BANNER, 30, 5, 2, 0.30, 0, 4, 2, "site3.com"),
+				new LogItem(1, EXCLUDE_ADVERTISER, EXCLUDE_CAMPAIGN, EXCLUDE_BANNER, 100, 5, 0, 0.36, 0, 0, 3, "site2.com"),
+				new LogItem(1, EXCLUDE_ADVERTISER, EXCLUDE_CAMPAIGN, EXCLUDE_BANNER, 80, 5, 0, 0.60, 0, 8, 4, "site1.com"),
+				new LogItem(2, EXCLUDE_ADVERTISER, EXCLUDE_CAMPAIGN, EXCLUDE_BANNER, 20, 1, 12, 0.8, 0, 3, 4, "site1.com"),
+				new LogItem(2, EXCLUDE_ADVERTISER, EXCLUDE_CAMPAIGN, EXCLUDE_BANNER, 30, 2, 13, 0.9, 0, 2, 4, "site1.com"),
+				new LogItem(3, EXCLUDE_ADVERTISER, EXCLUDE_CAMPAIGN, EXCLUDE_BANNER, 40, 3, 2, 1.0, 0, 1, 4, "site1.com"));
 
 		StreamProducers.OfIterator<LogItem> producerOfRandomLogItems = new StreamProducers.OfIterator<>(eventloop,
 				concat(logItemsForAdvertisersAggregations, logItemsForAffiliatesAggregation).iterator());
@@ -504,22 +505,27 @@ public class ReportingTest {
 		final QueryResult queryResult = getQueryResult(query);
 
 		List<Record> records = queryResult.getRecords();
-		assertEquals(3, records.size());
+		assertEquals(4, records.size());
 		assertEquals(newHashSet("date", "advertiser", "advertiser.name"), newHashSet(queryResult.getAttributes()));
 		assertEquals(newHashSet("impressions"), newHashSet(queryResult.getMeasures()));
 
 		assertEquals(LocalDate.parse("2000-01-02"), records.get(0).get("date"));
-		assertEquals(2, (int) records.get(0).get("advertiser"));
+		assertEquals(1, (int) records.get(0).get("advertiser"));
 		assertEquals(null, (String) records.get(0).get("advertiser.name"));
-		assertEquals(100, (long) records.get(0).get("impressions"));
+		assertEquals(20, (long) records.get(0).get("impressions"));
 
 		assertEquals(LocalDate.parse("2000-01-02"), records.get(1).get("date"));
-		assertEquals(1, (int) records.get(1).get("advertiser"));
-		assertEquals(20, (long) records.get(1).get("impressions"));
+		assertEquals(2, (int) records.get(1).get("advertiser"));
+		assertEquals(null, (String) records.get(1).get("advertiser.name"));
+		assertEquals(100, (long) records.get(1).get("impressions"));
 
-		assertEquals(LocalDate.parse("2000-01-03"), records.get(2).get("date"));
-		assertEquals(1, (int) records.get(2).get("advertiser"));
-		assertEquals(15, (long) records.get(2).get("impressions"));
+		assertEquals(LocalDate.parse("2000-01-02"), records.get(2).get("date"));
+		assertEquals(3, (int) records.get(2).get("advertiser"));
+		assertEquals(80, (long) records.get(2).get("impressions"));
+
+		assertEquals(LocalDate.parse("2000-01-03"), records.get(3).get("date"));
+		assertEquals(1, (int) records.get(3).get("advertiser"));
+		assertEquals(15, (long) records.get(3).get("impressions"));
 
 		Record totals = queryResult.getTotals();
 		// totals evaluated before applying having predicate
@@ -552,7 +558,7 @@ public class ReportingTest {
 				.withWhere(and(eq("advertiser", 2), notEq("advertiser", EXCLUDE_ADVERTISER), notEq("campaign", EXCLUDE_CAMPAIGN), notEq("banner", EXCLUDE_BANNER)))
 				.withOrderings(asc("advertiser.name"))
 				.withHaving(eq("advertiser.name", null))
-				.withResolveAttributes();
+				.withResolveAttributesOnly();
 
 		final QueryResult queryResult = getQueryResult(query);
 
@@ -651,9 +657,6 @@ public class ReportingTest {
 		assertTrue(metadata.getRecords().isEmpty());
 		assertTrue(metadata.getTotals().asMap().isEmpty());
 		assertTrue(metadata.getFilterAttributes().isEmpty());
-
-		assertThat(metadata.getAttributes(), containsInAnyOrder(attributes));
-		assertEquals(2, metadata.getSortedBy().size());
 	}
 
 	@Test
@@ -762,6 +765,32 @@ public class ReportingTest {
 	}
 
 	@Test
+	public void testResultContainsOnlyTotals_whenTotalsRequested() {
+		ArrayList<String> measures = newArrayList("clicks", "impressions", "revenue", "errors");
+		ArrayList<String> requestMeasures = newArrayList(measures);
+		requestMeasures.add("unexpected");
+		CubeQuery queryDate = CubeQuery.create()
+				.withAttributes("date")
+				.withMeasures(requestMeasures)
+				.withWhere(between("date", LocalDate.parse("2000-01-02"), LocalDate.parse("2000-01-02")))
+				.withTotalsOnly();
+
+		final QueryResult resultByDate = getQueryResult(queryDate);
+
+		assertTrue(resultByDate.getAttributes().isEmpty());
+		assertTrue(resultByDate.getMeasures().equals(measures));
+		Record dailyTotals = resultByDate.getTotals();
+		long dailyImpressions = (long) dailyTotals.get("impressions");
+		long dailyClicks = (long) dailyTotals.get("clicks");
+		double dailyRevenue = (double) dailyTotals.get("revenue");
+		long dailyErrors = (long) dailyTotals.get("errors");
+		assertEquals(435, dailyImpressions);
+		assertEquals(33, dailyClicks);
+		assertEquals(2.68, dailyRevenue, DELTA);
+		assertEquals(27, dailyErrors);
+	}
+
+	@Test
 	public void testPredicateNotEq() {
 		CubeQuery advertiserNotEqOne = CubeQuery.create()
 				.withAttributes("advertiser")
@@ -770,8 +799,15 @@ public class ReportingTest {
 
 		final QueryResult resultAdvertiserNotEqOne = getQueryResult(advertiserNotEqOne);
 		for (Record record : resultAdvertiserNotEqOne.getRecords()) {
-			System.out.println(record.get("advertiser"));
+			assertTrue(Integer.valueOf(2) == record.get("advertiser") || Integer.valueOf(3) == record.get("advertiser"));
 		}
+	}
+
+	@Test
+	public void testQueryComparisonPredicatesUrlFormat() {
+		CubeQuery query = CubeQuery.create()
+				.withWhere(and(lt("advertiser", 10), gt("campaign", 15), le("banner", -4), ge("site", "test"), notEq("advertiser", 1)));
+		getQueryResult(query);
 	}
 
 	private static int getAggregationItemsCount(Aggregation aggregation) {

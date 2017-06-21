@@ -463,7 +463,6 @@ public class AggregationPredicates {
 			}
 		};
 		register(PredicateHas.class, PredicateEq.class, simplifierHas);
-		register(PredicateHas.class, PredicateNotEq.class, simplifierHas);
 		register(PredicateHas.class, PredicateGe.class, simplifierHas);
 		register(PredicateHas.class, PredicateLe.class, simplifierHas);
 		register(PredicateHas.class, PredicateGt.class, simplifierHas);
@@ -471,6 +470,12 @@ public class AggregationPredicates {
 		register(PredicateHas.class, PredicateBetween.class, simplifierHas);
 		register(PredicateHas.class, PredicateAnd.class, simplifierHas);
 		register(PredicateHas.class, PredicateOr.class, simplifierHas);
+		register(PredicateHas.class, PredicateNotEq.class, new PredicateSimplifier<PredicateHas, PredicateNotEq>() {
+			@Override
+			public AggregationPredicate simplifyAnd(PredicateHas left, PredicateNotEq right) {
+				return (left.key.equals(right.key)) ? left : null;
+			}
+		});
 
 	}
 

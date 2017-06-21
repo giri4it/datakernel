@@ -28,9 +28,7 @@ import io.datakernel.cube.RecordScheme;
 
 import java.io.IOException;
 import java.lang.reflect.Type;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static com.google.common.base.MoreObjects.firstNonNull;
 import static com.google.common.base.Preconditions.checkArgument;
@@ -39,6 +37,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 
 final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
+	private static final String REPORT_TYPE_FIELD = "reportType";
 	private static final String MEASURES_FIELD = "measures";
 	private static final String ATTRIBUTES_FIELD = "attributes";
 	private static final String FILTER_ATTRIBUTES_FIELD = "filterAttributes";
@@ -46,8 +45,12 @@ final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
 	private static final String TOTALS_FIELD = "totals";
 	private static final String COUNT_FIELD = "count";
 	private static final String SORTED_BY_FIELD = "sortedBy";
-	private static final String META_ONLY_FIELD = "metaOnly";
-	private static final String RESOLVE_ATTRIBUTES_FIELD = "resolveAttributes";
+	private static final String GENERAL_REPORT = "general";
+	private static final String META_ONLY_REPORT = "meta";
+	private static final String TOTALS_ONLY_REPORT = "totals";
+	private static final String DIMENSIONS_ONLY_REPORT = "dimensions";
+	private static final String RESOLVE_ATTRIBUTES_ONLY_REPORT = "resolveAttributes";
+	private static final String MEASURES_ONLY_REPORT = "measures";
 
 	private final Map<String, TypeAdapter<?>> attributeAdapters;
 	private final Map<String, TypeAdapter<?>> measureAdapters;
@@ -89,51 +92,86 @@ final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
 	public QueryResult read(JsonReader reader) throws JsonParseException, IOException {
 		reader.beginObject();
 
-		checkArgument(META_ONLY_FIELD.equals(reader.nextName()));
-		boolean metaOnly = reader.nextBoolean();
+		checkArgument(REPORT_TYPE_FIELD.equals(reader.nextName()));
+		String reportType = reader.nextString();
 
-		checkArgument(ATTRIBUTES_FIELD.equals(reader.nextName()));
-		List<String> attributes = stringListAdapter.read(reader);
+		final BitSet includedAspects = new BitSet(5);
 
-		checkArgument(MEASURES_FIELD.equals(reader.nextName()));
-		List<String> measures = stringListAdapter.read(reader);
+		switch (reportType) {
+			case META_ONLY_REPORT:
+				includedAspects.set(0);
+				break;
+			case TOTALS_FIELD:
+				includedAspects.set(1);
+				break;
+			case DIMENSIONS_ONLY_REPORT:
+				includedAspects.set(2);
+				break;
+			case RESOLVE_ATTRIBUTES_ONLY_REPORT:
+				includedAspects.set(3);
+				break;
+			case MEASURES_ONLY_REPORT:
+				includedAspects.set(4);
+				break;
+		}
 
-		checkArgument(SORTED_BY_FIELD.equals(reader.nextName()));
-		List<String> sortedBy = stringListAdapter.read(reader);
-
+		List<String> attributes = emptyList();
+		List<String> measures = emptyList();
 		RecordScheme recordScheme = RecordScheme.create();
 		List<Record> records = emptyList();
+		List<String> sortedBy = emptyList();
 		Record totals = Record.create(recordScheme);
 		Map<String, Object> filterAttributes = emptyMap();
 		int count = 0;
-		boolean isResolveAttributes = false;
 
-		if (!metaOnly) {
+		boolean isAllAspectsIncluded = GENERAL_REPORT.equals(reportType);
+
+		if (isAllAspectsIncluded) {
+			checkArgument(ATTRIBUTES_FIELD.equals(reader.nextName()));
+			attributes = stringListAdapter.read(reader);
+
+			checkArgument(MEASURES_FIELD.equals(reader.nextName()));
+			measures = stringListAdapter.read(reader);
+
 			recordScheme = recordScheme(attributes, measures);
-
 			checkArgument(RECORDS_FIELD.equals(reader.nextName()));
 			records = readRecords(reader, recordScheme);
 
-			checkArgument(TOTALS_FIELD.equals(reader.nextName()));
-			totals = readTotals(reader, recordScheme);
+			checkArgument(SORTED_BY_FIELD.equals(reader.nextName()));
+			sortedBy = stringListAdapter.read(reader);
 
 			checkArgument(COUNT_FIELD.equals(reader.nextName()));
 			count = reader.nextInt();
 
-			checkArgument(RESOLVE_ATTRIBUTES_FIELD.equals(reader.nextName()));
-			isResolveAttributes = reader.nextBoolean();
+			checkArgument(TOTALS_FIELD.equals(reader.nextName()));
+			totals = readTotals(reader, recordScheme);
 
-			if(isResolveAttributes){
-				checkArgument(FILTER_ATTRIBUTES_FIELD.equals(reader.nextName()));
-				filterAttributes = readFilterAttributes(reader);
-			}
+			checkArgument(FILTER_ATTRIBUTES_FIELD.equals(reader.nextName()));
+			filterAttributes = readFilterAttributes(reader);
+		} else if (TOTALS_ONLY_REPORT.equals(reportType)) {
+
+			checkArgument(MEASURES_FIELD.equals(reader.nextName()));
+			measures = stringListAdapter.read(reader);
+
+			recordScheme = recordScheme(Collections.<String>emptyList(), measures);
+
+			checkArgument(TOTALS_FIELD.equals(reader.nextName()));
+			totals = readTotals(reader, recordScheme);
+		} else if (FILTER_ATTRIBUTES_FIELD.equals(reportType)) {
+			checkArgument(FILTER_ATTRIBUTES_FIELD.equals(reader.nextName()));
+			filterAttributes = readFilterAttributes(reader);
+		} else if (META_ONLY_REPORT.equals(reportType)) {
+			checkArgument(ATTRIBUTES_FIELD.equals(reader.nextName()));
+			attributes = stringListAdapter.read(reader);
+
+			checkArgument(MEASURES_FIELD.equals(reader.nextName()));
+			measures = stringListAdapter.read(reader);
 		}
 
 		reader.endObject();
 
-		return QueryResult.create(recordScheme, records, totals, count,
-				attributes, measures, sortedBy,
-				filterAttributes, metaOnly, isResolveAttributes);
+		return QueryResult.create(recordScheme, records, totals, count, attributes, measures, sortedBy,
+				filterAttributes, includedAspects);
 	}
 
 	private List<Record> readRecords(JsonReader reader, RecordScheme recordScheme) throws JsonParseException, IOException {
@@ -188,35 +226,57 @@ final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
 	public void write(JsonWriter writer, QueryResult result) throws IOException {
 		writer.beginObject();
 
-		writer.name(META_ONLY_FIELD);
-		writer.value(result.isMetaOnly());
+		writer.name(REPORT_TYPE_FIELD);
+		String reportType = GENERAL_REPORT;
+		if (result.isMetaOnly()) {
+			reportType = META_ONLY_REPORT;
+		} else if (result.isTotalsOnly()) {
+			reportType = TOTALS_ONLY_REPORT;
+		} else if (result.isDimensionsOnly()) {
+			reportType = DIMENSIONS_ONLY_REPORT;
+		} else if (result.isResolveAttributesOnly()) {
+			reportType = RESOLVE_ATTRIBUTES_ONLY_REPORT;
+		} else if (result.isMeasuresOnly()) {
+			reportType = MEASURES_ONLY_REPORT;
+		}
+		writer.value(reportType);
 
-		writer.name(ATTRIBUTES_FIELD);
-		stringListAdapter.write(writer, result.getAttributes());
+		if (result.isAllAspectsIncluded()) {
+			writer.name(ATTRIBUTES_FIELD);
+			stringListAdapter.write(writer, result.getAttributes());
 
-		writer.name(MEASURES_FIELD);
-		stringListAdapter.write(writer, result.getMeasures());
+			writer.name(MEASURES_FIELD);
+			stringListAdapter.write(writer, result.getMeasures());
 
-		writer.name(SORTED_BY_FIELD);
-		stringListAdapter.write(writer, result.getSortedBy());
-
-		if (!result.isMetaOnly()) {
 			writer.name(RECORDS_FIELD);
 			writeRecords(writer, result.getRecordScheme(), result.getRecords());
 
-			writer.name(TOTALS_FIELD);
-			writeTotals(writer, result.getRecordScheme(), result.getTotals());
+			writer.name(SORTED_BY_FIELD);
+			stringListAdapter.write(writer, result.getSortedBy());
 
 			writer.name(COUNT_FIELD);
 			writer.value(result.getTotalCount());
 
-			writer.name(RESOLVE_ATTRIBUTES_FIELD);
-			writer.value(result.isResolveAttributes());
+			writer.name(TOTALS_FIELD);
+			writeTotals(writer, result.getRecordScheme(), result.getTotals());
 
-			if(result.isResolveAttributes()){
-				writer.name(FILTER_ATTRIBUTES_FIELD);
-				writeFilterAttributes(writer, result.getFilterAttributes());
-			}
+			writer.name(FILTER_ATTRIBUTES_FIELD);
+			writeFilterAttributes(writer, result.getFilterAttributes());
+		} else if (result.isTotalsOnly()) {
+			writer.name(MEASURES_FIELD);
+			stringListAdapter.write(writer, result.getMeasures());
+
+			writer.name(TOTALS_FIELD);
+			writeTotals(writer, result.getRecordScheme(), result.getTotals());
+		} else if (result.isResolveAttributesOnly()) {
+			writer.name(FILTER_ATTRIBUTES_FIELD);
+			writeFilterAttributes(writer, result.getFilterAttributes());
+		} else if (result.isMetaOnly()) {
+			writer.name(ATTRIBUTES_FIELD);
+			stringListAdapter.write(writer, result.getAttributes());
+
+			writer.name(MEASURES_FIELD);
+			stringListAdapter.write(writer, result.getMeasures());
 		}
 
 		writer.endObject();

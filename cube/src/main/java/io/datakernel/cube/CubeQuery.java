@@ -33,6 +33,7 @@ public final class CubeQuery {
 	private Integer limit = null;
 	private Integer offset = null;
 	private List<Ordering> orderings = new ArrayList<>();
+
 	/**
 	 * Table of bit number to aspect correspondence:
 	 * <table>
@@ -56,11 +57,9 @@ public final class CubeQuery {
 	 * </tr>
 	 * </table>
 	 */
-	private BitSet resultIncludedAspect = new BitSet(5);
+	private BitSet includeAspect = new BitSet(5);
 
-	private CubeQuery() {
-
-	}
+	private CubeQuery() {}
 
 	public static CubeQuery create() {
 		return new CubeQuery();
@@ -125,36 +124,35 @@ public final class CubeQuery {
 	}
 
 	public CubeQuery withMetaOnly() {
-		this.resultIncludedAspect.clear();
-		this.resultIncludedAspect.set(0);
+		this.includeAspect.clear();
+		this.includeAspect.set(0);
 		return this;
 	}
 
 	public CubeQuery withTotalsOnly() {
-		this.resultIncludedAspect.clear();
-		this.resultIncludedAspect.set(1);
+		this.includeAspect.clear();
+		this.includeAspect.set(1);
 		return this;
 	}
 
 	public CubeQuery withDimensionsOnly() {
-		this.resultIncludedAspect.clear();
-		this.resultIncludedAspect.set(2);
+		this.includeAspect.clear();
+		this.includeAspect.set(2);
 		return this;
 	}
 
 	public CubeQuery withResolveAttributesOnly() {
-		this.resultIncludedAspect.clear();
-		this.resultIncludedAspect.set(3);
+		this.includeAspect.clear();
+		this.includeAspect.set(3);
 		return this;
 
 	}
 
 	public CubeQuery withMeasuresOnly() {
-		this.resultIncludedAspect.clear();
-		this.resultIncludedAspect.set(4);
+		this.includeAspect.clear();
+		this.includeAspect.set(4);
 		return this;
 	}
-
 	// endregion
 
 	// region getters
@@ -187,25 +185,28 @@ public final class CubeQuery {
 	}
 
 	public boolean isMetaOnly() {
-		return resultIncludedAspect.get(0);
+		return includeAspect.get(0);
 	}
 
 	public boolean isTotalsOnly() {
-		return resultIncludedAspect.get(1);
+		return includeAspect.get(1);
 	}
 
 	public boolean isDimensionsOnly() {
-		return resultIncludedAspect.get(2);
+		return includeAspect.get(2);
 	}
 
 	public boolean isResolveAttributesOnly() {
-		return resultIncludedAspect.get(3);
+		return includeAspect.get(3);
 	}
 
 	public boolean isMeasuresOnly() {
-		return resultIncludedAspect.get(4);
+		return includeAspect.get(4);
 	}
 
+	public boolean isIncludeAllAspects() {
+		return includeAspect.cardinality() == 0;
+	}
 	// endregion
 
 	// region helper classes

@@ -50,6 +50,7 @@ import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Type;
 import java.nio.file.NoSuchFileException;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 
@@ -206,7 +207,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 //			resolverContainer = new AttributeResolverContainer(dimensions, resolver);
 //			attributeResolvers.add(resolverContainer);
 //		}
-	//	resolverContainer.attributes.add(attribute);
+		//	resolverContainer.attributes.add(attribute);
 		attributes.put(attribute, resolverContainer);
 		attributeTypes.put(attribute, resolver.getAttributeTypes().get(attributeName));
 		return this;
@@ -267,18 +268,18 @@ public final class Cube implements ICube, EventloopJmxMBean {
 	}
 
 	public Cube withRelation(String child, String parent) {
-		/*this.childParentRelationships.put(child, parent);
-		parentChildRelationships.put(parent, child);*/
+		this.childParentRelationships.put(child, parent);
+		parentChildRelationships.put(parent, child);
 		return this;
 	}
 
 	public Cube withRelations(Map<String, String> childParentRelationships) {
-/*		this.childParentRelationships.putAll(childParentRelationships);
+		this.childParentRelationships.putAll(childParentRelationships);
 		for (Map.Entry<String, String> parentChildEntry : childParentRelationships.entrySet()) {
 			String parent = parentChildEntry.getKey();
 			String child = parentChildEntry.getValue();
 			parentChildRelationships.put(child, parent);
-		}*/
+		}
 		return this;
 	}
 
@@ -1012,17 +1013,19 @@ public final class Cube implements ICube, EventloopJmxMBean {
 
 			List<String> attributes = newArrayList();
 			for (String s : query.getAttributes()) {
-				if(!s.contains(".")) {
+				if (!s.contains(".")) {
 					attributes.add(s);
 				}
 			}
 			List<String> measures = query.getMeasures();
 			prepareCompatibleAggregations(newArrayList(concat(attributes, queryPredicate.getDimensions())), measures, queryPredicate);
-			if(compatibleAggregations.isEmpty() && query.isMetaOnly()) {
+			if (compatibleAggregations.isEmpty() && query.isMetaOnly()) {
 				List<String> empty = emptyList();
 				RecordScheme recordScheme = createRecordScheme();
+				BitSet metaOnlyFlag = new BitSet(5);
+				metaOnlyFlag.set(0);
 				QueryResult result = QueryResult.create(recordScheme, Collections.<Record>emptyList(),
-						Record.create(recordScheme), 0, empty, empty, empty, Collections.<String, Object>emptyMap(), true, false);
+						Record.create(recordScheme), 0, empty, empty, empty, Collections.<String, Object>emptyMap(), metaOnlyFlag);
 				resultCallback.setResult(result);
 				return;
 			}
@@ -1039,9 +1042,11 @@ public final class Cube implements ICube, EventloopJmxMBean {
 			recordFunction = createRecordFunction();
 
 			if (query.isMetaOnly()) {
+				BitSet metaOnlyFlag = new BitSet();
+				metaOnlyFlag.set(0);
 				QueryResult result = QueryResult.create(recordScheme, Collections.<Record>emptyList(),
 						Record.create(recordScheme), 0, newArrayList(resultAttributes), newArrayList(resultMeasures),
-						resultOrderings, Collections.<String, Object>emptyMap(), true, false);
+						resultOrderings, Collections.<String, Object>emptyMap(), metaOnlyFlag);
 				resultCallback.setResult(result);
 				return;
 			}
@@ -1145,6 +1150,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 			return ClassBuilder.create(queryClassLoader, RecordFunction.class)
 					.withMethod("copyAttributes", copyAttributes)
 					.withMethod("copyMeasures", copyMeasures)
+					.withBytecodeSaveDir(Paths.get("./gen"))
 					.buildClassAndCreateNewInstance();
 		}
 
@@ -1225,6 +1231,19 @@ public final class Cube implements ICube, EventloopJmxMBean {
 			}
 			totalsFunction.computeMeasures(totals);
 
+			Record totalRecord = Record.create(recordScheme);
+			recordFunction.copyMeasures(totals, totalRecord);
+
+			if(query.isTotalsOnly()) {
+				BitSet includedAspect = new BitSet(5);
+				includedAspect.set(1);
+				QueryResult result = QueryResult.create(recordScheme, Collections.<Record>emptyList(), totalRecord, 0,
+						Collections.<String>emptyList(), newArrayList(queryMeasures), Collections.<String>emptyList(),
+						Collections.<String, Object>emptyMap(), includedAspect);
+				callback.setResult(result);
+				return;
+			}
+
 			List<AsyncRunnable> tasks = new ArrayList<>();
 			for (final AttributeResolverContainer resolverContainer : attributeResolvers) {
 				final List<String> attributes = new ArrayList<>(resolverContainer.attributes);
@@ -1276,12 +1295,13 @@ public final class Cube implements ICube, EventloopJmxMBean {
 				resultRecords.add(record);
 			}
 
+			// TODO: 21.06.17 move to processResults()?
 			Record totalRecord = Record.create(recordScheme);
 			recordFunction.copyMeasures(totals, totalRecord);
 
 			QueryResult result = QueryResult.create(recordScheme, resultRecords, totalRecord, totalCount,
 					newArrayList(resultAttributes), newArrayList(queryMeasures), resultOrderings, filterAttributes,
-					false, true);
+					new BitSet(5));
 			callback.setResult(result);
 		}
 
