@@ -20,6 +20,7 @@ import io.datakernel.aggregation.AggregationPredicate;
 import io.datakernel.aggregation.AggregationPredicates;
 
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.List;
 
 import static java.util.Arrays.asList;
@@ -32,8 +33,30 @@ public final class CubeQuery {
 	private Integer limit = null;
 	private Integer offset = null;
 	private List<Ordering> orderings = new ArrayList<>();
-	private boolean metaOnly;
-	private boolean resolveAttributes;
+	/**
+	 * Table of bit number to aspect correspondence:
+	 * <table>
+	 * <tr align="center">
+	 * <td> Bit number </td> <td> Aspect included in result</td>
+	 * </tr>
+	 * <tr>
+	 * <td align="right"> 0 </td> <td  align="left"> metadata </td>
+	 * </tr>
+	 * <tr>
+	 * <td align="right"> 1 </td> <td  align="left"> totals </td>
+	 * </tr>
+	 * <tr>
+	 * <td align="right"> 2 </td> <td  align="left"> dimensions </td>
+	 * </tr>
+	 * <tr>
+	 * <td align="right"> 3 </td> <td  align="left"> resolve attributes </td>
+	 * </tr>
+	 * <tr>
+	 * <td align="right"> 3 </td> <td  align="left"> measures </td>
+	 * </tr>
+	 * </table>
+	 */
+	private BitSet resultIncludedAspect = new BitSet(5);
 
 	private CubeQuery() {
 
@@ -96,22 +119,39 @@ public final class CubeQuery {
 		return this;
 	}
 
-	public Integer getLimit() {
-		return limit;
-	}
-
 	public CubeQuery withOffset(Integer offset) {
 		this.offset = offset;
 		return this;
 	}
 
 	public CubeQuery withMetaOnly() {
-		this.metaOnly = true;
+		this.resultIncludedAspect.clear();
+		this.resultIncludedAspect.set(0);
 		return this;
 	}
 
-	public CubeQuery withResolveAttributes() {
-		this.resolveAttributes = true;
+	public CubeQuery withTotalsOnly() {
+		this.resultIncludedAspect.clear();
+		this.resultIncludedAspect.set(1);
+		return this;
+	}
+
+	public CubeQuery withDimensionsOnly() {
+		this.resultIncludedAspect.clear();
+		this.resultIncludedAspect.set(2);
+		return this;
+	}
+
+	public CubeQuery withResolveAttributesOnly() {
+		this.resultIncludedAspect.clear();
+		this.resultIncludedAspect.set(3);
+		return this;
+
+	}
+
+	public CubeQuery withMeasuresOnly() {
+		this.resultIncludedAspect.clear();
+		this.resultIncludedAspect.set(4);
 		return this;
 	}
 
@@ -138,16 +178,32 @@ public final class CubeQuery {
 		return having;
 	}
 
+	public Integer getLimit() {
+		return limit;
+	}
+
 	public Integer getOffset() {
 		return offset;
 	}
 
 	public boolean isMetaOnly() {
-		return metaOnly;
+		return resultIncludedAspect.get(0);
 	}
 
-	public boolean isResolveAttributes() {
-		return resolveAttributes;
+	public boolean isTotalsOnly() {
+		return resultIncludedAspect.get(1);
+	}
+
+	public boolean isDimensionsOnly() {
+		return resultIncludedAspect.get(2);
+	}
+
+	public boolean isResolveAttributesOnly() {
+		return resultIncludedAspect.get(3);
+	}
+
+	public boolean isMeasuresOnly() {
+		return resultIncludedAspect.get(4);
 	}
 
 	// endregion
@@ -223,8 +279,10 @@ public final class CubeQuery {
 				", limit=" + limit +
 				", offset=" + offset +
 				", orderings=" + orderings +
-				", metaOnly=" + metaOnly +
-				", resolveAttributes=" + resolveAttributes +
-				'}';
+				", metaOnly=" + isMeasuresOnly() +
+				", totalsOnly=" + isTotalsOnly() +
+				", dimensionsOnly=" + isDimensionsOnly() +
+				", resolveAttributesOnly=" + isResolveAttributesOnly() +
+				", measuresOnly=" + isMeasuresOnly() + '}';
 	}
 }
