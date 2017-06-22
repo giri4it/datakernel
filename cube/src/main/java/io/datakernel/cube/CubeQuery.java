@@ -16,6 +16,7 @@
 
 package io.datakernel.cube;
 
+import com.google.common.base.Joiner;
 import io.datakernel.aggregation.AggregationPredicate;
 import io.datakernel.aggregation.AggregationPredicates;
 
@@ -26,6 +27,7 @@ import java.util.List;
 import static java.util.Arrays.asList;
 
 public final class CubeQuery {
+	private static final Joiner JOINER = Joiner.on(',');
 	private List<String> attributes = new ArrayList<>();
 	private List<String> measures = new ArrayList<>();
 	private AggregationPredicate where = AggregationPredicates.alwaysTrue();
@@ -50,14 +52,14 @@ public final class CubeQuery {
 	 * <td align="right"> 2 </td> <td  align="left"> dimensions </td>
 	 * </tr>
 	 * <tr>
-	 * <td align="right"> 3 </td> <td  align="left"> resolve attributes </td>
+	 * <td align="right"> 3 </td> <td  align="left"> measures </td>
 	 * </tr>
 	 * <tr>
-	 * <td align="right"> 3 </td> <td  align="left"> measures </td>
+	 * <td align="right"> 4 </td> <td  align="left"> resolve attributes </td>
 	 * </tr>
 	 * </table>
 	 */
-	private BitSet includeAspect = new BitSet(5);
+	private BitSet reportType = new BitSet(5);
 
 	private CubeQuery() {}
 
@@ -123,36 +125,39 @@ public final class CubeQuery {
 		return this;
 	}
 
-	public CubeQuery withMetaOnly() {
-		this.includeAspect.clear();
-		this.includeAspect.set(0);
+	public CubeQuery withReportTypes(BitSet reportTypes) {
+		this.reportType = reportTypes;
 		return this;
 	}
 
-	public CubeQuery withTotalsOnly() {
-		this.includeAspect.clear();
-		this.includeAspect.set(1);
+	public CubeQuery withReportType(ReportType reportType) {
+		switch (reportType) {
+			case METADATA:
+				this.reportType.set(0);
+				break;
+			case TOTALS:
+				this.reportType.set(1);
+				break;
+			case DIMENSIONS:
+				this.reportType.set(2);
+				break;
+			case MEASURES:
+				this.reportType.set(3);
+				break;
+			case RESOLVE_ATTRIBUTES:
+				this.reportType.set(4);
+				break;
+		}
 		return this;
 	}
 
-	public CubeQuery withDimensionsOnly() {
-		this.includeAspect.clear();
-		this.includeAspect.set(2);
+	public CubeQuery withReportTypes(List<String> reportTypes) {
+		for (String reportType : reportTypes) {
+			withReportType(ReportType.fromString(reportType));
+		}
 		return this;
 	}
 
-	public CubeQuery withResolveAttributesOnly() {
-		this.includeAspect.clear();
-		this.includeAspect.set(3);
-		return this;
-
-	}
-
-	public CubeQuery withMeasuresOnly() {
-		this.includeAspect.clear();
-		this.includeAspect.set(4);
-		return this;
-	}
 	// endregion
 
 	// region getters
@@ -184,28 +189,8 @@ public final class CubeQuery {
 		return offset;
 	}
 
-	public boolean isMetaOnly() {
-		return includeAspect.get(0);
-	}
-
-	public boolean isTotalsOnly() {
-		return includeAspect.get(1);
-	}
-
-	public boolean isDimensionsOnly() {
-		return includeAspect.get(2);
-	}
-
-	public boolean isResolveAttributesOnly() {
-		return includeAspect.get(3);
-	}
-
-	public boolean isMeasuresOnly() {
-		return includeAspect.get(4);
-	}
-
-	public boolean isIncludeAllAspects() {
-		return includeAspect.cardinality() == 0;
+	public BitSet getReportType() {
+		return reportType;
 	}
 	// endregion
 
@@ -268,6 +253,29 @@ public final class CubeQuery {
 			return field + " " + (desc ? "desc" : "asc");
 		}
 	}
+
+	public enum ReportType {
+		METADATA("metadata"),
+		TOTALS("totals"),
+		DIMENSIONS("dimensions"),
+		MEASURES("measures"),
+		RESOLVE_ATTRIBUTES("resolveAttributes");
+
+		private String reportType;
+
+		ReportType(String reportType) {
+			this.reportType = reportType;
+		}
+
+		static ReportType fromString(String reportType) {
+			for (ReportType type : ReportType.values()) {
+				if (reportType.equals(type.reportType))
+					return type;
+			}
+			throw new IllegalArgumentException(String.format("Unexpected reportType '%s'. Available report types are: %s",
+					reportType, JOINER.join(ReportType.values())));
+		}
+	}
 	// endregion
 
 	@Override
@@ -280,10 +288,6 @@ public final class CubeQuery {
 				", limit=" + limit +
 				", offset=" + offset +
 				", orderings=" + orderings +
-				", metaOnly=" + isMeasuresOnly() +
-				", totalsOnly=" + isTotalsOnly() +
-				", dimensionsOnly=" + isDimensionsOnly() +
-				", resolveAttributesOnly=" + isResolveAttributesOnly() +
-				", measuresOnly=" + isMeasuresOnly() + '}';
+				", reportType=" + reportType + '}';
 	}
 }

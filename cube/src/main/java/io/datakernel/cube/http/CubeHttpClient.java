@@ -29,6 +29,8 @@ import io.datakernel.http.*;
 
 import java.lang.reflect.Type;
 import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import static com.google.common.collect.Maps.newLinkedHashMap;
@@ -96,6 +98,8 @@ public final class CubeHttpClient implements ICube {
 					return;
 				}
 
+				// TODO: 22.06.17 remove
+				System.out.println('\n' + response + '\n');
 				QueryResult result = gson.fromJson(response, QueryResult.class);
 				callback.setResult(result);
 			}
@@ -114,17 +118,21 @@ public final class CubeHttpClient implements ICube {
 			urlParams.put(LIMIT_PARAM, query.getLimit().toString());
 		if (query.getOffset() != null)
 			urlParams.put(OFFSET_PARAM, query.getOffset().toString());
-		if (query.isMetaOnly())
-			urlParams.put(REPORT_TYPE_PARAM, META_REPORT);
-		else if (query.isTotalsOnly())
-			urlParams.put(REPORT_TYPE_PARAM, TOTALS_REPORT);
-		else if (query.isDimensionsOnly())
-			urlParams.put(REPORT_TYPE_PARAM, DIMENSIONS_REPORT);
-		else if (query.isResolveAttributesOnly())
-			urlParams.put(REPORT_TYPE_PARAM, RESOLVE_ATTRIBUTES_REPORT);
-		else if (query.isMeasuresOnly())
-			urlParams.put(REPORT_TYPE_PARAM, MEASURES_REPORT);
+		if (query.getReportType().cardinality() != 0) {
+			List<String> reportType = new ArrayList<>();
+			if (query.getReportType().get(0))
+				reportType.add(METADATA_REPORT);
+			if (query.getReportType().get(1))
+				reportType.add(TOTALS_REPORT);
+			if (query.getReportType().get(2))
+				reportType.add(DIMENSIONS_REPORT);
+			if (query.getReportType().get(3))
+				reportType.add(MEASURES_REPORT);
+			if (query.getReportType().get(4))
+				reportType.add(RESOLVE_ATTRIBUTES_REPORT);
 
+			urlParams.put(REPORT_TYPE_PARAM, JOINER.join(reportType));
+		}
 		String url = this.url + "/" + "?" + HttpUtils.urlQueryString(urlParams);
 		// TODO: 20.06.17 tmp
 		System.out.println(url);

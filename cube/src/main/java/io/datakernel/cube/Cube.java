@@ -75,7 +75,8 @@ import static io.datakernel.cube.Utils.createResultClass;
 import static io.datakernel.cube.Utils.startsWith;
 import static io.datakernel.jmx.ValueStats.SMOOTHING_WINDOW_10_MINUTES;
 import static java.util.Arrays.asList;
-import static java.util.Collections.*;
+import static java.util.Collections.singletonList;
+import static java.util.Collections.sort;
 
 /**
  * Represents an OLAP cube. Provides methods for loading and querying data.
@@ -997,6 +998,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 		List<String> resultOrderings = newArrayList();
 		Comparator<?> comparator;
 
+		BitSet reportType;
 		MeasuresFunction measuresFunction;
 		TotalsFunction totalsFunction;
 
@@ -1006,6 +1008,8 @@ public final class Cube implements ICube, EventloopJmxMBean {
 		void execute(final DefiningClassLoader queryClassLoader, CubeQuery query, final ResultCallback<QueryResult> resultCallback) throws QueryException {
 			this.queryClassLoader = queryClassLoader;
 			this.query = query;
+
+			reportType = query.getReportType();
 
 			queryPredicate = query.getWhere().simplify();
 			queryHaving = query.getHaving().simplify();
@@ -1019,13 +1023,14 @@ public final class Cube implements ICube, EventloopJmxMBean {
 			}
 			List<String> measures = query.getMeasures();
 			prepareCompatibleAggregations(newArrayList(concat(attributes, queryPredicate.getDimensions())), measures, queryPredicate);
-			if (compatibleAggregations.isEmpty() && query.isMetaOnly()) {
-				List<String> empty = emptyList();
+
+			if (compatibleAggregations.isEmpty()) {
 				RecordScheme recordScheme = createRecordScheme();
 				BitSet metaOnlyFlag = new BitSet(5);
 				metaOnlyFlag.set(0);
 				QueryResult result = QueryResult.create(recordScheme, Collections.<Record>emptyList(),
-						Record.create(recordScheme), 0, empty, empty, empty, Collections.<String, Object>emptyMap(), metaOnlyFlag);
+						Record.create(recordScheme), 0, Collections.<String>emptyList(), Collections.<String>emptyList(),
+						Collections.<String>emptyList(), Collections.<String, Object>emptyMap(), metaOnlyFlag);
 				resultCallback.setResult(result);
 				return;
 			}
@@ -1041,8 +1046,8 @@ public final class Cube implements ICube, EventloopJmxMBean {
 			recordScheme = createRecordScheme();
 			recordFunction = createRecordFunction();
 
-			if (query.isMetaOnly()) {
-				BitSet metaOnlyFlag = new BitSet();
+			if (reportType.get(0) && reportType.cardinality() == 0) {
+				BitSet metaOnlyFlag = new BitSet(5);
 				metaOnlyFlag.set(0);
 				QueryResult result = QueryResult.create(recordScheme, Collections.<Record>emptyList(),
 						Record.create(recordScheme), 0, newArrayList(resultAttributes), newArrayList(resultMeasures),
@@ -1115,14 +1120,14 @@ public final class Cube implements ICube, EventloopJmxMBean {
 
 		RecordScheme createRecordScheme() {
 			RecordScheme recordScheme = RecordScheme.create();
-			for (String attribute : resultAttributes) {
-				recordScheme = recordScheme.withField(attribute,
-						getAttributeType(attribute));
-			}
-			for (String measure : queryMeasures) {
-				recordScheme = recordScheme.withField(measure,
-						getMeasureType(measure));
-			}
+				for (String attribute : resultAttributes) {
+					recordScheme = recordScheme.withField(attribute,
+							getAttributeType(attribute));
+				}
+				for (String measure : queryMeasures) {
+					recordScheme = recordScheme.withField(measure,
+							getMeasureType(measure));
+				}
 			return recordScheme;
 		}
 
@@ -1234,7 +1239,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 			Record totalRecord = Record.create(recordScheme);
 			recordFunction.copyMeasures(totals, totalRecord);
 
-			if(query.isTotalsOnly()) {
+			if(reportType.get(1) && reportType.cardinality() == 1) {
 				BitSet includedAspect = new BitSet(5);
 				includedAspect.set(1);
 				QueryResult result = QueryResult.create(recordScheme, Collections.<Record>emptyList(), totalRecord, 0,
@@ -1301,7 +1306,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 
 			QueryResult result = QueryResult.create(recordScheme, resultRecords, totalRecord, totalCount,
 					newArrayList(resultAttributes), newArrayList(queryMeasures), resultOrderings, filterAttributes,
-					new BitSet(5));
+					reportType);
 			callback.setResult(result);
 		}
 

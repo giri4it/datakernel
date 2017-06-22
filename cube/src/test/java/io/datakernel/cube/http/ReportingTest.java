@@ -29,6 +29,7 @@ import io.datakernel.async.AssertingResultCallback;
 import io.datakernel.async.IgnoreCompletionCallback;
 import io.datakernel.codegen.DefiningClassLoader;
 import io.datakernel.cube.*;
+import io.datakernel.cube.CubeQuery.ReportType;
 import io.datakernel.cube.attributes.AbstractAttributeResolver;
 import io.datakernel.eventloop.Eventloop;
 import io.datakernel.http.AsyncHttpClient;
@@ -53,6 +54,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -362,14 +364,15 @@ public class ReportingTest {
 		cube.loadChunks(IgnoreCompletionCallback.create());
 		eventloop.run();
 
+		int serverPort = 40000 + new Random().nextInt(100);
 		cubeHttpServer = AsyncHttpServer.create(eventloop, ReportingServiceServlet.createRootServlet(eventloop, cube))
-				.withListenPort(SERVER_PORT)
+				.withListenPort(serverPort)
 				.withAcceptOnce();
 		cubeHttpServer.listen();
 
 		httpClient = AsyncHttpClient.create(eventloop)
 				.withNoKeepAlive();
-		cubeHttpClient = CubeHttpClient.create(eventloop, httpClient, "http://127.0.0.1:" + SERVER_PORT)
+		cubeHttpClient = CubeHttpClient.create(eventloop, httpClient, "http://127.0.0.1:" + serverPort)
 				.withAttribute("date", LocalDate.class)
 				.withAttribute("advertiser", int.class)
 				.withAttribute("campaign", int.class)
@@ -558,7 +561,7 @@ public class ReportingTest {
 				.withWhere(and(eq("advertiser", 2), notEq("advertiser", EXCLUDE_ADVERTISER), notEq("campaign", EXCLUDE_CAMPAIGN), notEq("banner", EXCLUDE_BANNER)))
 				.withOrderings(asc("advertiser.name"))
 				.withHaving(eq("advertiser.name", null))
-				.withResolveAttributesOnly();
+				.withReportType(ReportType.RESOLVE_ATTRIBUTES);
 
 		final QueryResult queryResult = getQueryResult(query);
 
@@ -637,7 +640,7 @@ public class ReportingTest {
 	}
 
 	@Test
-	public void testMetaOnlyQuery() {
+	public void testMetadataOnlyQuery() {
 		String[] attributes = {"date", "advertiser", "advertiser.name"};
 		CubeQuery onlyMetaQuery = CubeQuery.create()
 				.withAttributes(attributes)
@@ -648,9 +651,9 @@ public class ReportingTest {
 				.withMeasures("clicks", "ctr", "conversions")
 				.withOrderingDesc("date")
 				.withOrderingAsc("advertiser.name")
-				.withMetaOnly();
+				.withReportType(ReportType.METADATA);
 
-		final QueryResult metadata = getQueryResult(onlyMetaQuery);
+ 		final QueryResult metadata = getQueryResult(onlyMetaQuery);
 
 		assertEquals(0, metadata.getRecordScheme().getFields().size());
 		assertEquals(0, metadata.getTotalCount());
@@ -664,7 +667,7 @@ public class ReportingTest {
 		CubeQuery queryAffectingNonCompatibleAggregations = CubeQuery.create()
 				.withAttributes("date", "advertiser", "affiliate")
 				.withMeasures("errors", "errorsPercent")
-				.withMetaOnly();
+				.withReportType(ReportType.METADATA);
 
 		final QueryResult metadata = getQueryResult(queryAffectingNonCompatibleAggregations);
 		assertTrue(metadata.getMeasures().isEmpty());
@@ -679,7 +682,7 @@ public class ReportingTest {
 						notEq("advertiser", EXCLUDE_ADVERTISER),
 						notEq("campaign", EXCLUDE_CAMPAIGN),
 						notEq("banner", EXCLUDE_BANNER)))
-				.withMetaOnly();
+				.withReportType(ReportType.METADATA);
 
 		final QueryResult metadata = getQueryResult(queryAffectingNonCompatibleAggregations);
 		List<String> expectedMeasures = newArrayList("impressions", "clicks");
@@ -773,7 +776,7 @@ public class ReportingTest {
 				.withAttributes("date")
 				.withMeasures(requestMeasures)
 				.withWhere(between("date", LocalDate.parse("2000-01-02"), LocalDate.parse("2000-01-02")))
-				.withTotalsOnly();
+				.withReportType(ReportType.TOTALS);
 
 		final QueryResult resultByDate = getQueryResult(queryDate);
 
@@ -791,24 +794,33 @@ public class ReportingTest {
 	}
 
 	@Test
-	public void testPredicateNotEq() {
-		CubeQuery advertiserNotEqOne = CubeQuery.create()
-				.withAttributes("advertiser")
-				.withMeasures("clicks", "impressions")
-				.withWhere(and(notEq("advertiser", 1), notEq("advertiser", 0), notEq("campaign", 0), notEq("banner", 0)));
+	public void testResultContainsTotalsAndMetadata_whenTotalsAndMetadataRequested() {
+		ArrayList<String> measures = newArrayList("clicks", "impressions", "revenue", "errors");
+		ArrayList<String> requestMeasures = newArrayList(measures);
+		requestMeasures.add("unexpected");
+		CubeQuery queryDate = CubeQuery.create()
+				.withAttributes("date")
+				.withMeasures(requestMeasures)
+				.withWhere(between("date", LocalDate.parse("2000-01-02"), LocalDate.parse("2000-01-02")))
+				.withReportType(ReportType.TOTALS)
+				.withReportType(ReportType.METADATA);
 
-		final QueryResult resultAdvertiserNotEqOne = getQueryResult(advertiserNotEqOne);
-		for (Record record : resultAdvertiserNotEqOne.getRecords()) {
-			assertTrue(Integer.valueOf(2) == record.get("advertiser") || Integer.valueOf(3) == record.get("advertiser"));
-		}
+		final QueryResult resultByDate = getQueryResult(queryDate);
+
+		assertTrue(resultByDate.getAttributes().size() == 1);
+		assertEquals("date", resultByDate.getAttributes().get(0));
+		assertTrue(resultByDate.getMeasures().equals(measures));
+		Record dailyTotals = resultByDate.getTotals();
+		long dailyImpressions = (long) dailyTotals.get("impressions");
+		long dailyClicks = (long) dailyTotals.get("clicks");
+		double dailyRevenue = (double) dailyTotals.get("revenue");
+		long dailyErrors = (long) dailyTotals.get("errors");
+		assertEquals(435, dailyImpressions);
+		assertEquals(33, dailyClicks);
+		assertEquals(2.68, dailyRevenue, DELTA);
+		assertEquals(27, dailyErrors);
 	}
 
-	@Test
-	public void testQueryComparisonPredicatesUrlFormat() {
-		CubeQuery query = CubeQuery.create()
-				.withWhere(and(lt("advertiser", 10), gt("campaign", 15), le("banner", -4), ge("site", "test"), notEq("advertiser", 1)));
-		getQueryResult(query);
-	}
 
 	private static int getAggregationItemsCount(Aggregation aggregation) {
 		int count = 0;

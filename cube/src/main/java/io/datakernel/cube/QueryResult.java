@@ -34,7 +34,7 @@ public final class QueryResult {
 
 	private final Map<String, Object> filterAttributes;
 
-	private final BitSet includedAspect;
+	private BitSet reportType = new BitSet(5);
 
 	private QueryResult(RecordScheme recordScheme, List<Record> records, Record totals, int totalCount,
 	                    List<String> attributes, List<String> measures, List<String> sortedBy,
@@ -47,7 +47,7 @@ public final class QueryResult {
 		this.measures = measures;
 		this.sortedBy = sortedBy;
 		this.filterAttributes = filterAttributes;
-		this.includedAspect = includedAspect;
+		this.reportType = includedAspect;
 	}
 
 	public static QueryResult create(RecordScheme recordScheme, List<Record> records, Record totals, int totalCount,
@@ -89,28 +89,8 @@ public final class QueryResult {
 		return sortedBy;
 	}
 
-	public boolean isMetaOnly() {
-		return includedAspect.get(0);
-	}
-
-	public boolean isTotalsOnly() {
-		return includedAspect.get(1);
-	}
-
-	public boolean isDimensionsOnly() {
-		return includedAspect.get(2);
-	}
-
-	public boolean isResolveAttributesOnly() {
-		return includedAspect.get(3);
-	}
-
-	public boolean isMeasuresOnly() {
-		return includedAspect.get(4);
-	}
-
-	public boolean isAllAspectsIncluded() {
-		return includedAspect.cardinality() == 0;
+	public BitSet getReportType() {
+		return reportType;
 	}
 
 	@Override
@@ -121,10 +101,6 @@ public final class QueryResult {
 				.add("count", totalCount)
 				.add("measures", measures)
 				.add("sortedBy", sortedBy)
-				.add("metaOnly", isAllAspectsIncluded() || isMetaOnly())
-				.add("totalsOnly", isAllAspectsIncluded() || isTotalsOnly())
-				.add("dimensionsOnly", isAllAspectsIncluded() || isDimensionsOnly())
-				.add("resolveAttributesOnly", isAllAspectsIncluded() || isResolveAttributesOnly())
-				.add("measuresOnly", isAllAspectsIncluded() || isMeasuresOnly()).toString();
+				.add("reportType", reportType).toString();
 	}
 }

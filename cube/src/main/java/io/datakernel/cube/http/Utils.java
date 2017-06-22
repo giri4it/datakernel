@@ -45,9 +45,8 @@ class Utils {
 	static final String SORT_PARAM = "sort";
 	static final String LIMIT_PARAM = "limit";
 	static final String OFFSET_PARAM = "offset";
-	static final String REPORT_TYPE_PARAM = "reportType";
-	static final String GENERAL_REPORT = "general";
-	static final String META_REPORT = "meta";
+	static final String REPORT_TYPE_PARAM = "includeInResult";
+	static final String METADATA_REPORT = "metadata";
 	static final String TOTALS_REPORT = "totals";
 	static final String DIMENSIONS_REPORT = "dimensions";
 	static final String RESOLVE_ATTRIBUTES_REPORT = "resolveAttributes";
@@ -87,7 +86,8 @@ class Utils {
 	}
 
 	static GsonBuilder createGsonBuilder(final Map<String, Type> attributeTypes, final Map<String, Type> measureTypes) {
-		return new GsonBuilder().serializeNulls()
+		// TODO: 22.06.17 disable pretty printing
+		return new GsonBuilder().serializeNulls().setPrettyPrinting()
 				.registerTypeAdapterFactory(new TypeAdapterFactory() {
 					@SuppressWarnings("unchecked")
 					@Override
