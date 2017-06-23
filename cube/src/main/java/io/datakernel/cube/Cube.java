@@ -50,7 +50,6 @@ import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Type;
 import java.nio.file.NoSuchFileException;
-import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 
@@ -1155,7 +1154,6 @@ public final class Cube implements ICube, EventloopJmxMBean {
 			return ClassBuilder.create(queryClassLoader, RecordFunction.class)
 					.withMethod("copyAttributes", copyAttributes)
 					.withMethod("copyMeasures", copyMeasures)
-					.withBytecodeSaveDir(Paths.get("./gen"))
 					.buildClassAndCreateNewInstance();
 		}
 

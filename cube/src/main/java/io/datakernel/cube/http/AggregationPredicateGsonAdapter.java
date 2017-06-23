@@ -27,8 +27,10 @@ import io.datakernel.aggregation.AggregationPredicate;
 
 import java.io.IOException;
 import java.lang.reflect.Type;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newLinkedHashMap;
@@ -43,6 +45,7 @@ final class AggregationPredicateGsonAdapter extends TypeAdapter<AggregationPredi
 	public static final String GT = "gt";
 	public static final String LE = "le";
 	public static final String LT = "lt";
+	public static final String IN = "in";
 	public static final String BETWEEN = "between";
 	public static final String REGEXP = "regexp";
 	public static final String AND = "and";
@@ -56,6 +59,7 @@ final class AggregationPredicateGsonAdapter extends TypeAdapter<AggregationPredi
 	public static final String GT_SIGN = ">";
 	public static final String LE_SIGN = "<=";
 	public static final String LT_SIGN = "<";
+	public static final String IN_SIGN = "IN";
 	private final Map<String, TypeAdapter<?>> attributeAdapters;
 
 	private AggregationPredicateGsonAdapter(Map<String, TypeAdapter<?>> attributeAdapters) {
@@ -118,6 +122,15 @@ final class AggregationPredicateGsonAdapter extends TypeAdapter<AggregationPredi
 	}
 
 	@SuppressWarnings("unchecked")
+	private void writeIn(JsonWriter writer, PredicateIn predicate) throws IOException {
+		writer.value(predicate.getKey());
+		TypeAdapter typeAdapter = attributeAdapters.get(predicate.getKey());
+		for (Object value : predicate.getValues()) {
+			typeAdapter.write(writer, value);
+		}
+	}
+
+	@SuppressWarnings("unchecked")
 	private void writeBetween(JsonWriter writer, PredicateBetween predicate) throws IOException {
 		writer.value(predicate.getKey());
 		TypeAdapter typeAdapter = attributeAdapters.get(predicate.getKey());
@@ -173,6 +186,9 @@ final class AggregationPredicateGsonAdapter extends TypeAdapter<AggregationPredi
 			} else if (predicate instanceof PredicateLt) {
 				writer.value(LT);
 				writeLt(writer, (PredicateLt) predicate);
+			} else if (predicate instanceof PredicateIn) {
+				writer.value(IN);
+				writeIn(writer, (PredicateIn) predicate);
 			} else if (predicate instanceof PredicateBetween) {
 				writer.value(BETWEEN);
 				writeBetween(writer, (PredicateBetween) predicate);
@@ -198,7 +214,7 @@ final class AggregationPredicateGsonAdapter extends TypeAdapter<AggregationPredi
 		}
 	}
 
-	private AggregationPredicate readObjectWithComparisonOperator(JsonReader reader) throws IOException {
+	private AggregationPredicate readObjectWithAlgebraOfSetsOperator(JsonReader reader) throws IOException {
 		List<AggregationPredicate> predicates = newArrayList();
 		while (reader.hasNext()) {
 			String[] fieldWithOperator = reader.nextName().split(SPACES);
@@ -226,6 +242,9 @@ final class AggregationPredicateGsonAdapter extends TypeAdapter<AggregationPredi
 					break;
 				case LT_SIGN:
 					comparisonPredicate = lt(field, (Comparable) value);
+					break;
+				case IN_SIGN:
+					comparisonPredicate = in(field, (Set) value);
 					break;
 				default:
 					throw new IllegalArgumentException();
@@ -277,6 +296,17 @@ final class AggregationPredicateGsonAdapter extends TypeAdapter<AggregationPredi
 		return lt(field, value);
 	}
 
+	private AggregationPredicate readIn(JsonReader reader) throws IOException {
+		String field = reader.nextString();
+		TypeAdapter typeAdapter = attributeAdapters.get(field);
+		Set values = new LinkedHashSet();
+		while (reader.hasNext()) {
+			Object value = typeAdapter.read(reader);
+			values.add(value);
+		}
+		return in(field, values);
+	}
+
 	private AggregationPredicate readBetween(JsonReader reader) throws IOException {
 		String field = reader.nextString();
 		TypeAdapter typeAdapter = attributeAdapters.get(field);
@@ -319,7 +349,7 @@ final class AggregationPredicateGsonAdapter extends TypeAdapter<AggregationPredi
 		AggregationPredicate predicate = null;
 		if (reader.peek() == JsonToken.BEGIN_OBJECT) {
 			reader.beginObject();
-			predicate = readObjectWithComparisonOperator(reader);
+			predicate = readObjectWithAlgebraOfSetsOperator(reader);
 			reader.endObject();
 		} else {
 			reader.beginArray();
@@ -336,6 +366,8 @@ final class AggregationPredicateGsonAdapter extends TypeAdapter<AggregationPredi
 				predicate = readLe(reader);
 			if (LT.equals(type))
 				predicate = readLt(reader);
+			if (IN.equals(type))
+				predicate = readIn(reader);
 			if (BETWEEN.equals(type))
 				predicate = readBetween(reader);
 			if (REGEXP.equals(type))

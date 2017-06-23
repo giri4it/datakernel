@@ -87,7 +87,7 @@ class Utils {
 
 	static GsonBuilder createGsonBuilder(final Map<String, Type> attributeTypes, final Map<String, Type> measureTypes) {
 		// TODO: 22.06.17 disable pretty printing
-		return new GsonBuilder().serializeNulls().setPrettyPrinting()
+		return new GsonBuilder().serializeNulls()
 				.registerTypeAdapterFactory(new TypeAdapterFactory() {
 					@SuppressWarnings("unchecked")
 					@Override

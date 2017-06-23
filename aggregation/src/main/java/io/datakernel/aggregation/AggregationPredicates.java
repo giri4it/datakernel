@@ -104,6 +104,7 @@ public class AggregationPredicates {
 		register(PredicateAlwaysFalse.class, PredicateGe.class, simplifierAlwaysFalse);
 		register(PredicateAlwaysFalse.class, PredicateGt.class, simplifierAlwaysFalse);
 		register(PredicateAlwaysFalse.class, PredicateHas.class, simplifierAlwaysFalse);
+		register(PredicateAlwaysFalse.class, PredicateIn.class, simplifierAlwaysFalse);
 		register(PredicateAlwaysFalse.class, PredicateBetween.class, simplifierAlwaysFalse);
 		register(PredicateAlwaysFalse.class, PredicateRegexp.class, simplifierAlwaysFalse);
 		register(PredicateAlwaysFalse.class, PredicateAnd.class, simplifierAlwaysFalse);
@@ -119,11 +120,12 @@ public class AggregationPredicates {
 		register(PredicateAlwaysTrue.class, PredicateNot.class, simplifierAlwaysTrue);
 		register(PredicateAlwaysTrue.class, PredicateEq.class, simplifierAlwaysTrue);
 		register(PredicateAlwaysTrue.class, PredicateNotEq.class, simplifierAlwaysTrue);
-		register(PredicateAlwaysTrue.class, PredicateLe.class, simplifierAlwaysFalse);
+		register(PredicateAlwaysTrue.class, PredicateLe.class, simplifierAlwaysTrue);
 		register(PredicateAlwaysTrue.class, PredicateLt.class, simplifierAlwaysTrue);
 		register(PredicateAlwaysTrue.class, PredicateGe.class, simplifierAlwaysTrue);
 		register(PredicateAlwaysTrue.class, PredicateGt.class, simplifierAlwaysTrue);
 		register(PredicateAlwaysTrue.class, PredicateHas.class, simplifierAlwaysTrue);
+		register(PredicateAlwaysTrue.class, PredicateIn.class, simplifierAlwaysTrue);
 		register(PredicateAlwaysTrue.class, PredicateBetween.class, simplifierAlwaysTrue);
 		register(PredicateAlwaysTrue.class, PredicateRegexp.class, simplifierAlwaysTrue);
 		register(PredicateAlwaysTrue.class, PredicateAnd.class, simplifierAlwaysTrue);
@@ -139,6 +141,7 @@ public class AggregationPredicates {
 		};
 		register(PredicateNot.class, PredicateNot.class, simplifierNot);
 		register(PredicateNot.class, PredicateHas.class, simplifierNot);
+		register(PredicateNot.class, PredicateIn.class, simplifierNot);
 		register(PredicateNot.class, PredicateBetween.class, simplifierNot);
 		register(PredicateNot.class, PredicateRegexp.class, simplifierNot);
 		register(PredicateNot.class, PredicateAnd.class, simplifierNot);
@@ -467,6 +470,7 @@ public class AggregationPredicates {
 		register(PredicateHas.class, PredicateLe.class, simplifierHas);
 		register(PredicateHas.class, PredicateGt.class, simplifierHas);
 		register(PredicateHas.class, PredicateLt.class, simplifierHas);
+		register(PredicateHas.class, PredicateIn.class, simplifierHas);
 		register(PredicateHas.class, PredicateBetween.class, simplifierHas);
 		register(PredicateHas.class, PredicateAnd.class, simplifierHas);
 		register(PredicateHas.class, PredicateOr.class, simplifierHas);
@@ -474,6 +478,18 @@ public class AggregationPredicates {
 			@Override
 			public AggregationPredicate simplifyAnd(PredicateHas left, PredicateNotEq right) {
 				return (left.key.equals(right.key)) ? left : null;
+			}
+		});
+
+		// TODO: 23.06.17 add all simplifiers
+		register(PredicateIn.class, PredicateBetween.class, new PredicateSimplifier<PredicateIn, PredicateBetween>() {
+			@Override
+			public AggregationPredicate simplifyAnd(PredicateIn left, PredicateBetween right) {
+				if (!left.key.equals(right.key))
+					return null;
+				if (left.values.contains(right.to) && left.values.contains(right.from))
+					return left;
+				return null;
 			}
 		});
 
@@ -1123,6 +1139,70 @@ public class AggregationPredicates {
 		}
 	}
 
+	public static final class PredicateIn implements AggregationPredicate {
+		static final Joiner JOINER = Joiner.on(", ");
+		final String key;
+		final Set values;
+
+		PredicateIn(String key, Set values) {
+			this.key = key;
+			this.values = values;
+		}
+
+		public String getKey() {
+			return key;
+		}
+
+		public Set getValues() {
+			return values;
+		}
+
+		@Override
+		public AggregationPredicate simplify() {
+			return (values.iterator().hasNext()) ? this : alwaysFalse();
+		}
+
+		@Override
+		public Set<String> getDimensions() {
+			return singleton(key);
+		}
+
+		@Override
+		public Map<String, Object> getFullySpecifiedDimensions() {
+			return emptyMap();
+		}
+
+		@Override
+		public PredicateDef createPredicateDef(Expression record, Map<String, FieldType> fields) {
+			return Expressions.and(cmpNe(value(false), call(value(values), "contains",
+					cast(field(record, key.replace('.', '$')), Object.class))));
+		}
+
+		@Override
+		public boolean equals(Object o) {
+			if (this == o) return true;
+			if (o == null || getClass() != o.getClass()) return false;
+
+			PredicateIn that = (PredicateIn) o;
+
+			if (!key.equals(that.key)) return false;
+			return values != null ? values.equals(that.values) : that.values == null;
+
+		}
+
+		@Override
+		public int hashCode() {
+			int result = key.hashCode();
+			result = 31 * result + (values != null ? values.hashCode() : 0);
+			return result;
+		}
+
+		@Override
+		public String toString() {
+			return "" + key + " IN " + JOINER.join(values);
+		}
+	}
+
 	public static final class PredicateBetween implements AggregationPredicate {
 		final String key;
 		final Comparable from;
@@ -1416,6 +1496,10 @@ public class AggregationPredicates {
 
 	public static AggregationPredicate has(String key) {
 		return new PredicateHas(key);
+	}
+
+	public static AggregationPredicate in(String key, Set values) {
+		return new PredicateIn(key, values);
 	}
 
 	public static AggregationPredicate regexp(String key, String pattern) {

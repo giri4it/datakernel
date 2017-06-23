@@ -61,6 +61,7 @@ import java.util.concurrent.Executors;
 import static com.google.common.collect.Iterables.concat;
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Sets.newHashSet;
+import static com.google.common.collect.Sets.newLinkedHashSet;
 import static io.datakernel.aggregation.AggregationPredicates.*;
 import static io.datakernel.aggregation.fieldtype.FieldTypes.*;
 import static io.datakernel.aggregation.measure.Measures.*;
@@ -424,6 +425,36 @@ public class ReportingTest {
 	}
 
 	@Test
+	public void testQueryWithPredicateGe() throws Exception {
+		CubeQuery query = CubeQuery.create()
+				.withAttributes("date")
+				.withMeasures("impressions", "clicks", "ctr", "revenue")
+				.withOrderingDesc("date")
+				.withWhere(and(le("date", LocalDate.parse("2000-01-02"))));
+
+		final QueryResult queryResult = getQueryResult(query);
+
+		List<Record> records = queryResult.getRecords();
+		assertEquals(1, records.size());
+		assertEquals(newHashSet("date"), newHashSet(queryResult.getAttributes()));
+		assertEquals(newHashSet("impressions", "clicks", "ctr", "revenue"), newHashSet(queryResult.getMeasures()));
+		assertEquals(LocalDate.parse("2000-01-03"), records.get(0).get("date"));
+		assertEquals(5, (long) records.get(0).get("clicks"));
+		assertEquals(65, (long) records.get(0).get("impressions"));
+		assertEquals(5.0 / 65.0 * 100.0, (double) records.get(0).get("ctr"), DELTA);
+		assertEquals(LocalDate.parse("2000-01-02"), records.get(1).get("date"));
+		assertEquals(33, (long) records.get(1).get("clicks"));
+		assertEquals(435, (long) records.get(1).get("impressions"));
+		assertEquals(33.0 / 435.0 * 100.0, (double) records.get(1).get("ctr"), DELTA);
+		assertEquals(2, queryResult.getTotalCount());
+		Record totals = queryResult.getTotals();
+		assertEquals(38, (long) totals.get("clicks"));
+		assertEquals(500, (long) totals.get("impressions"));
+		assertEquals(38.0 / 500.0 * 100.0, (double) totals.get("ctr"), DELTA);
+		assertEquals(newHashSet("date"), newHashSet(queryResult.getSortedBy()));
+	}
+
+	@Test
 	public void testQueryAffectingDailyAggregation() throws Exception {
 		CubeQuery query = CubeQuery.create()
 				.withAttributes("date")
@@ -653,13 +684,34 @@ public class ReportingTest {
 				.withOrderingAsc("advertiser.name")
 				.withReportType(ReportType.METADATA);
 
- 		final QueryResult metadata = getQueryResult(onlyMetaQuery);
+		final QueryResult metadata = getQueryResult(onlyMetaQuery);
 
 		assertEquals(0, metadata.getRecordScheme().getFields().size());
 		assertEquals(0, metadata.getTotalCount());
 		assertTrue(metadata.getRecords().isEmpty());
 		assertTrue(metadata.getTotals().asMap().isEmpty());
 		assertTrue(metadata.getFilterAttributes().isEmpty());
+	}
+
+	@Test
+	public void testQueryWithInPredicate() {
+		String[] attributes = {"advertiser"};
+		CubeQuery queryWithPredicateIn = CubeQuery.create()
+				.withAttributes(attributes)
+				.withWhere(and(in("advertiser", newLinkedHashSet(newArrayList(1, 2))), notEq("advertiser", EXCLUDE_ADVERTISER),
+						notEq("banner", EXCLUDE_BANNER),
+						notEq("campaign", EXCLUDE_CAMPAIGN)))
+				.withMeasures("clicks", "ctr", "conversions");
+//				.withHaving(in("advertiser", newArrayList(1, 2)));
+
+		final QueryResult in = getQueryResult(queryWithPredicateIn);
+
+		List<String> expectedRecordFields = newArrayList("advertiser", "clicks", "ctr", "conversions");
+		assertEquals(expectedRecordFields.size(), in.getRecordScheme().getFields().size());
+		assertEquals(2, in.getTotalCount());
+
+		assertEquals(1, in.getRecords().get(0).get("advertiser"));
+		assertEquals(2, in.getRecords().get(1).get("advertiser"));
 	}
 
 	@Test
@@ -771,7 +823,7 @@ public class ReportingTest {
 	public void testResultContainsOnlyTotals_whenTotalsRequested() {
 		ArrayList<String> measures = newArrayList("clicks", "impressions", "revenue", "errors");
 		ArrayList<String> requestMeasures = newArrayList(measures);
-		requestMeasures.add("unexpected");
+		requestMeasures.add(3, "nonexistentMeasure");
 		CubeQuery queryDate = CubeQuery.create()
 				.withAttributes("date")
 				.withMeasures(requestMeasures)
@@ -820,7 +872,6 @@ public class ReportingTest {
 		assertEquals(2.68, dailyRevenue, DELTA);
 		assertEquals(27, dailyErrors);
 	}
-
 
 	private static int getAggregationItemsCount(Aggregation aggregation) {
 		int count = 0;
