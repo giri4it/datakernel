@@ -203,14 +203,26 @@ public final class Cube implements ICube, EventloopJmxMBean {
 				break;
 			}
 		}
-//		if (resolverContainer == null) {
-//			resolverContainer = new AttributeResolverContainer(dimensions, resolver);
-//			attributeResolvers.add(resolverContainer);
-//		}
-		//	resolverContainer.attributes.add(attribute);
+		if (resolverContainer == null) {
+			resolverContainer = new AttributeResolverContainer(dimensions, resolver);
+			attributeResolvers.add(resolverContainer);
+		}
+		resolverContainer.attributes.add(attribute);
 		attributes.put(attribute, resolverContainer);
 		attributeTypes.put(attribute, resolver.getAttributeTypes().get(attributeName));
 		return this;
+	}
+
+	private List<String> buildDrillDownChain(Set<String> usedDimensions, String dimension) {
+		LinkedList<String> drillDown = new LinkedList<>();
+		drillDown.add(dimension);
+		String child = dimension;
+		String parent;
+		while ((parent = childParentRelationships.get(child)) != null && !usedDimensions.contains(parent)) {
+			drillDown.addFirst(parent);
+			child = parent;
+		}
+		return drillDown;
 	}
 
 	public Cube withAttributes(Map<String, AttributeResolver> attributes) {
@@ -1080,15 +1092,14 @@ public final class Cube implements ICube, EventloopJmxMBean {
 				List<String> dimensions = newArrayList();
 				if (dimensionTypes.containsKey(attribute) && allDimensions.contains(attribute)) {
 					dimensions.add(attribute);
-				} /*else if (Cube.this.attributes.containsKey(attribute)) {
-*//*
+				} else if (Cube.this.attributes.containsKey(attribute)) {
+
 					AttributeResolverContainer resolverContainer = Cube.this.attributes.get(attribute);
 					for (String dimension : resolverContainer.dimensions) {
 						dimensions.add(dimension);
 					}
-*//*
 				} else
-					throw new QueryException("Attribute not found: " + attribute);*/
+					throw new QueryException("Attribute not found: " + attribute);
 				queryDimensions.addAll(dimensions);
 				resultAttributes.addAll(dimensions);
 				resultAttributes.add(attribute);
@@ -1119,14 +1130,14 @@ public final class Cube implements ICube, EventloopJmxMBean {
 
 		RecordScheme createRecordScheme() {
 			RecordScheme recordScheme = RecordScheme.create();
-				for (String attribute : resultAttributes) {
-					recordScheme = recordScheme.withField(attribute,
-							getAttributeType(attribute));
-				}
-				for (String measure : queryMeasures) {
-					recordScheme = recordScheme.withField(measure,
-							getMeasureType(measure));
-				}
+			for (String attribute : resultAttributes) {
+				recordScheme = recordScheme.withField(attribute,
+						getAttributeType(attribute));
+			}
+			for (String measure : queryMeasures) {
+				recordScheme = recordScheme.withField(measure,
+						getMeasureType(measure));
+			}
 			return recordScheme;
 		}
 
@@ -1237,7 +1248,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 			Record totalRecord = Record.create(recordScheme);
 			recordFunction.copyMeasures(totals, totalRecord);
 
-			if(reportType.get(1) && reportType.cardinality() == 1) {
+			if (reportType.get(1) && reportType.cardinality() == 1) {
 				BitSet includedAspect = new BitSet(5);
 				includedAspect.set(1);
 				QueryResult result = QueryResult.create(recordScheme, Collections.<Record>emptyList(), totalRecord, 0,
