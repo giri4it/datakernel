@@ -481,17 +481,27 @@ public class AggregationPredicates {
 			}
 		});
 
-		// TODO: 23.06.17 add all simplifiers
 		register(PredicateIn.class, PredicateBetween.class, new PredicateSimplifier<PredicateIn, PredicateBetween>() {
 			@Override
 			public AggregationPredicate simplifyAnd(PredicateIn left, PredicateBetween right) {
 				if (!left.key.equals(right.key))
 					return null;
-				if (left.values.contains(right.to) && left.values.contains(right.from))
+				if (right.from.compareTo(left.values.first()) > 0 && right.to.compareTo(left.values.last()) > 0)
 					return left;
 				return null;
 			}
 		});
+		register(PredicateIn.class, PredicateEq.class, new PredicateSimplifier<PredicateIn, PredicateEq>() {
+			@Override
+			public AggregationPredicate simplifyAnd(PredicateIn left, PredicateEq right) {
+				if (!left.key.equals(right.key))
+					return null;
+				if(left.values.contains(right.value))
+					return right;
+				return alwaysFalse();
+			}
+		});
+		register(PredicateIn.class, Pred);
 
 	}
 
@@ -1142,11 +1152,11 @@ public class AggregationPredicates {
 	public static final class PredicateIn implements AggregationPredicate {
 		static final Joiner JOINER = Joiner.on(", ");
 		final String key;
-		final Set values;
+		final SortedSet values;
 
 		PredicateIn(String key, Set values) {
 			this.key = key;
-			this.values = values;
+			this.values = new TreeSet(values);
 		}
 
 		public String getKey() {

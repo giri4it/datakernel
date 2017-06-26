@@ -190,12 +190,12 @@ public final class Cube implements ICube, EventloopJmxMBean {
 		String attributeName = attribute.substring(pos + 1);
 		checkArgument(resolver.getAttributeTypes().containsKey(attributeName), "Resolver does not support %s", attribute);
 		checkArgument(!isWrapperType(resolver.getAttributeTypes().get(attributeName)), "Unsupported attribute type for %s", attribute);
-		//List<String> dimensions = buildDrillDownChain(dimension);
-		//checkArgument(dimensions.size() == resolver.getKeyTypes().length, "Parent dimensions: %s, key types: %s", dimensions, newArrayList(resolver.getKeyTypes()));
-		//for (int i = 0; i < dimensions.size(); i++) {
-		//	String d = dimensions.get(i);
-		//	checkArgument(((Class<?>) dimensionTypes.get(d).getInternalDataType()).equals(resolver.getKeyTypes()[i]), "Dimension type mismatch for %s", d);
-		//}
+		List<String> dimensions = buildChildParentChain(dimension);
+		checkArgument(dimensions.size() == resolver.getKeyTypes().length, "Parent dimensions: %s, key types: %s", dimensions, newArrayList(resolver.getKeyTypes()));
+		for (int i = 0; i < dimensions.size(); i++) {
+			String d = dimensions.get(i);
+			checkArgument(((Class<?>) dimensionTypes.get(d).getInternalDataType()).equals(resolver.getKeyTypes()[i]), "Dimension type mismatch for %s", d);
+		}
 		AttributeResolverContainer resolverContainer = null;
 		for (AttributeResolverContainer r : attributeResolvers) {
 			if (r.resolver == resolver) {
@@ -211,18 +211,6 @@ public final class Cube implements ICube, EventloopJmxMBean {
 		attributes.put(attribute, resolverContainer);
 		attributeTypes.put(attribute, resolver.getAttributeTypes().get(attributeName));
 		return this;
-	}
-
-	private List<String> buildDrillDownChain(Set<String> usedDimensions, String dimension) {
-		LinkedList<String> drillDown = new LinkedList<>();
-		drillDown.add(dimension);
-		String child = dimension;
-		String parent;
-		while ((parent = childParentRelationships.get(child)) != null && !usedDimensions.contains(parent)) {
-			drillDown.addFirst(parent);
-			child = parent;
-		}
-		return drillDown;
 	}
 
 	public Cube withAttributes(Map<String, AttributeResolver> attributes) {
@@ -878,17 +866,17 @@ public final class Cube implements ICube, EventloopJmxMBean {
 		});
 	}
 
-	/*private List<String> buildDrillDownChain(Set<String> usedDimensions, String dimension) {
+	private List<String> buildChildParentChain(String dimension) {
 		LinkedList<String> drillDown = new LinkedList<>();
 		drillDown.add(dimension);
 		String child = dimension;
 		String parent;
-		while ((parent = childParentRelationships.get(child)) != null && !usedDimensions.contains(parent)) {
+		while ((parent = childParentRelationships.get(child)) != null) {
 			drillDown.addFirst(parent);
 			child = parent;
 		}
 		return drillDown;
-	}*/
+	}
 
 	/*@VisibleForTesting
 	Set<List<String>> buildDrillDownChains(Set<String> usedDimensions, Iterable<String> availableDimensions) {
