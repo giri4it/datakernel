@@ -22,10 +22,7 @@ import io.datakernel.aggregation.AggregationPredicate;
 import io.datakernel.aggregation.QueryException;
 import io.datakernel.async.ForwardingResultCallback;
 import io.datakernel.async.ResultCallback;
-import io.datakernel.cube.Cube;
-import io.datakernel.cube.CubeQuery;
-import io.datakernel.cube.ICube;
-import io.datakernel.cube.QueryResult;
+import io.datakernel.cube.*;
 import io.datakernel.eventloop.Eventloop;
 import io.datakernel.exception.ParseException;
 import io.datakernel.http.*;
@@ -135,7 +132,7 @@ public final class ReportingServiceServlet implements AsyncServlet {
 
 		parameter = request.getParameter(REPORT_TYPE_PARAM);
 		if (parameter != null)
-			query = query.withReportTypes(SPLITTER.splitToList(parameter));
+			query = query.withReportType(ReportType.valueOf(parameter.toUpperCase()));
 
 		return query;
 	}

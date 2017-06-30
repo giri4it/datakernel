@@ -16,18 +16,15 @@
 
 package io.datakernel.cube;
 
-import com.google.common.base.Joiner;
 import io.datakernel.aggregation.AggregationPredicate;
 import io.datakernel.aggregation.AggregationPredicates;
 
 import java.util.ArrayList;
-import java.util.BitSet;
 import java.util.List;
 
 import static java.util.Arrays.asList;
 
 public final class CubeQuery {
-	private static final Joiner JOINER = Joiner.on(',');
 	private List<String> attributes = new ArrayList<>();
 	private List<String> measures = new ArrayList<>();
 	private AggregationPredicate where = AggregationPredicates.alwaysTrue();
@@ -36,30 +33,7 @@ public final class CubeQuery {
 	private Integer offset = null;
 	private List<Ordering> orderings = new ArrayList<>();
 
-	/**
-	 * Table of bit number to aspect correspondence:
-	 * <table>
-	 * <tr align="center">
-	 * <td> Bit number </td> <td> Aspect included in result</td>
-	 * </tr>
-	 * <tr>
-	 * <td align="right"> 0 </td> <td  align="left"> metadata </td>
-	 * </tr>
-	 * <tr>
-	 * <td align="right"> 1 </td> <td  align="left"> totals </td>
-	 * </tr>
-	 * <tr>
-	 * <td align="right"> 2 </td> <td  align="left"> dimensions </td>
-	 * </tr>
-	 * <tr>
-	 * <td align="right"> 3 </td> <td  align="left"> measures </td>
-	 * </tr>
-	 * <tr>
-	 * <td align="right"> 4 </td> <td  align="left"> resolve attributes </td>
-	 * </tr>
-	 * </table>
-	 */
-	private BitSet reportType = new BitSet(5);
+	private ReportType reportType = ReportType.METADATA;
 
 	private CubeQuery() {}
 
@@ -125,36 +99,8 @@ public final class CubeQuery {
 		return this;
 	}
 
-	public CubeQuery withReportTypes(BitSet reportTypes) {
-		this.reportType = reportTypes;
-		return this;
-	}
-
 	public CubeQuery withReportType(ReportType reportType) {
-		switch (reportType) {
-			case METADATA:
-				this.reportType.set(0);
-				break;
-			case TOTALS:
-				this.reportType.set(1);
-				break;
-			case DIMENSIONS:
-				this.reportType.set(2);
-				break;
-			case MEASURES:
-				this.reportType.set(3);
-				break;
-			case RESOLVE_ATTRIBUTES:
-				this.reportType.set(4);
-				break;
-		}
-		return this;
-	}
-
-	public CubeQuery withReportTypes(List<String> reportTypes) {
-		for (String reportType : reportTypes) {
-			withReportType(ReportType.fromString(reportType));
-		}
+		this.reportType = reportType;
 		return this;
 	}
 
@@ -189,7 +135,7 @@ public final class CubeQuery {
 		return offset;
 	}
 
-	public BitSet getReportType() {
+	public ReportType getReportType() {
 		return reportType;
 	}
 	// endregion
@@ -254,28 +200,6 @@ public final class CubeQuery {
 		}
 	}
 
-	public enum ReportType {
-		METADATA("metadata"),
-		TOTALS("totals"),
-		DIMENSIONS("dimensions"),
-		MEASURES("measures"),
-		RESOLVE_ATTRIBUTES("resolveAttributes");
-
-		private String reportType;
-
-		ReportType(String reportType) {
-			this.reportType = reportType;
-		}
-
-		static ReportType fromString(String reportType) {
-			for (ReportType type : ReportType.values()) {
-				if (reportType.equals(type.reportType))
-					return type;
-			}
-			throw new IllegalArgumentException(String.format("Unexpected reportType '%s'. Available report types are: %s",
-					reportType, JOINER.join(ReportType.values())));
-		}
-	}
 	// endregion
 
 	@Override

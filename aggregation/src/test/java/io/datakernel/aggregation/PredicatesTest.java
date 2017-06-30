@@ -340,13 +340,13 @@ public class PredicatesTest {
 	public void testPredicateNotEqAndPredicateGt() {
 		AggregationPredicate predicate;
 		predicate = and(notEq("x", -5), gt("x", -4));
-		assertEquals(predicate, predicate.simplify());
+		assertEquals(gt("x", -4), predicate.simplify());
 
 		predicate = and(notEq("x", -5), gt("x", -5));
 		assertEquals(gt("x", -5), predicate.simplify());
 
 		predicate = and(notEq("x", -5), gt("x", -6));
-		assertEquals(gt("x", -6), predicate.simplify());
+		assertEquals(predicate, predicate.simplify());
 	}
 
 	@Test

@@ -14,26 +14,8 @@
  * limitations under the License.
  */
 
-package io.datakernel.cube.http;
+package io.datakernel.cube;
 
-import io.datakernel.cube.CubeQuery;
-import org.jmock.Expectations;
-import org.jmock.integration.junit4.JUnitRuleMockery;
-import org.junit.Rule;
-import org.junit.Test;
-
-public class TestReportingServiceUrl extends ReportingTest{
-
-	@Rule
-	JUnitRuleMockery context = new JUnitRuleMockery();
-	
-	@Test
-	public void testCubeHttpClientBuildsUrlWithCorrectSingleReportType() {
-		CubeQuery query = CubeQuery.create().withReportType(CubeQuery.ReportType.MEASURES);
-
-		context.checking(new Expectations() {{
-
-		}});
-	}
-
+public enum ReportType {
+	METADATA, DATA, DATA_WITH_TOTALS, RESOLVE_ATTRIBUTES
 }

@@ -18,7 +18,6 @@ package io.datakernel.cube;
 
 import com.google.common.base.MoreObjects;
 
-import java.util.BitSet;
 import java.util.List;
 import java.util.Map;
 
@@ -33,12 +32,11 @@ public final class QueryResult {
 	private final int totalCount;
 
 	private final Map<String, Object> filterAttributes;
-
-	private BitSet reportType = new BitSet(5);
+	private final ReportType resultType;
 
 	private QueryResult(RecordScheme recordScheme, List<Record> records, Record totals, int totalCount,
 	                    List<String> attributes, List<String> measures, List<String> sortedBy,
-	                    Map<String, Object> filterAttributes, BitSet includedAspect) {
+	                    Map<String, Object> filterAttributes, ReportType resultType) {
 		this.recordScheme = recordScheme;
 		this.records = records;
 		this.totals = totals;
@@ -47,14 +45,14 @@ public final class QueryResult {
 		this.measures = measures;
 		this.sortedBy = sortedBy;
 		this.filterAttributes = filterAttributes;
-		this.reportType = includedAspect;
+		this.resultType = resultType;
 	}
 
 	public static QueryResult create(RecordScheme recordScheme, List<Record> records, Record totals, int totalCount,
 	                                 List<String> attributes, List<String> measures, List<String> sortedBy,
-	                                 Map<String, Object> filterAttributes, BitSet includedAspect) {
+	                                 Map<String, Object> filterAttributes, ReportType resultType) {
 		return new QueryResult(recordScheme, records, totals, totalCount, attributes, measures, sortedBy,
-				filterAttributes, includedAspect);
+				filterAttributes, resultType);
 	}
 
 	public RecordScheme getRecordScheme() {
@@ -89,18 +87,20 @@ public final class QueryResult {
 		return sortedBy;
 	}
 
-	public BitSet getReportType() {
-		return reportType;
+	public ReportType getResultType() {
+		return resultType;
 	}
 
 	@Override
 	public String toString() {
 		return MoreObjects.toStringHelper(this)
+				.add("attributes", attributes)
+				.add("measures", measures)
 				.add("records", records)
 				.add("totals", totals)
 				.add("count", totalCount)
-				.add("measures", measures)
 				.add("sortedBy", sortedBy)
-				.add("reportType", reportType).toString();
+				.add("resultType", resultType)
+				.toString();
 	}
 }

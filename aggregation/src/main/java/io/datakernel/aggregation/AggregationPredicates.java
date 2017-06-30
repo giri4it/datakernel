@@ -501,7 +501,7 @@ public class AggregationPredicates {
 				return alwaysFalse();
 			}
 		});
-		register(PredicateIn.class, Pred);
+//		register(PredicateIn.class, Pred);
 
 	}
 

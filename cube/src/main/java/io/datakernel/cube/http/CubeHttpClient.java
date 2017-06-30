@@ -29,8 +29,6 @@ import io.datakernel.http.*;
 
 import java.lang.reflect.Type;
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 
 import static com.google.common.collect.Maps.newLinkedHashMap;
@@ -118,21 +116,7 @@ public final class CubeHttpClient implements ICube {
 			urlParams.put(LIMIT_PARAM, query.getLimit().toString());
 		if (query.getOffset() != null)
 			urlParams.put(OFFSET_PARAM, query.getOffset().toString());
-		if (query.getReportType().cardinality() != 0) {
-			List<String> reportType = new ArrayList<>();
-			if (query.getReportType().get(0))
-				reportType.add(METADATA_REPORT);
-			if (query.getReportType().get(1))
-				reportType.add(TOTALS_REPORT);
-			if (query.getReportType().get(2))
-				reportType.add(DIMENSIONS_REPORT);
-			if (query.getReportType().get(3))
-				reportType.add(MEASURES_REPORT);
-			if (query.getReportType().get(4))
-				reportType.add(RESOLVE_ATTRIBUTES_REPORT);
-
-			urlParams.put(REPORT_TYPE_PARAM, JOINER.join(reportType));
-		}
+		urlParams.put(REPORT_TYPE_PARAM, query.getReportType().toString().toLowerCase());
 		String url = this.url + "/" + "?" + HttpUtils.urlQueryString(urlParams);
 		// TODO: 20.06.17 tmp
 		System.out.println(url);

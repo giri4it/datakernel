@@ -45,12 +45,11 @@ class Utils {
 	static final String SORT_PARAM = "sort";
 	static final String LIMIT_PARAM = "limit";
 	static final String OFFSET_PARAM = "offset";
-	static final String REPORT_TYPE_PARAM = "includeInResult";
+	static final String REPORT_TYPE_PARAM = "reportType";
 	static final String METADATA_REPORT = "metadata";
-	static final String TOTALS_REPORT = "totals";
-	static final String DIMENSIONS_REPORT = "dimensions";
+	static final String DATA_REPORT = "data";
+	static final String DATA_WITH_TOTALS_REPORT = "dataWithTotals";
 	static final String RESOLVE_ATTRIBUTES_REPORT = "resolveAttributes";
-	static final String MEASURES_REPORT = "measures";
 
 	static final Splitter SPLITTER = Splitter.on(',').omitEmptyStrings();
 	static final Joiner JOINER = Joiner.on(',');

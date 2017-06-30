@@ -61,7 +61,6 @@ import static com.google.common.base.Predicates.not;
 import static com.google.common.collect.Iterables.*;
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.*;
-import static com.google.common.collect.Sets.newHashSet;
 import static com.google.common.collect.Sets.newLinkedHashSet;
 import static com.google.common.primitives.Primitives.isWrapperType;
 import static io.datakernel.aggregation.AggregationUtils.*;
@@ -71,7 +70,6 @@ import static io.datakernel.codegen.ExpressionComparator.leftField;
 import static io.datakernel.codegen.ExpressionComparator.rightField;
 import static io.datakernel.codegen.Expressions.*;
 import static io.datakernel.cube.Utils.createResultClass;
-import static io.datakernel.cube.Utils.startsWith;
 import static io.datakernel.jmx.ValueStats.SMOOTHING_WINDOW_10_MINUTES;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
@@ -190,7 +188,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 		String attributeName = attribute.substring(pos + 1);
 		checkArgument(resolver.getAttributeTypes().containsKey(attributeName), "Resolver does not support %s", attribute);
 		checkArgument(!isWrapperType(resolver.getAttributeTypes().get(attributeName)), "Unsupported attribute type for %s", attribute);
-		List<String> dimensions = buildChildParentChain(dimension);
+		List<String> dimensions = buildChildParentDimensionsChain(dimension);
 		checkArgument(dimensions.size() == resolver.getKeyTypes().length, "Parent dimensions: %s, key types: %s", dimensions, newArrayList(resolver.getKeyTypes()));
 		for (int i = 0; i < dimensions.size(); i++) {
 			String d = dimensions.get(i);
@@ -866,54 +864,18 @@ public final class Cube implements ICube, EventloopJmxMBean {
 		});
 	}
 
-	private List<String> buildChildParentChain(String dimension) {
-		LinkedList<String> drillDown = new LinkedList<>();
-		drillDown.add(dimension);
+	// TODO(yevhenii) come up with suitable method name
+	private List<String> buildChildParentDimensionsChain(String dimension) {
+		LinkedList<String> chain = new LinkedList<>();
+		chain.add(dimension);
 		String child = dimension;
 		String parent;
 		while ((parent = childParentRelationships.get(child)) != null) {
-			drillDown.addFirst(parent);
+			chain.addFirst(parent);
 			child = parent;
 		}
-		return drillDown;
+		return chain;
 	}
-
-	/*@VisibleForTesting
-	Set<List<String>> buildDrillDownChains(Set<String> usedDimensions, Iterable<String> availableDimensions) {
-		Set<List<String>> drillDowns = newHashSet();
-		for (String dimension : availableDimensions) {
-			List<String> drillDown = buildDrillDownChain(usedDimensions, dimension);
-			drillDowns.add(drillDown);
-		}
-		return drillDowns;
-	}*/
-
-	private Set<List<String>> buildLongestChains(Set<List<String>> allChains) {
-		List<List<String>> chainsList = newArrayList(allChains);
-		Set<List<String>> longestChains = newHashSet();
-
-		outer:
-		for (int i = 0; i < chainsList.size(); ++i) {
-			List<String> chain1 = chainsList.get(i);
-
-			for (int j = 0; j < chainsList.size(); ++j) {
-				if (i == j) continue;
-
-				List<String> chain2 = chainsList.get(j);
-				if (startsWith(chain2, chain1))
-					continue outer;
-			}
-
-			if (chain1.size() > 1)
-				longestChains.add(chain1);
-		}
-
-		return longestChains;
-	}
-
-	/*private List<String> buildDrillDownChain(String dimension) {
-		return buildDrillDownChain(Sets.<String>newHashSet(), dimension);
-	}*/
 
 	public Map<String, List<AggregationMetadata.ConsolidationDebugInfo>> getConsolidationDebugInfo() {
 		Map<String, List<AggregationMetadata.ConsolidationDebugInfo>> m = newHashMap();
@@ -997,7 +959,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 		List<String> resultOrderings = newArrayList();
 		Comparator<?> comparator;
 
-		BitSet reportType;
+		ReportType reportType;
 		MeasuresFunction measuresFunction;
 		TotalsFunction totalsFunction;
 
@@ -1014,6 +976,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 			queryHaving = query.getHaving().simplify();
 			fullySpecifiedDimensions = queryPredicate.getFullySpecifiedDimensions();
 
+			// TODO: 30.06.17 rework
 			List<String> attributes = newArrayList();
 			for (String s : query.getAttributes()) {
 				if (!s.contains(".")) {
@@ -1025,11 +988,9 @@ public final class Cube implements ICube, EventloopJmxMBean {
 
 			if (compatibleAggregations.isEmpty()) {
 				RecordScheme recordScheme = createRecordScheme();
-				BitSet metaOnlyFlag = new BitSet(5);
-				metaOnlyFlag.set(0);
 				QueryResult result = QueryResult.create(recordScheme, Collections.<Record>emptyList(),
 						Record.create(recordScheme), 0, Collections.<String>emptyList(), Collections.<String>emptyList(),
-						Collections.<String>emptyList(), Collections.<String, Object>emptyMap(), metaOnlyFlag);
+						Collections.<String>emptyList(), Collections.<String, Object>emptyMap(), reportType);
 				resultCallback.setResult(result);
 				return;
 			}
@@ -1045,12 +1006,10 @@ public final class Cube implements ICube, EventloopJmxMBean {
 			recordScheme = createRecordScheme();
 			recordFunction = createRecordFunction();
 
-			if (reportType.get(0) && reportType.cardinality() == 0) {
-				BitSet metaOnlyFlag = new BitSet(5);
-				metaOnlyFlag.set(0);
+			if (ReportType.METADATA.equals(reportType)) {
 				QueryResult result = QueryResult.create(recordScheme, Collections.<Record>emptyList(),
 						Record.create(recordScheme), 0, newArrayList(resultAttributes), newArrayList(resultMeasures),
-						resultOrderings, Collections.<String, Object>emptyMap(), metaOnlyFlag);
+						resultOrderings, Collections.<String, Object>emptyMap(), reportType);
 				resultCallback.setResult(result);
 				return;
 			}
@@ -1236,44 +1195,34 @@ public final class Cube implements ICube, EventloopJmxMBean {
 			Record totalRecord = Record.create(recordScheme);
 			recordFunction.copyMeasures(totals, totalRecord);
 
-			if (reportType.get(1) && reportType.cardinality() == 1) {
-				BitSet includedAspect = new BitSet(5);
-				includedAspect.set(1);
-				QueryResult result = QueryResult.create(recordScheme, Collections.<Record>emptyList(), totalRecord, 0,
-						Collections.<String>emptyList(), newArrayList(queryMeasures), Collections.<String>emptyList(),
-						Collections.<String, Object>emptyMap(), includedAspect);
-				callback.setResult(result);
-				return;
-			}
-
 			List<AsyncRunnable> tasks = new ArrayList<>();
-			for (final AttributeResolverContainer resolverContainer : attributeResolvers) {
-				final List<String> attributes = new ArrayList<>(resolverContainer.attributes);
-				attributes.retainAll(resultAttributes);
-				if (!attributes.isEmpty()) {
-					tasks.add(new AsyncRunnable() {
-						@Override
-						public void run(CompletionCallback callback) {
-							Utils.resolveAttributes(results, resolverContainer.resolver,
-									resolverContainer.dimensions, attributes,
-									(Class) resultClass, queryClassLoader, callback);
-						}
-					});
-				}
-			}
-
 			final Map<String, Object> filterAttributes = newLinkedHashMap();
-			for (final AttributeResolverContainer resolverContainer : attributeResolvers) {
-				if (fullySpecifiedDimensions.keySet().containsAll(resolverContainer.dimensions)) {
-					tasks.add(new AsyncRunnable() {
-						@Override
-						public void run(CompletionCallback callback) {
-							resolveSpecifiedDimensions(resolverContainer, filterAttributes, callback);
-						}
-					});
+			// TODO: 30.06.17 remove comparison with DATA after introducing separate resolver servlet
+				for (final AttributeResolverContainer resolverContainer : attributeResolvers) {
+					final List<String> attributes = new ArrayList<>(resolverContainer.attributes);
+					attributes.retainAll(resultAttributes);
+					if (!attributes.isEmpty()) {
+						tasks.add(new AsyncRunnable() {
+							@Override
+							public void run(CompletionCallback callback) {
+								Utils.resolveAttributes(results, resolverContainer.resolver,
+										resolverContainer.dimensions, attributes,
+										(Class) resultClass, queryClassLoader, callback);
+							}
+						});
+					}
 				}
-			}
 
+				for (final AttributeResolverContainer resolverContainer : attributeResolvers) {
+					if (fullySpecifiedDimensions.keySet().containsAll(resolverContainer.dimensions)) {
+						tasks.add(new AsyncRunnable() {
+							@Override
+							public void run(CompletionCallback callback) {
+								resolveSpecifiedDimensions(resolverContainer, filterAttributes, callback);
+							}
+						});
+					}
+				}
 			runInParallel(eventloop, tasks).run(new ForwardingCompletionCallback(callback) {
 				@Override
 				protected void onComplete() {
@@ -1297,9 +1246,10 @@ public final class Cube implements ICube, EventloopJmxMBean {
 				resultRecords.add(record);
 			}
 
-			// TODO: 21.06.17 move to processResults()?
 			Record totalRecord = Record.create(recordScheme);
-			recordFunction.copyMeasures(totals, totalRecord);
+			if (ReportType.DATA_WITH_TOTALS.equals(reportType)) {
+				recordFunction.copyMeasures(totals, totalRecord);
+			}
 
 			QueryResult result = QueryResult.create(recordScheme, resultRecords, totalRecord, totalCount,
 					newArrayList(resultAttributes), newArrayList(queryMeasures), resultOrderings, filterAttributes,
