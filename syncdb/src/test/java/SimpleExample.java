@@ -48,22 +48,27 @@ public class SimpleExample {
 		};
 	}
 
-	private static DataStorageSimple createSimpleStorage(Eventloop eventloop, final KeyValue<Integer, Set<String>> value,
-	                                                     List<? extends HasSortedStream<Integer, Set<String>>> peers,
-	                                                     Reducer<Integer, KeyValue<Integer, Set<String>>, KeyValue<Integer, Set<String>>, KeyValue<Integer, Set<String>>> reducer,
-	                                                     Predicate<Integer> keyFilter) {
-		return new DataStorageSimple(eventloop, new TreeMap<Integer, Set<String>>() {{
+	private static DataStorageSimple<Integer, Set<String>> createSimpleStorage(
+			final Eventloop eventloop,
+			final KeyValue<Integer, Set<String>> value,
+			final List<? extends HasSortedStream<Integer, Set<String>>> peers,
+			final Reducer<Integer, KeyValue<Integer, Set<String>>, KeyValue<Integer, Set<String>>, KeyValue<Integer, Set<String>>> reducer,
+			final Predicate<Integer> keyFilter) {
+
+		return new DataStorageSimple<>(eventloop, new TreeMap<Integer, Set<String>>() {{
 			put(value.getKey(), newHashSet(value.getValue()));
-		}}, reducer, peers, keyFilter);
+		}}, peers, reducer, keyFilter);
 	}
 
-	private static KeyValue<Integer, Set<String>>newKeyValue(int key, String... value) {
+	private static KeyValue<Integer, Set<String>> newKeyValue(int key, String... value) {
 		return new KeyValue<Integer, Set<String>>(key, Sets.newTreeSet(asList(value)));
 	}
 
-	private static void printStreams(Eventloop eventloop, DataStorageSimple dataStorage1,
-	                                 DataStorageSimple dataStorage2, DataStorageSimple dataStorage3,
-	                                 DataStorageMerger dataStorageMerge1, DataStorageMerger dataStorageMerge2) {
+	private static void printStreams(Eventloop eventloop, DataStorageSimple<Integer, Set<String>> dataStorage1,
+	                                 DataStorageSimple<Integer, Set<String>> dataStorage2,
+	                                 DataStorageSimple<Integer, Set<String>> dataStorage3,
+	                                 DataStorageMerger<Integer, Set<String>> dataStorageMerge1,
+	                                 DataStorageMerger<Integer, Set<String>> dataStorageMerge2) {
 		System.out.println("--------------------------------------------");
 		System.out.println("storage1\t" + toString(eventloop, dataStorage1.getSortedStream(ALWAYS_TRUE)));
 		System.out.println("storage2\t" + toString(eventloop, dataStorage2.getSortedStream(ALWAYS_TRUE)));
@@ -101,12 +106,12 @@ public class SimpleExample {
 		final KeyValue<Integer, Set<String>> data2 = newKeyValue(1, "ivan:cars", "ivan:phones");
 		final KeyValue<Integer, Set<String>> data3 = newKeyValue(5, "jim:books", "jim:music");
 
-		final DataStorageSimple dataStorage1 = createSimpleStorage(eventloop, data1, sortedStreams1, UNION_REDUCER, ALWAYS_TRUE);
-		final DataStorageSimple dataStorage2 = createSimpleStorage(eventloop, data2, sortedStreams2, UNION_REDUCER, ALWAYS_TRUE);
-		final DataStorageSimple dataStorage3 = createSimpleStorage(eventloop, data3, sortedStreams3, UNION_REDUCER, ALWAYS_TRUE);
+		final DataStorageSimple<Integer, Set<String>> dataStorage1 = createSimpleStorage(eventloop, data1, sortedStreams1, UNION_REDUCER, ALWAYS_TRUE);
+		final DataStorageSimple<Integer, Set<String>> dataStorage2 = createSimpleStorage(eventloop, data2, sortedStreams2, UNION_REDUCER, ALWAYS_TRUE);
+		final DataStorageSimple<Integer, Set<String>> dataStorage3 = createSimpleStorage(eventloop, data3, sortedStreams3, UNION_REDUCER, ALWAYS_TRUE);
 
-		final DataStorageMerger dataStorageMerge1 = new DataStorageMerger(eventloop, UNION_REDUCER, asList(dataStorage1, dataStorage2));
-		final DataStorageMerger dataStorageMerge2 = new DataStorageMerger(eventloop, UNION_REDUCER, asList(dataStorage2, dataStorage3));
+		final DataStorageMerger<Integer, Set<String>> dataStorageMerge1 = new DataStorageMerger<>(eventloop, UNION_REDUCER, asList(dataStorage1, dataStorage2));
+		final DataStorageMerger<Integer, Set<String>> dataStorageMerge2 = new DataStorageMerger<>(eventloop, UNION_REDUCER, asList(dataStorage2, dataStorage3));
 
 		eventloop.run();
 
