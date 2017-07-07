@@ -16,9 +16,10 @@ public class MergerReducer<K, V, A> implements Merger<KeyValue<K, V>> {
 	public KeyValue<K, V> merge(@Nullable KeyValue<K, V> arg1, @Nullable KeyValue<K, V> arg2) {
 		final StreamDataReceiverFirst dataReceiver = new StreamDataReceiverFirst();
 
-		final A accumulator = reducer.onFirstItem(dataReceiver, arg1.getKey(), arg1);
-		reducer.onNextItem(dataReceiver, arg2.getKey(), arg2, accumulator);
-		reducer.onComplete(dataReceiver, arg1.getKey(), accumulator);
+		final K key = arg1.getKey();
+		final A accumulator = reducer.onFirstItem(dataReceiver, key, arg1);
+		reducer.onNextItem(dataReceiver, key, arg2, accumulator);
+		reducer.onComplete(dataReceiver, key, accumulator);
 
 		return dataReceiver.firstItem;
 	}

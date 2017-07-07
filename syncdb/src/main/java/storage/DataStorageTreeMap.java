@@ -75,7 +75,7 @@ public class DataStorageTreeMap<K extends Comparable<K>, V, A> implements HasSor
 					public void onData(KeyValue<K, V> newValue) {
 						final K key = newValue.getKey();
 						final KeyValue<K, V> oldValue = new KeyValue<>(key, values.get(key));
-						values.put(key, merger.merge(oldValue, newValue).getValue());
+						values.put(key, merger.merge(newValue, oldValue).getValue());
 					}
 				};
 			}
