@@ -34,6 +34,7 @@
         <module>rpc</module>
         <module>serializer</module>
         <module>uikernel</module>
+        <module>syncdb</module>
     </modules>
 
     <licenses>
