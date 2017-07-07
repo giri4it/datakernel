@@ -11,7 +11,7 @@ import java.util.List;
 
 import static storage.StreamMergeUtils.mergeStreams;
 
-public class DataStorageMerger<K extends Comparable<K>, V> implements HasSortedStream<K, V> {
+public class DataStorageMerger<K extends Comparable<K>, V, A> implements HasSortedStream<K, V> {
 
 	private final Eventloop eventloop;
 	private final Ordering<K> ordering = Ordering.natural();
@@ -22,10 +22,10 @@ public class DataStorageMerger<K extends Comparable<K>, V> implements HasSortedS
 		}
 	};
 
-	private final Reducer<K, KeyValue<K, V>, KeyValue<K, V>, KeyValue<K, V>> reducer;
+	private final Reducer<K, KeyValue<K, V>, KeyValue<K, V>, A> reducer;
 	private final List<? extends HasSortedStream<K, V>> peers;
 
-	public DataStorageMerger(Eventloop eventloop, Reducer<K, KeyValue<K, V>, KeyValue<K, V>, KeyValue<K, V>> reducer,
+	public DataStorageMerger(Eventloop eventloop, Reducer<K, KeyValue<K, V>, KeyValue<K, V>, A> reducer,
 	                         List<? extends HasSortedStream<K, V>> peers) {
 		this.eventloop = eventloop;
 		this.reducer = reducer;
