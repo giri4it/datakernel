@@ -13,10 +13,10 @@ import io.datakernel.stream.StreamProducer;
 import io.datakernel.stream.processor.StreamReducers;
 import io.datakernel.stream.processor.StreamReducers.Reducer;
 import org.slf4j.LoggerFactory;
-import storage.DataStorageMerger;
-import storage.DataStorageTreeMap;
-import storage.HasSortedStream;
-import storage.HasSortedStream.KeyValue;
+import io.datakernel.storage.DataStorageMerger;
+import io.datakernel.storage.DataStorageTreeMap;
+import io.datakernel.storage.HasSortedStream;
+import io.datakernel.storage.HasSortedStream.KeyValue;
 
 import java.util.List;
 import java.util.Set;

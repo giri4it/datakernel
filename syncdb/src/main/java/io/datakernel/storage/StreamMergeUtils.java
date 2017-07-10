@@ -1,4 +1,4 @@
-package storage;
+package io.datakernel.storage;
 
 import com.google.common.base.Function;
 import com.google.common.base.Predicate;
@@ -6,7 +6,7 @@ import io.datakernel.eventloop.Eventloop;
 import io.datakernel.stream.StreamProducer;
 import io.datakernel.stream.processor.StreamReducer;
 import io.datakernel.stream.processor.StreamReducers;
-import storage.HasSortedStream.KeyValue;
+import io.datakernel.storage.HasSortedStream.KeyValue;
 
 import java.util.Comparator;
 

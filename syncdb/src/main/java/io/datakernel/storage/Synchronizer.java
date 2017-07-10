@@ -1,4 +1,4 @@
-package storage;
+package io.datakernel.storage;
 
 import io.datakernel.async.CompletionCallback;
 

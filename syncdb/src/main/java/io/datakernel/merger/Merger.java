@@ -1,4 +1,4 @@
-package merger;
+package io.datakernel.merger;
 
 import io.datakernel.annotation.Nullable;
 

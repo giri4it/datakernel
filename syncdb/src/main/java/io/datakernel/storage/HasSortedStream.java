@@ -1,4 +1,4 @@
-package storage;
+package io.datakernel.storage;
 
 import com.google.common.base.Predicate;
 import io.datakernel.stream.StreamProducer;

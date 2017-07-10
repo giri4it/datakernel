@@ -1,4 +1,4 @@
-package storage;
+package io.datakernel.storage;
 
 import com.google.common.base.Function;
 import com.google.common.base.Predicate;
@@ -10,8 +10,8 @@ import io.datakernel.stream.StreamDataReceiver;
 import io.datakernel.stream.StreamProducer;
 import io.datakernel.stream.StreamProducers;
 import io.datakernel.stream.processor.StreamReducers.Reducer;
-import merger.Merger;
-import merger.MergerReducer;
+import io.datakernel.merger.Merger;
+import io.datakernel.merger.MergerReducer;
 
 import java.util.List;
 import java.util.Map;
@@ -19,7 +19,7 @@ import java.util.TreeMap;
 
 import static com.google.common.collect.Iterables.transform;
 import static com.google.common.collect.Maps.filterKeys;
-import static storage.StreamMergeUtils.mergeStreams;
+import static io.datakernel.storage.StreamMergeUtils.mergeStreams;
 
 // interface DataStorage extends HasSortedStream<Integer, Set<String>>, Synchronizer ???
 public class DataStorageTreeMap<K extends Comparable<K>, V, A> implements HasSortedStream<K, V>, Synchronizer {

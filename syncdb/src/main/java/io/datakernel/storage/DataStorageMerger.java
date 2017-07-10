@@ -1,4 +1,4 @@
-package storage;
+package io.datakernel.storage;
 
 import com.google.common.base.Function;
 import com.google.common.base.Predicate;
@@ -9,7 +9,7 @@ import io.datakernel.stream.processor.StreamReducers.Reducer;
 
 import java.util.List;
 
-import static storage.StreamMergeUtils.mergeStreams;
+import static io.datakernel.storage.StreamMergeUtils.mergeStreams;
 
 public class DataStorageMerger<K extends Comparable<K>, V, A> implements HasSortedStream<K, V> {
 
