@@ -1,0 +1,163 @@
+package io.datakernel.storage.remote;
+
+import com.google.common.base.Predicate;
+import com.google.common.reflect.TypeToken;
+import com.google.gson.Gson;
+import io.datakernel.async.*;
+import io.datakernel.eventloop.AsyncTcpSocket;
+import io.datakernel.eventloop.AsyncTcpSocketImpl;
+import io.datakernel.eventloop.Eventloop;
+import io.datakernel.net.SocketSettings;
+import io.datakernel.serializer.BufferSerializer;
+import io.datakernel.storage.HasSortedStream;
+import io.datakernel.storage.remote.DataStorageRemoteCommands.GetSortedStream;
+import io.datakernel.storage.remote.DataStorageRemoteCommands.RemoteCommand;
+import io.datakernel.storage.remote.DataStorageRemoteResponses.RemoteResponse;
+import io.datakernel.stream.StreamProducer;
+import io.datakernel.stream.net.Messaging.ReceiveMessageCallback;
+import io.datakernel.stream.net.MessagingSerializer;
+import io.datakernel.stream.net.MessagingWithBinaryStreaming;
+import io.datakernel.stream.processor.StreamBinaryDeserializer;
+
+import javax.net.ssl.SSLContext;
+import java.net.InetSocketAddress;
+import java.nio.channels.SocketChannel;
+import java.rmi.RemoteException;
+import java.util.concurrent.ExecutorService;
+
+import static io.datakernel.eventloop.AsyncSslSocket.wrapClientSocket;
+import static io.datakernel.eventloop.AsyncTcpSocketImpl.wrapChannel;
+import static io.datakernel.storage.remote.DataStorageRemoteCommands.commandGSON;
+import static io.datakernel.storage.remote.DataStorageRemoteResponses.responseGson;
+import static io.datakernel.stream.net.MessagingSerializers.ofGson;
+
+public class DataStorageRemoteClient<K, V> implements HasSortedStream<K, V> {
+	private final Eventloop eventloop;
+	private final InetSocketAddress address;
+	private final MessagingSerializer<RemoteResponse, RemoteCommand> serializer = ofGson(responseGson, RemoteResponse.class, commandGSON, RemoteCommand.class);
+	private final Gson gson;
+	private final BufferSerializer<KeyValue<K, V>> bufferSerializer;
+	private final SocketSettings socketSettings = SocketSettings.create();
+	private final SSLContext sslContext;
+	private final ExecutorService sslExecutor;
+
+	public DataStorageRemoteClient(Eventloop eventloop, InetSocketAddress address,
+	                               Gson gson, BufferSerializer<KeyValue<K, V>> bufferSerializer, SSLContext sslContext,
+	                               ExecutorService sslExecutor) {
+		this.eventloop = eventloop;
+		this.address = address;
+		this.gson = gson;
+		this.bufferSerializer = bufferSerializer;
+		this.sslContext = sslContext;
+		this.sslExecutor = sslExecutor;
+	}
+
+	private void connect(InetSocketAddress address, final MessagingConnectCallback callback) {
+		eventloop.connect(address, new ConnectCallback() {
+			@Override
+			protected void onConnect(SocketChannel socketChannel) {
+				AsyncTcpSocketImpl asyncTcpSocketImpl = wrapChannel(eventloop, socketChannel, socketSettings);
+				AsyncTcpSocket asyncTcpSocket = sslContext != null ? wrapClientSocket(eventloop, asyncTcpSocketImpl, sslContext, sslExecutor) : asyncTcpSocketImpl;
+				MessagingWithBinaryStreaming<RemoteResponse, RemoteCommand> messaging = MessagingWithBinaryStreaming.create(eventloop, asyncTcpSocket, serializer);
+				asyncTcpSocket.setEventHandler(messaging);
+				asyncTcpSocketImpl.register();
+				callback.setConnect(messaging);
+			}
+
+			@Override
+			protected void onException(Exception e) {
+				callback.setException(e);
+			}
+		});
+	}
+
+	@Override
+	public void getSortedStream(final Predicate<K> predicate, final ResultCallback<StreamProducer<KeyValue<K, V>>> callback) {
+		connect(address, new ForwardingMessagingConnectCallback(callback) {
+			@Override
+			protected void onConnect(final MessagingWithBinaryStreaming<RemoteResponse, RemoteCommand> messaging) {
+				final GetSortedStream getSortedStream = new GetSortedStream(serializerPredicate(predicate));
+				getSortedStream(messaging, getSortedStream, new ResultCallback<StreamProducer<KeyValue<K, V>>>() {
+					@Override
+					protected void onResult(StreamProducer<KeyValue<K, V>> result) {
+						callback.setResult(result);
+					}
+
+					@Override
+					protected void onException(Exception e) {
+						messaging.close();
+						callback.setException(e);
+					}
+				});
+			}
+		});
+	}
+
+	private String serializerPredicate(Predicate<K> predicate) {
+		return gson.toJson(predicate, new TypeToken<Predicate<K>>() {}.getRawType());
+	}
+
+	private void getSortedStream(final MessagingWithBinaryStreaming<RemoteResponse, RemoteCommand> messaging,
+	                             GetSortedStream getSortedStream, final ResultCallback<StreamProducer<KeyValue<K, V>>> callback) {
+		messaging.send(getSortedStream, new ForwardingCompletionCallback(callback) {
+			@Override
+			protected void onComplete() {
+				messaging.receive(new ReceiveMessageCallback<RemoteResponse>() {
+					@Override
+					public void onReceive(RemoteResponse msg) {
+						if (msg instanceof DataStorageRemoteResponses.OkResponse) {
+							final StreamBinaryDeserializer<KeyValue<K, V>> deserializer = StreamBinaryDeserializer.create(eventloop, bufferSerializer);
+							messaging.receiveBinaryStreamTo(deserializer.getInput(), new CompletionCallback() {
+								@Override
+								protected void onComplete() {
+									messaging.close();
+								}
+
+								@Override
+								protected void onException(Exception e) {
+									messaging.close();
+								}
+							});
+							callback.setResult(deserializer.getOutput());
+						} else {
+							callback.setException(new RemoteException("Invalid message received: " + msg));
+						}
+					}
+
+					@Override
+					public void onReceiveEndOfStream() {
+						callback.setException(new RemoteException("onReceiveEndOfStream"));
+					}
+
+					@Override
+					public void onException(Exception e) {
+						callback.setException(e);
+					}
+				});
+			}
+		});
+	}
+
+	private abstract class MessagingConnectCallback extends ExceptionCallback {
+		final void setConnect(MessagingWithBinaryStreaming<RemoteResponse, RemoteCommand> messaging) {
+			CallbackRegistry.complete(this);
+			onConnect(messaging);
+		}
+
+		protected abstract void onConnect(MessagingWithBinaryStreaming<RemoteResponse, RemoteCommand> messaging);
+	}
+
+	private abstract class ForwardingMessagingConnectCallback extends MessagingConnectCallback {
+		private final ExceptionCallback callback;
+
+		protected ForwardingMessagingConnectCallback(ExceptionCallback callback) {
+			this.callback = callback;
+		}
+
+		@Override
+		protected void onException(Exception e) {
+			callback.setException(e);
+		}
+	}
+
+}

@@ -4,14 +4,15 @@ import com.google.common.base.Function;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Ordering;
 import io.datakernel.async.CompletionCallback;
+import io.datakernel.async.ForwardingResultCallback;
+import io.datakernel.async.ResultCallback;
 import io.datakernel.eventloop.Eventloop;
+import io.datakernel.merger.Merger;
+import io.datakernel.merger.MergerReducer;
 import io.datakernel.stream.AbstractStreamConsumer;
 import io.datakernel.stream.StreamDataReceiver;
 import io.datakernel.stream.StreamProducer;
-import io.datakernel.stream.StreamProducers;
 import io.datakernel.stream.processor.StreamReducers.Reducer;
-import io.datakernel.merger.Merger;
-import io.datakernel.merger.MergerReducer;
 
 import java.util.List;
 import java.util.Map;
@@ -20,6 +21,7 @@ import java.util.TreeMap;
 import static com.google.common.collect.Iterables.transform;
 import static com.google.common.collect.Maps.filterKeys;
 import static io.datakernel.storage.StreamMergeUtils.mergeStreams;
+import static io.datakernel.stream.StreamProducers.ofIterable;
 
 // interface DataStorage extends HasSortedStream<Integer, Set<String>>, Synchronizer ???
 public class DataStorageTreeMap<K extends Comparable<K>, V, A> implements HasSortedStream<K, V>, Synchronizer {
@@ -59,31 +61,37 @@ public class DataStorageTreeMap<K extends Comparable<K>, V, A> implements HasSor
 	}
 
 	@Override
-	public StreamProducer<KeyValue<K, V>> getSortedStream(Predicate<K> predicate) {
+	public void getSortedStream(Predicate<K> predicate, ResultCallback<StreamProducer<KeyValue<K, V>>> callback) {
 		assert eventloop.inEventloopThread();
-		return StreamProducers.ofIterable(eventloop, transform(filterKeys(values, predicate).entrySet(), TO_KEY_VALUE));
+		callback.setResult(ofIterable(eventloop, transform(filterKeys(values, predicate).entrySet(), TO_KEY_VALUE)));
 	}
 
 	@Override
 	public void synchronize(final CompletionCallback callback) {
-		final StreamProducer<KeyValue<K, V>> producer = mergeStreams(eventloop, ordering, toKey, reducer, peers, keyFilter);
-		producer.streamTo(new AbstractStreamConsumer<KeyValue<K, V>>(eventloop) {
+		assert eventloop.inEventloopThread();
+		mergeStreams(eventloop, ordering, toKey, reducer, peers, keyFilter, new ForwardingResultCallback<StreamProducer<KeyValue<K, V>>>(callback) {
 			@Override
-			public StreamDataReceiver<KeyValue<K, V>> getDataReceiver() {
-				return new StreamDataReceiver<KeyValue<K, V>>() {
+			protected void onResult(StreamProducer<KeyValue<K, V>> producer) {
+				producer.streamTo(new AbstractStreamConsumer<KeyValue<K, V>>(eventloop) {
 					@Override
-					public void onData(KeyValue<K, V> newValue) {
-						final K key = newValue.getKey();
-						final KeyValue<K, V> oldValue = new KeyValue<>(key, values.get(key));
-						values.put(key, merger.merge(newValue, oldValue).getValue());
+					public StreamDataReceiver<KeyValue<K, V>> getDataReceiver() {
+						return new StreamDataReceiver<KeyValue<K, V>>() {
+							@Override
+							public void onData(KeyValue<K, V> newValue) {
+								final K key = newValue.getKey();
+								final KeyValue<K, V> oldValue = new KeyValue<>(key, values.get(key));
+								values.put(key, merger.merge(newValue, oldValue).getValue());
+							}
+						};
 					}
-				};
-			}
 
-			@Override
-			protected void onEndOfStream() {
-				callback.setComplete();
+					@Override
+					protected void onEndOfStream() {
+						callback.setComplete();
+					}
+				});
 			}
 		});
+
 	}
 }

@@ -1,6 +1,7 @@
 package io.datakernel.storage;
 
 import com.google.common.base.Predicate;
+import io.datakernel.async.ResultCallback;
 import io.datakernel.stream.StreamProducer;
 
 // K extends Comparable<K> ???
@@ -52,5 +53,5 @@ public interface HasSortedStream<K, V> {
 		}
 	}
 
-	StreamProducer<KeyValue<K, V>> getSortedStream(Predicate<K> predicate);
+	void getSortedStream(Predicate<K> predicate, ResultCallback<StreamProducer<KeyValue<K, V>>> callback);
 }

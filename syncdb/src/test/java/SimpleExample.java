@@ -3,10 +3,7 @@ import ch.qos.logback.classic.Logger;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.collect.Sets;
-import io.datakernel.async.AsyncRunnable;
-import io.datakernel.async.AsyncRunnables;
-import io.datakernel.async.CompletionCallback;
-import io.datakernel.async.IgnoreCompletionCallback;
+import io.datakernel.async.*;
 import io.datakernel.eventloop.Eventloop;
 import io.datakernel.stream.StreamConsumers;
 import io.datakernel.stream.StreamProducer;
@@ -44,8 +41,8 @@ public class SimpleExample {
 	private static HasSortedStream<Integer, Set<String>> sorterStream(final StreamProducer<KeyValue<Integer, Set<String>>> producer) {
 		return new HasSortedStream<Integer, Set<String>>() {
 			@Override
-			public StreamProducer<KeyValue<Integer, Set<String>>> getSortedStream(Predicate<Integer> predicate) {
-				return producer;
+			public void getSortedStream(Predicate<Integer> predicate, ResultCallback<StreamProducer<KeyValue<Integer, Set<String>>>> callback) {
+				callback.setResult(producer);
 			}
 		};
 	}
@@ -66,19 +63,40 @@ public class SimpleExample {
 		return new KeyValue<Integer, Set<String>>(key, Sets.newTreeSet(asList(value)));
 	}
 
-	private static void printStreams(Eventloop eventloop, DataStorageTreeMap<Integer, Set<String>, KeyValue<Integer, Set<String>>> dataStorage1,
-	                                 DataStorageTreeMap<Integer, Set<String>, KeyValue<Integer, Set<String>>> dataStorage2,
-	                                 DataStorageTreeMap<Integer, Set<String>, KeyValue<Integer, Set<String>>> dataStorage3,
-	                                 DataStorageMerger<Integer, Set<String>, KeyValue<Integer, Set<String>>> dataStorageMerge1,
-	                                 DataStorageMerger<Integer, Set<String>, KeyValue<Integer, Set<String>>> dataStorageMerge2) {
+	private static void printStreams(final Eventloop eventloop, final DataStorageTreeMap<Integer, Set<String>, KeyValue<Integer, Set<String>>> dataStorage1,
+	                                 final DataStorageTreeMap<Integer, Set<String>, KeyValue<Integer, Set<String>>> dataStorage2,
+	                                 final DataStorageTreeMap<Integer, Set<String>, KeyValue<Integer, Set<String>>> dataStorage3,
+	                                 final DataStorageMerger<Integer, Set<String>, KeyValue<Integer, Set<String>>> dataStorageMerge1,
+	                                 final DataStorageMerger<Integer, Set<String>, KeyValue<Integer, Set<String>>> dataStorageMerge2) {
 		System.out.println("--------------------------------------------");
-		System.out.println("storage1\t" + toString(eventloop, dataStorage1.getSortedStream(ALWAYS_TRUE)));
-		System.out.println("storage2\t" + toString(eventloop, dataStorage2.getSortedStream(ALWAYS_TRUE)));
-		System.out.println("storage3\t" + toString(eventloop, dataStorage3.getSortedStream(ALWAYS_TRUE)));
-		System.out.println();
-		System.out.println("merger1\t\t" + toString(eventloop, dataStorageMerge1.getSortedStream(ALWAYS_TRUE)));
-		System.out.println("merger2\t\t" + toString(eventloop, dataStorageMerge2.getSortedStream(ALWAYS_TRUE)));
-		System.out.println();
+		AsyncCallables.callAll(eventloop, asList(
+				getSortedStream(dataStorage1),
+				getSortedStream(dataStorage2),
+				getSortedStream(dataStorage3),
+				getSortedStream(dataStorageMerge1),
+				getSortedStream(dataStorageMerge2)))
+		.call(new AssertingResultCallback<List<StreamProducer<KeyValue<Integer, Set<String>>>>>() {
+			@Override
+			protected void onResult(List<StreamProducer<KeyValue<Integer, Set<String>>>> result) {
+				System.out.println("storage1\t" + SimpleExample.toString(eventloop, result.get(0)));
+				System.out.println("storage2\t" + SimpleExample.toString(eventloop, result.get(1)));
+				System.out.println("storage3\t" + SimpleExample.toString(eventloop, result.get(2)));
+				System.out.println();
+				System.out.println("merger1\t\t" + SimpleExample.toString(eventloop, result.get(3)));
+				System.out.println("merger2\t\t" + SimpleExample.toString(eventloop, result.get(4)));
+				System.out.println();
+			}
+
+		});
+	}
+
+	private static AsyncCallable<StreamProducer<KeyValue<Integer, Set<String>>>> getSortedStream(final HasSortedStream<Integer, Set<String>> hasSortedStream) {
+		return new AsyncCallable<StreamProducer<KeyValue<Integer, Set<String>>>>() {
+			@Override
+			public void call(ResultCallback<StreamProducer<KeyValue<Integer, Set<String>>>> callback) {
+				hasSortedStream.getSortedStream(ALWAYS_TRUE, callback);
+			}
+		};
 	}
 
 	private static String toString(Eventloop eventloop, StreamProducer<KeyValue<Integer, Set<String>>> producer) {

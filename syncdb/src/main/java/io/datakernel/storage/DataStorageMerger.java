@@ -3,6 +3,7 @@ package io.datakernel.storage;
 import com.google.common.base.Function;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Ordering;
+import io.datakernel.async.ResultCallback;
 import io.datakernel.eventloop.Eventloop;
 import io.datakernel.stream.StreamProducer;
 import io.datakernel.stream.processor.StreamReducers.Reducer;
@@ -33,9 +34,9 @@ public class DataStorageMerger<K extends Comparable<K>, V, A> implements HasSort
 	}
 
 	@Override
-	public StreamProducer<KeyValue<K, V>> getSortedStream(final Predicate<K> filter) {
+	public void getSortedStream(final Predicate<K> filter, ResultCallback<StreamProducer<KeyValue<K, V>>> callback) {
 		assert eventloop.inEventloopThread();
-		return mergeStreams(eventloop, ordering, toKey, reducer, peers, filter);
+		mergeStreams(eventloop, ordering, toKey, reducer, peers, filter, callback);
 	}
 
 }
