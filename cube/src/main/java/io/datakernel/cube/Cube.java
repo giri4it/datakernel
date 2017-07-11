@@ -694,7 +694,14 @@ public final class Cube implements ICube, EventloopJmxMBean {
 	List<AggregationContainer> getCompatibleAggregationsForQuery(List<String> dimensions,
 	                                                             List<String> storedMeasures,
 	                                                             AggregationPredicate where) {
-		where = where.simplify();
+		where = AggregationPredicates.and(newArrayList(concat(singletonList(where),
+				transform(dimensions, new Function<String, AggregationPredicate>() {
+					@Override
+					public AggregationPredicate apply(String input) {
+						return AggregationPredicates.has(input);
+					}
+				})))).simplify();
+
 		List<String> allDimensions = newArrayList(concat(dimensions, where.getDimensions()));
 
 		List<AggregationContainer> compatibleAggregations = new ArrayList<>();
@@ -704,6 +711,15 @@ public final class Cube implements ICube, EventloopJmxMBean {
 			List<String> compatibleMeasures = newArrayList(filter(storedMeasures, in(aggregationContainer.measures)));
 			if (compatibleMeasures.isEmpty())
 				continue;
+			/*AggregationPredicate predicate = aggregationContainer.predicate;
+			predicate = AggregationPredicates.and(newArrayList(concat(singletonList(predicate),
+					transform(dimensions, new Function<String, AggregationPredicate>() {
+						@Override
+						public AggregationPredicate apply(String input) {
+							return AggregationPredicates.has(input);
+						}
+					})))).simplify();
+*/
 			AggregationPredicate intersection = AggregationPredicates.and(where, aggregationContainer.predicate).simplify();
 			if (!intersection.equals(where))
 				continue;
@@ -984,9 +1000,8 @@ public final class Cube implements ICube, EventloopJmxMBean {
 
 			if (compatibleAggregations.isEmpty()) {
 				RecordScheme recordScheme = createRecordScheme();
-				QueryResult result = QueryResult.create(recordScheme, Collections.<Record>emptyList(),
-						Record.create(recordScheme), 0, Collections.<String>emptyList(), Collections.<String>emptyList(),
-						Collections.<String>emptyList(), Collections.<String, Object>emptyMap(), reportType);
+				QueryResult result = QueryResult.create(recordScheme, null, null, 0, Collections.<String>emptyList(),
+						Collections.<String>emptyList(), null, null);
 				resultCallback.setResult(result);
 				return;
 			}
@@ -1000,9 +1015,8 @@ public final class Cube implements ICube, EventloopJmxMBean {
 			recordFunction = createRecordFunction();
 
 			if (ReportType.METADATA.equals(reportType)) {
-				QueryResult result = QueryResult.create(recordScheme, Collections.<Record>emptyList(),
-						Record.create(recordScheme), 0, newArrayList(resultAttributes), newArrayList(resultMeasures),
-						resultOrderings, Collections.<String, Object>emptyMap(), reportType);
+				QueryResult result = QueryResult.create(recordScheme, null, null, 0, newArrayList(resultAttributes), newArrayList(resultMeasures),
+						null, null);
 				resultCallback.setResult(result);
 				return;
 			}
@@ -1183,31 +1197,31 @@ public final class Cube implements ICube, EventloopJmxMBean {
 			List<AsyncRunnable> tasks = new ArrayList<>();
 			final Map<String, Object> filterAttributes = newLinkedHashMap();
 			// TODO: 30.06.17 remove comparison with DATA after introducing separate resolver servlet
-				for (final AttributeResolverContainer resolverContainer : attributeResolvers) {
-					final List<String> attributes = new ArrayList<>(resolverContainer.attributes);
-					attributes.retainAll(resultAttributes);
-					if (!attributes.isEmpty()) {
-						tasks.add(new AsyncRunnable() {
-							@Override
-							public void run(CompletionCallback callback) {
-								Utils.resolveAttributes(results, resolverContainer.resolver,
-										resolverContainer.dimensions, attributes,
-										(Class) resultClass, queryClassLoader, callback);
-							}
-						});
-					}
+			for (final AttributeResolverContainer resolverContainer : attributeResolvers) {
+				final List<String> attributes = new ArrayList<>(resolverContainer.attributes);
+				attributes.retainAll(resultAttributes);
+				if (!attributes.isEmpty()) {
+					tasks.add(new AsyncRunnable() {
+						@Override
+						public void run(CompletionCallback callback) {
+							Utils.resolveAttributes(results, resolverContainer.resolver,
+									resolverContainer.dimensions, attributes,
+									(Class) resultClass, queryClassLoader, callback);
+						}
+					});
 				}
+			}
 
-				for (final AttributeResolverContainer resolverContainer : attributeResolvers) {
-					if (fullySpecifiedDimensions.keySet().containsAll(resolverContainer.dimensions)) {
-						tasks.add(new AsyncRunnable() {
-							@Override
-							public void run(CompletionCallback callback) {
-								resolveSpecifiedDimensions(resolverContainer, filterAttributes, callback);
-							}
-						});
-					}
+			for (final AttributeResolverContainer resolverContainer : attributeResolvers) {
+				if (fullySpecifiedDimensions.keySet().containsAll(resolverContainer.dimensions)) {
+					tasks.add(new AsyncRunnable() {
+						@Override
+						public void run(CompletionCallback callback) {
+							resolveSpecifiedDimensions(resolverContainer, filterAttributes, callback);
+						}
+					});
 				}
+			}
 			runInParallel(eventloop, tasks).run(new ForwardingCompletionCallback(callback) {
 				@Override
 				protected void onComplete() {
@@ -1231,15 +1245,20 @@ public final class Cube implements ICube, EventloopJmxMBean {
 				resultRecords.add(record);
 			}
 
+			if (ReportType.DATA.equals(reportType)) {
+				QueryResult result = QueryResult.create(recordScheme, resultRecords, null, totalCount,
+						newArrayList(resultAttributes), newArrayList(queryMeasures), resultOrderings, filterAttributes);
+				callback.setResult(result);
+				return;
+			}
+
 			Record totalRecord = Record.create(recordScheme);
 			if (ReportType.DATA_WITH_TOTALS.equals(reportType)) {
 				recordFunction.copyMeasures(totals, totalRecord);
+				QueryResult result = QueryResult.create(recordScheme, resultRecords, totalRecord, totalCount,
+						newArrayList(resultAttributes), newArrayList(queryMeasures), resultOrderings, filterAttributes);
+				callback.setResult(result);
 			}
-
-			QueryResult result = QueryResult.create(recordScheme, resultRecords, totalRecord, totalCount,
-					newArrayList(resultAttributes), newArrayList(queryMeasures), resultOrderings, filterAttributes,
-					reportType);
-			callback.setResult(result);
 		}
 
 		private void resolveSpecifiedDimensions(final AttributeResolverContainer resolverContainer, final Map<String, Object> result,

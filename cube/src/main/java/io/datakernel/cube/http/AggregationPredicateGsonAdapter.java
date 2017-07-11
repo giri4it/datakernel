@@ -41,6 +41,7 @@ final class AggregationPredicateGsonAdapter extends TypeAdapter<AggregationPredi
 	public static final String SPACES = "\\s+";
 	public static final String EQ = "eq";
 	public static final String NOT_EQ = "notEq";
+	public static final String HAS = "has";
 	public static final String GE = "ge";
 	public static final String GT = "gt";
 	public static final String LE = "le";
@@ -177,6 +178,9 @@ final class AggregationPredicateGsonAdapter extends TypeAdapter<AggregationPredi
 			} else if (predicate instanceof PredicateGe) {
 				writer.value(GE);
 				writeGe(writer, (PredicateGe) predicate);
+			} else if (predicate instanceof PredicateHas) {
+				writer.value(HAS);
+				writer.value(((PredicateHas) predicate).getKey());
 			} else if (predicate instanceof PredicateGt) {
 				writer.value(GT);
 				writeGt(writer, (PredicateGt) predicate);
@@ -358,6 +362,8 @@ final class AggregationPredicateGsonAdapter extends TypeAdapter<AggregationPredi
 				predicate = readEq(reader);
 			if (NOT_EQ.equals(type))
 				predicate = readNotEq(reader);
+			if (HAS.equals(type))
+				predicate = has(reader.nextString());
 			if (GE.equals(type))
 				predicate = readGe(reader);
 			if (GT.equals(type))

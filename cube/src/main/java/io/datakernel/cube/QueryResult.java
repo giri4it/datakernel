@@ -32,11 +32,10 @@ public final class QueryResult {
 	private final int totalCount;
 
 	private final Map<String, Object> filterAttributes;
-	private final ReportType resultType;
 
 	private QueryResult(RecordScheme recordScheme, List<Record> records, Record totals, int totalCount,
 	                    List<String> attributes, List<String> measures, List<String> sortedBy,
-	                    Map<String, Object> filterAttributes, ReportType resultType) {
+	                    Map<String, Object> filterAttributes) {
 		this.recordScheme = recordScheme;
 		this.records = records;
 		this.totals = totals;
@@ -45,14 +44,12 @@ public final class QueryResult {
 		this.measures = measures;
 		this.sortedBy = sortedBy;
 		this.filterAttributes = filterAttributes;
-		this.resultType = resultType;
 	}
 
 	public static QueryResult create(RecordScheme recordScheme, List<Record> records, Record totals, int totalCount,
 	                                 List<String> attributes, List<String> measures, List<String> sortedBy,
-	                                 Map<String, Object> filterAttributes, ReportType resultType) {
-		return new QueryResult(recordScheme, records, totals, totalCount, attributes, measures, sortedBy,
-				filterAttributes, resultType);
+	                                 Map<String, Object> filterAttributes) {
+		return new QueryResult(recordScheme, records, totals, totalCount, attributes, measures, sortedBy, filterAttributes);
 	}
 
 	public RecordScheme getRecordScheme() {
@@ -87,10 +84,6 @@ public final class QueryResult {
 		return sortedBy;
 	}
 
-	public ReportType getResultType() {
-		return resultType;
-	}
-
 	@Override
 	public String toString() {
 		return MoreObjects.toStringHelper(this)
@@ -100,7 +93,6 @@ public final class QueryResult {
 				.add("totals", totals)
 				.add("count", totalCount)
 				.add("sortedBy", sortedBy)
-				.add("resultType", resultType)
 				.toString();
 	}
 }

@@ -583,8 +583,7 @@ public class ReportingTest {
 				.withMeasures("impressions")
 				.withWhere(and(eq("advertiser", 2), notEq("advertiser", EXCLUDE_ADVERTISER), notEq("campaign", EXCLUDE_CAMPAIGN), notEq("banner", EXCLUDE_BANNER)))
 				.withOrderings(asc("advertiser.name"))
-				.withHaving(eq("advertiser.name", null))
-				.withReportType(ReportType.RESOLVE_ATTRIBUTES);
+				.withHaving(eq("advertiser.name", null));
 
 		final QueryResult queryResult = getQueryResult(query);
 
@@ -680,11 +679,11 @@ public class ReportingTest {
 
 		final QueryResult metadata = getQueryResult(onlyMetaQuery);
 
-		assertEquals(0, metadata.getRecordScheme().getFields().size());
+		assertEquals(7, metadata.getRecordScheme().getFields().size());
 		assertEquals(0, metadata.getTotalCount());
-		assertTrue(metadata.getRecords().isEmpty());
-		assertTrue(metadata.getTotals().asMap().isEmpty());
-		assertTrue(metadata.getFilterAttributes().isEmpty());
+		assertNull(metadata.getRecords());
+		assertNull(metadata.getTotals());
+		assertNull(metadata.getFilterAttributes());
 	}
 
 	@Test

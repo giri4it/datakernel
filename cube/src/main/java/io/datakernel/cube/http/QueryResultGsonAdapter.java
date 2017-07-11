@@ -16,7 +16,6 @@
 
 package io.datakernel.cube.http;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
 import com.google.gson.TypeAdapter;
@@ -37,9 +36,7 @@ import java.util.Map;
 
 import static com.google.common.base.MoreObjects.firstNonNull;
 import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.collect.Maps.newLinkedHashMap;
-import static io.datakernel.cube.ReportType.*;
 import static io.datakernel.cube.http.Utils.*;
 
 final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
@@ -52,13 +49,6 @@ final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
 	private static final String SORTED_BY_FIELD = "sortedBy";
 	private static final String REPORT_TYPE = "reportType";
 	private static final String METADATA_FIELD = "metadata";
-
-	private final Map<String, QueryResultCodec> resultTypeCodecs = ImmutableMap.<String, QueryResultCodec>builder()
-			.put(METADATA_REPORT, new MetadataFormatter())
-			.put(DATA_REPORT, new DataFormatter())
-			.put(DATA_WITH_TOTALS_REPORT, new DataWithTotalsFormatter())
-			.put(RESOLVE_ATTRIBUTES_REPORT, new ResolveAttributesFormatter())
-			.build();
 
 	private final Map<String, TypeAdapter<?>> attributeAdapters;
 	private final Map<String, TypeAdapter<?>> measureAdapters;
@@ -100,16 +90,47 @@ final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
 	public QueryResult read(JsonReader reader) throws JsonParseException, IOException {
 		reader.beginObject();
 
-		checkArgument(REPORT_TYPE.equals(reader.nextName()));
-		String resultType = reader.nextString();
+		checkArgument(METADATA_FIELD.equals(reader.nextName()));
+		reader.beginObject();
 
-		final QueryResultCodec formatter = resultTypeCodecs.get(resultType);
-		checkNotNull(formatter);
+		checkArgument(ATTRIBUTES_FIELD.equals(reader.nextName()));
+		List<String> attributes = stringListAdapter.read(reader);
 
-		QueryResult result = formatter.read(reader);
+		checkArgument(MEASURES_FIELD.equals(reader.nextName()));
+		List<String> measures = stringListAdapter.read(reader);
+
 		reader.endObject();
 
-		return result;
+
+		List<String> sortedBy = null;
+		if (reader.hasNext() && SORTED_BY_FIELD.equals(reader.nextName())) {
+			sortedBy = stringListAdapter.read(reader);
+		}
+
+		RecordScheme recordScheme = recordScheme(attributes, measures);
+
+		List<Record> records = null;
+		int count = 0;
+		Map<String, Object> filterAttributes = null;
+		if (reader.hasNext() && RECORDS_FIELD.equals(reader.nextName())) {
+			records = readRecords(reader, recordScheme);
+
+			checkArgument(COUNT_FIELD.equals(reader.nextName()));
+			count = reader.nextInt();
+
+			checkArgument(FILTER_ATTRIBUTES_FIELD.equals(reader.nextName()));
+			filterAttributes = readFilterAttributes(reader);
+		}
+
+		Record totals = null;
+		if (reader.hasNext() && TOTALS_FIELD.equals(reader.nextName())) {
+			totals = readTotals(reader, recordScheme);
+		}
+
+		reader.endObject();
+
+		return QueryResult.create(recordScheme, records, totals, count,
+				attributes, measures, sortedBy, filterAttributes);
 	}
 
 	private List<Record> readRecords(JsonReader reader, RecordScheme recordScheme) throws JsonParseException, IOException {
@@ -164,12 +185,37 @@ final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
 	public void write(JsonWriter writer, QueryResult result) throws IOException {
 		writer.beginObject();
 
-		final ReportType resultType = result.getResultType();
-		String type = getResultTypeName(resultType);
+		writer.name(METADATA_FIELD);
+		writer.beginObject();
 
-		final QueryResultCodec formatter = resultTypeCodecs.get(type);
+		writer.name(ATTRIBUTES_FIELD);
+		stringListAdapter.write(writer, result.getAttributes());
 
-		formatter.write(writer, result);
+		writer.name(MEASURES_FIELD);
+		stringListAdapter.write(writer, result.getMeasures());
+
+		writer.endObject();
+
+		if (result.getSortedBy() != null) {
+			writer.name(SORTED_BY_FIELD);
+			stringListAdapter.write(writer, result.getSortedBy());
+		}
+
+		if (result.getRecords() != null) {
+			writer.name(RECORDS_FIELD);
+			writeRecords(writer, result.getRecordScheme(), result.getRecords());
+
+			writer.name(COUNT_FIELD);
+			writer.value(result.getTotalCount());
+
+			writer.name(FILTER_ATTRIBUTES_FIELD);
+			writeFilterAttributes(writer, result.getFilterAttributes());
+		}
+
+		if (result.getTotals() != null) {
+			writer.name(TOTALS_FIELD);
+			writeTotals(writer, result.getRecordScheme(), result.getTotals());
+		}
 
 		writer.endObject();
 	}
@@ -275,8 +321,7 @@ final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
 
 			final RecordScheme recordScheme = RecordScheme.create();
 			return QueryResult.create(recordScheme, Collections.<Record>emptyList(), Record.create(recordScheme), 0,
-					attributes, measures, Collections.<String>emptyList(), Collections.<String, Object>emptyMap(),
-					METADATA);
+					attributes, measures, Collections.<String>emptyList(), Collections.<String, Object>emptyMap());
 		}
 
 	}
@@ -321,7 +366,7 @@ final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
 			Map<String, Object> filterAttributes = readFilterAttributes(reader);
 
 			return QueryResult.create(recordScheme, records, result.getTotals(), count, result.getAttributes(),
-					result.getMeasures(), sortedBy, filterAttributes, DATA);
+					result.getMeasures(), sortedBy, filterAttributes);
 		}
 
 	}
@@ -346,32 +391,7 @@ final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
 			Record totals = readTotals(reader, recordScheme);
 
 			return QueryResult.create(result.getRecordScheme(), result.getRecords(), totals, result.getTotalCount(),
-					result.getAttributes(), result.getMeasures(), result.getSortedBy(), result.getFilterAttributes(),
-					DATA_WITH_TOTALS);
-		}
-
-	}
-
-	private final class ResolveAttributesFormatter implements QueryResultCodec {
-		private final QueryResultCodec metadataFormatter = new MetadataFormatter();
-
-		@Override
-		public void write(JsonWriter writer, QueryResult result) throws IOException {
-			metadataFormatter.write(writer, result);
-
-			writer.name(FILTER_ATTRIBUTES_FIELD);
-			writeFilterAttributes(writer, result.getFilterAttributes());
-		}
-
-		@Override
-		public QueryResult read(JsonReader reader) throws IOException {
-			QueryResult result = metadataFormatter.read(reader);
-
-			checkArgument(FILTER_ATTRIBUTES_FIELD.equals(reader.nextName()));
-			Map<String, Object> filterAttributes = readFilterAttributes(reader);
-
-			return QueryResult.create(result.getRecordScheme(), result.getRecords(), result.getTotals(), result.getTotalCount(),
-					result.getAttributes(), result.getMeasures(), result.getSortedBy(), filterAttributes, RESOLVE_ATTRIBUTES);
+					result.getAttributes(), result.getMeasures(), result.getSortedBy(), result.getFilterAttributes());
 		}
 
 	}
@@ -387,9 +407,6 @@ final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
 				break;
 			case DATA_WITH_TOTALS:
 				type = DATA_WITH_TOTALS_REPORT;
-				break;
-			case RESOLVE_ATTRIBUTES:
-				type = RESOLVE_ATTRIBUTES_REPORT;
 				break;
 			default:
 				throw new IllegalArgumentException("Unexpected query result type: " + resultType);
