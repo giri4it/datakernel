@@ -1028,22 +1028,14 @@ public final class Cube implements ICube, EventloopJmxMBean {
 		}
 
 		void prepareDimensions() throws QueryException {
-			Set<String> allDimensions = newLinkedHashSet();
-			Set<String> allMeasures = newLinkedHashSet();
-			for (AggregationContainer compatibleAggregation : compatibleAggregations) {
-				allDimensions.addAll(compatibleAggregation.aggregation.getKeys());
-				allMeasures.addAll(compatibleAggregation.aggregation.getMeasures());
-			}
-			List<String> attributes = query.getAttributes();
-			for (String attribute : attributes) {
+			for (String attribute : query.getAttributes()) {
 				List<String> dimensions = newArrayList();
-				if (dimensionTypes.containsKey(attribute) && allDimensions.contains(attribute)) {
-					dimensions.add(attribute);
-				} else if (Cube.this.attributes.containsKey(attribute)) {
-
-					AttributeResolverContainer resolverContainer = Cube.this.attributes.get(attribute);
+				if (dimensionTypes.containsKey(attribute)) {
+					dimensions = buildChildParentDimensionsChain(attribute);
+				} else if (attributes.containsKey(attribute)) {
+					AttributeResolverContainer resolverContainer = attributes.get(attribute);
 					for (String dimension : resolverContainer.dimensions) {
-						dimensions.add(dimension);
+						dimensions.addAll(buildChildParentDimensionsChain(dimension));
 					}
 				} else
 					throw new QueryException("Attribute not found: " + attribute);
