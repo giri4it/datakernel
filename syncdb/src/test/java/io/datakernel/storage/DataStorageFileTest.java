@@ -9,6 +9,7 @@ import io.datakernel.async.ResultCallback;
 import io.datakernel.async.ResultCallbackFuture;
 import io.datakernel.bytebuf.ByteBuf;
 import io.datakernel.eventloop.Eventloop;
+import io.datakernel.eventloop.FatalErrorHandlers;
 import io.datakernel.serializer.BufferSerializer;
 import io.datakernel.storage.HasSortedStream.KeyValue;
 import io.datakernel.stream.StreamConsumers;
@@ -92,8 +93,8 @@ public class DataStorageFileTest {
 
 	@Before
 	public void before() throws IOException {
+		eventloop = Eventloop.create().withFatalErrorHandler(FatalErrorHandlers.rethrowOnAnyError());
 		mergeReducer = StreamReducers.mergeSortReducer();
-		eventloop = Eventloop.create();
 		currentStateFile = Paths.get(folder.newFile("currentState.bin").toURI());
 		nextStateFile = Paths.get(folder.newFile("nextState.bin").toURI());
 		executorService = Executors.newFixedThreadPool(4);
