@@ -33,7 +33,7 @@ public final class CubeQuery {
 	private Integer offset = null;
 	private List<Ordering> orderings = new ArrayList<>();
 
-	private ReportType reportType = ReportType.METADATA;
+	private ReportType reportType = ReportType.DATA_WITH_TOTALS;
 
 	private CubeQuery() {}
 

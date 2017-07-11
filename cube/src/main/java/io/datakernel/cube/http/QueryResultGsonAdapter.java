@@ -163,11 +163,9 @@ final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
 	@Override
 	public void write(JsonWriter writer, QueryResult result) throws IOException {
 		writer.beginObject();
-		writer.name(REPORT_TYPE);
 
 		final ReportType resultType = result.getResultType();
 		String type = getResultTypeName(resultType);
-		writer.value(type);
 
 		final QueryResultCodec formatter = resultTypeCodecs.get(type);
 
