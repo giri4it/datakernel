@@ -17,5 +17,5 @@
 package io.datakernel.cube;
 
 public enum ReportType {
-	METADATA, DATA, DATA_WITH_TOTALS, RESOLVE_ATTRIBUTES
+	METADATA, DATA, DATA_WITH_TOTALS
 }
