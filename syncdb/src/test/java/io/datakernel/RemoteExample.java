@@ -1,4 +1,4 @@
-package io.datakernel.merger;
+package io.datakernel;
 
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
