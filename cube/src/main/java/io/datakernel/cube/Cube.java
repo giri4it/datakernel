@@ -976,15 +976,11 @@ public final class Cube implements ICube, EventloopJmxMBean {
 			queryHaving = query.getHaving().simplify();
 			fullySpecifiedDimensions = queryPredicate.getFullySpecifiedDimensions();
 
-			// TODO: 30.06.17 rework
-			List<String> attributes = newArrayList();
-			for (String s : query.getAttributes()) {
-				if (!s.contains(".")) {
-					attributes.add(s);
-				}
-			}
+			prepareDimensions();
+			prepareMeasures();
+
 			List<String> measures = query.getMeasures();
-			prepareCompatibleAggregations(newArrayList(concat(attributes, queryPredicate.getDimensions())), measures, queryPredicate);
+			prepareCompatibleAggregations(newArrayList(concat(queryDimensions)), measures, queryPredicate);
 
 			if (compatibleAggregations.isEmpty()) {
 				RecordScheme recordScheme = createRecordScheme();
@@ -994,9 +990,6 @@ public final class Cube implements ICube, EventloopJmxMBean {
 				resultCallback.setResult(result);
 				return;
 			}
-
-			prepareDimensions();
-			prepareMeasures();
 
 			resultClass = createResultClass(resultAttributes, resultMeasures, Cube.this, queryClassLoader);
 			measuresFunction = createMeasuresFunction();
