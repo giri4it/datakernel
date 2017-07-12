@@ -496,13 +496,17 @@ public class AggregationPredicates {
 			public AggregationPredicate simplifyAnd(PredicateIn left, PredicateEq right) {
 				if (!left.key.equals(right.key))
 					return null;
-				if(left.values.contains(right.value))
+				if (left.values.contains(right.value))
 					return right;
 				return alwaysFalse();
 			}
 		});
-//		register(PredicateIn.class, Pred);
-
+		register(PredicateIn.class, PredicateLe.class, new PredicateSimplifier<PredicateIn, PredicateLe>() {
+			@Override
+			public AggregationPredicate simplifyAnd(PredicateIn left, PredicateLe right) {
+				return null;
+			}
+		});
 	}
 
 	@SuppressWarnings("unchecked")
@@ -601,6 +605,7 @@ public class AggregationPredicates {
 
 			if (predicate instanceof PredicateNotEq)
 				return new PredicateEq(((PredicateNotEq) this.predicate).key, ((PredicateNotEq) this.predicate).value);
+
 			return not(predicate.simplify());
 		}
 
@@ -1154,9 +1159,9 @@ public class AggregationPredicates {
 		final String key;
 		final SortedSet values;
 
-		PredicateIn(String key, Set values) {
+		PredicateIn(String key, SortedSet values) {
 			this.key = key;
-			this.values = new TreeSet(values);
+			this.values = values;
 		}
 
 		public String getKey() {
@@ -1509,7 +1514,8 @@ public class AggregationPredicates {
 	}
 
 	public static AggregationPredicate in(String key, Set values) {
-		return new PredicateIn(key, values);
+		TreeSet sortedValues = new TreeSet(values);
+		return new PredicateIn(key, sortedValues);
 	}
 
 	public static AggregationPredicate regexp(String key, String pattern) {

@@ -694,14 +694,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 	List<AggregationContainer> getCompatibleAggregationsForQuery(List<String> dimensions,
 	                                                             List<String> storedMeasures,
 	                                                             AggregationPredicate where) {
-		where = AggregationPredicates.and(newArrayList(concat(singletonList(where),
-				transform(dimensions, new Function<String, AggregationPredicate>() {
-					@Override
-					public AggregationPredicate apply(String input) {
-						return AggregationPredicates.has(input);
-					}
-				})))).simplify();
-
+		where = where.simplify();
 		List<String> allDimensions = newArrayList(concat(dimensions, where.getDimensions()));
 
 		List<AggregationContainer> compatibleAggregations = new ArrayList<>();
@@ -711,15 +704,6 @@ public final class Cube implements ICube, EventloopJmxMBean {
 			List<String> compatibleMeasures = newArrayList(filter(storedMeasures, in(aggregationContainer.measures)));
 			if (compatibleMeasures.isEmpty())
 				continue;
-			/*AggregationPredicate predicate = aggregationContainer.predicate;
-			predicate = AggregationPredicates.and(newArrayList(concat(singletonList(predicate),
-					transform(dimensions, new Function<String, AggregationPredicate>() {
-						@Override
-						public AggregationPredicate apply(String input) {
-							return AggregationPredicates.has(input);
-						}
-					})))).simplify();
-*/
 			AggregationPredicate intersection = AggregationPredicates.and(where, aggregationContainer.predicate).simplify();
 			if (!intersection.equals(where))
 				continue;

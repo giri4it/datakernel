@@ -47,7 +47,6 @@ final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
 	private static final String TOTALS_FIELD = "totals";
 	private static final String COUNT_FIELD = "count";
 	private static final String SORTED_BY_FIELD = "sortedBy";
-	private static final String REPORT_TYPE = "reportType";
 	private static final String METADATA_FIELD = "metadata";
 
 	private final Map<String, TypeAdapter<?>> attributeAdapters;

@@ -362,8 +362,6 @@ final class AggregationPredicateGsonAdapter extends TypeAdapter<AggregationPredi
 				predicate = readEq(reader);
 			if (NOT_EQ.equals(type))
 				predicate = readNotEq(reader);
-			if (HAS.equals(type))
-				predicate = has(reader.nextString());
 			if (GE.equals(type))
 				predicate = readGe(reader);
 			if (GT.equals(type))
