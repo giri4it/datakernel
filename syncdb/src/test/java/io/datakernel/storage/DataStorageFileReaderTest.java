@@ -4,8 +4,6 @@ import com.google.common.base.Function;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.collect.Sets;
-import io.datakernel.async.CompletionCallbackFuture;
-import io.datakernel.async.ResultCallback;
 import io.datakernel.async.ResultCallbackFuture;
 import io.datakernel.bytebuf.ByteBuf;
 import io.datakernel.eventloop.Eventloop;
@@ -16,7 +14,6 @@ import io.datakernel.stream.StreamConsumers;
 import io.datakernel.stream.StreamProducer;
 import io.datakernel.stream.file.StreamFileWriter;
 import io.datakernel.stream.processor.StreamBinarySerializer;
-import io.datakernel.stream.processor.StreamReducers;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -25,7 +22,10 @@ import org.junit.rules.TemporaryFolder;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -36,9 +36,8 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
 import static org.junit.Assert.assertEquals;
 
-public class DataStorageFileTest {
+public class DataStorageFileReaderTest {
 	private static final Predicate<Integer> ALWAYS_TRUE = Predicates.alwaysTrue();
-	private static final List<? extends HasSortedStream<Integer, Set<String>>> EMPTY_PEERS = new ArrayList<>();
 	private static final Function<KeyValue<Integer, Set<String>>, Integer> KEY_FUNCTION = new Function<KeyValue<Integer, Set<String>>, Integer>() {
 		@Override
 		public Integer apply(KeyValue<Integer, Set<String>> input) {
@@ -69,32 +68,19 @@ public class DataStorageFileTest {
 	private Path currentStateFile;
 	private Path nextStateFile;
 	private ExecutorService executorService;
-	private DataStorageFile<Integer, Set<String>, Void> fileStorage;
-	private StreamReducers.Reducer<Integer, KeyValue<Integer, Set<String>>, KeyValue<Integer, Set<String>>, Void> mergeReducer;
+	private DataStorageFileReader<Integer, Set<String>> fileStorageReader;
 
 	private BufferSerializer<KeyValue<Integer, Set<String>>> serializer = SERIALIZER;
 	private Function<KeyValue<Integer, Set<String>>, Integer> keyFunction = KEY_FUNCTION;
-	private List<? extends HasSortedStream<Integer, Set<String>>> peers = EMPTY_PEERS;
-	private Predicate<Integer> alwaysTrue = ALWAYS_TRUE;
 	private int bufferSize = 1;
 
 	private static KeyValue<Integer, Set<String>> newKeyValue(int key, String... value) {
 		return new KeyValue<Integer, Set<String>>(key, Sets.newTreeSet(asList(value)));
 	}
 
-	private static HasSortedStream<Integer, Set<String>> wrapHasSortedStream(final StreamProducer<KeyValue<Integer, Set<String>>> producer) {
-		return new HasSortedStream<Integer, Set<String>>() {
-			@Override
-			public void getSortedStream(Predicate<Integer> predicate, ResultCallback<StreamProducer<KeyValue<Integer, Set<String>>>> callback) {
-				callback.setResult(producer);
-			}
-		};
-	}
-
 	@Before
 	public void before() throws IOException {
 		eventloop = Eventloop.create().withFatalErrorHandler(FatalErrorHandlers.rethrowOnAnyError());
-		mergeReducer = StreamReducers.mergeSortReducer();
 		currentStateFile = Paths.get(folder.newFile("currentState.bin").toURI());
 		nextStateFile = Paths.get(folder.newFile("nextState.bin").toURI());
 		executorService = Executors.newFixedThreadPool(4);
@@ -102,8 +88,8 @@ public class DataStorageFileTest {
 	}
 
 	private void setUpFileStorage() {
-		fileStorage = new DataStorageFile<>(eventloop, currentStateFile, nextStateFile, executorService,
-				bufferSize, serializer, keyFunction, peers, mergeReducer, alwaysTrue);
+		fileStorageReader = new DataStorageFileReader<>(eventloop, currentStateFile, nextStateFile, executorService,
+				bufferSize, serializer, keyFunction);
 	}
 
 	private <T> List<T> toList(StreamProducer<T> producer) {
@@ -124,7 +110,7 @@ public class DataStorageFileTest {
 	@Test
 	public void testInitEmptyState() throws IOException, ExecutionException, InterruptedException {
 		final ResultCallbackFuture<StreamProducer<KeyValue<Integer, Set<String>>>> callback = ResultCallbackFuture.create();
-		fileStorage.getSortedStream(ALWAYS_TRUE, callback);
+		fileStorageReader.getSortedStream(ALWAYS_TRUE, callback);
 
 		eventloop.run();
 		assertEquals(Collections.emptyList(), toList(callback.get()));
@@ -135,7 +121,7 @@ public class DataStorageFileTest {
 		final KeyValue<Integer, Set<String>> data = newKeyValue(1, "a");
 		writeStateToFile(currentStateFile, ofValue(eventloop, data));
 		final ResultCallbackFuture<StreamProducer<KeyValue<Integer, Set<String>>>> callback = ResultCallbackFuture.create();
-		fileStorage.getSortedStream(ALWAYS_TRUE, callback);
+		fileStorageReader.getSortedStream(ALWAYS_TRUE, callback);
 
 		eventloop.run();
 		assertEquals(singletonList(data), toList(callback.get()));
@@ -147,56 +133,26 @@ public class DataStorageFileTest {
 		writeStateToFile(currentStateFile, ofIterable(eventloop, data));
 
 		final ResultCallbackFuture<StreamProducer<KeyValue<Integer, Set<String>>>> callback = ResultCallbackFuture.create();
-		fileStorage.getSortedStream(Predicates.in(asList(0, 3)), callback);
+		fileStorageReader.getSortedStream(Predicates.in(asList(0, 3)), callback);
 
 		eventloop.run();
 		assertEquals(asList(data.get(0), data.get(3)), toList(callback.get()));
 	}
 
 	@Test
-	public void testSynchronize() throws IOException, ExecutionException, InterruptedException {
-		final KeyValue<Integer, Set<String>> dataId2 = newKeyValue(2, "a");
-		writeStateToFile(currentStateFile, ofValue(eventloop, dataId2));
+	public void testChangeFiles() throws IOException, ExecutionException, InterruptedException {
+		final List<KeyValue<Integer, Set<String>>> data1 = asList(newKeyValue(0, "a"), newKeyValue(1, "b"));
+		final List<KeyValue<Integer, Set<String>>> data2 = asList(newKeyValue(10, "aa"), newKeyValue(11, "bb"));
+		writeStateToFile(currentStateFile, ofIterable(eventloop, data1));
+		writeStateToFile(nextStateFile, ofIterable(eventloop, data2));
 
-		final KeyValue<Integer, Set<String>> dataId1 = newKeyValue(1, "b");
-		peers = singletonList(wrapHasSortedStream(ofValue(eventloop, dataId1)));
-
-		setUpFileStorage();
-
-		{
+		for (List<KeyValue<Integer, Set<String>>> data : asList(data1, data2, data1, data2)) {
 			final ResultCallbackFuture<StreamProducer<KeyValue<Integer, Set<String>>>> callback = ResultCallbackFuture.create();
-			fileStorage.getSortedStream(ALWAYS_TRUE, callback);
+			fileStorageReader.getSortedStream(ALWAYS_TRUE, callback);
 			eventloop.run();
-			assertEquals(singletonList(dataId2), toList(callback.get()));
-		}
+			assertEquals(data, toList(callback.get()));
 
-		{
-			final CompletionCallbackFuture syncCallback = CompletionCallbackFuture.create();
-			fileStorage.synchronize(syncCallback);
-			eventloop.run();
-			syncCallback.get();
-		}
-
-		final ResultCallbackFuture<StreamProducer<KeyValue<Integer, Set<String>>>> callback = ResultCallbackFuture.create();
-		fileStorage.getSortedStream(ALWAYS_TRUE, callback);
-		eventloop.run();
-		assertEquals(asList(dataId1, dataId2), toList(callback.get()));
-	}
-
-	@Test
-	public void testTruncateNextStateFile() throws IOException, ExecutionException, InterruptedException {
-		writeStateToFile(nextStateFile, ofIterable(eventloop, asList(newKeyValue(0, "a"), newKeyValue(1, "b"), newKeyValue(2, "c"), newKeyValue(3, "d"))));
-
-		for (int i = 0; i < 2; i++) {
-			final ResultCallbackFuture<StreamProducer<KeyValue<Integer, Set<String>>>> callback = ResultCallbackFuture.create();
-			fileStorage.getSortedStream(ALWAYS_TRUE, callback);
-			eventloop.run();
-			assertEquals(Collections.emptyList(), toList(callback.get()));
-
-			final CompletionCallbackFuture syncCallback = CompletionCallbackFuture.create();
-			fileStorage.synchronize(syncCallback);
-			eventloop.run();
-			syncCallback.get();
+			fileStorageReader.changeFiles();
 		}
 	}
 

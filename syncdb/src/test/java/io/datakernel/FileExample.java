@@ -5,12 +5,14 @@ import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.collect.Sets;
 import io.datakernel.async.CompletionCallbackFuture;
+import io.datakernel.async.ForwardingCompletionCallback;
 import io.datakernel.async.ResultCallback;
 import io.datakernel.async.ResultCallbackFuture;
 import io.datakernel.bytebuf.ByteBuf;
 import io.datakernel.eventloop.Eventloop;
 import io.datakernel.serializer.BufferSerializer;
-import io.datakernel.storage.DataStorageFile;
+import io.datakernel.storage.DataStorageFileReader;
+import io.datakernel.storage.DataStorageFileWriter;
 import io.datakernel.storage.HasSortedStream;
 import io.datakernel.storage.HasSortedStream.KeyValue;
 import io.datakernel.stream.StreamConsumers;
@@ -84,15 +86,20 @@ public class FileExample {
 			}
 		};
 
-		final List<? extends HasSortedStream<Integer, Set<String>>> hasSortedStreams = Collections.singletonList(storage);
+		final DataStorageFileReader<Integer, Set<String>> fileStorageReader = new DataStorageFileReader<>(eventloop,
+				currentStateFile, nextStateFile, executorService, 100, KEY_VALUE_SERIALIZER, KEY_FUNCTION
+		);
 
-		final DataStorageFile<Integer, Set<String>, KeyValue<Integer, Set<String>>> fileStorage = new DataStorageFile<>(eventloop,
-				currentStateFile, nextStateFile, executorService, 100, KEY_VALUE_SERIALIZER, KEY_FUNCTION,
-				hasSortedStreams, TestUnion.getInstance().inputToOutput(), ALWAYS_TRUE);
+		final StreamReducers.Reducer<Integer, KeyValue<Integer, Set<String>>, KeyValue<Integer, Set<String>>, KeyValue<Integer, Set<String>>> reducer =
+				TestUnion.getInstance().inputToAccumulator();
+		final List<? extends HasSortedStream<Integer, Set<String>>> peers = asList(storage, fileStorageReader);
+		final DataStorageFileWriter<Integer, Set<String>, KeyValue<Integer, Set<String>>> fileStorageWriter =
+				new DataStorageFileWriter<>(eventloop, nextStateFile, currentStateFile, executorService,
+				KEY_VALUE_SERIALIZER, KEY_FUNCTION, peers, reducer, ALWAYS_TRUE);
 
 		{
 			final ResultCallbackFuture<StreamProducer<KeyValue<Integer, Set<String>>>> sortedStreamCallback = ResultCallbackFuture.create();
-			fileStorage.getSortedStream(ALWAYS_TRUE, sortedStreamCallback);
+			fileStorageReader.getSortedStream(ALWAYS_TRUE, sortedStreamCallback);
 
 			eventloop.run();
 			System.out.println("sortedStream");
@@ -101,14 +108,20 @@ public class FileExample {
 
 		for (int i = 0; i < 2; i++) {
 			final CompletionCallbackFuture syncCallback = CompletionCallbackFuture.create();
-			fileStorage.synchronize(syncCallback);
+			fileStorageWriter.synchronize(new ForwardingCompletionCallback(syncCallback) {
+				@Override
+				protected void onComplete() {
+					fileStorageReader.changeFiles();
+					syncCallback.setComplete();
+				}
+			});
 
 			eventloop.run();
 			syncCallback.get();
 			System.out.println("sync");
 
 			final ResultCallbackFuture<StreamProducer<KeyValue<Integer, Set<String>>>> sortedStreamCallback = ResultCallbackFuture.create();
-			fileStorage.getSortedStream(ALWAYS_TRUE, sortedStreamCallback);
+			fileStorageReader.getSortedStream(ALWAYS_TRUE, sortedStreamCallback);
 
 			eventloop.run();
 			System.out.println("sortedStream");

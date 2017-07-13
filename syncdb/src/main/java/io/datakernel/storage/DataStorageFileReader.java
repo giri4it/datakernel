@@ -30,9 +30,8 @@ import static io.datakernel.storage.StreamMergeUtils.mergeStreams;
 import static java.nio.file.StandardOpenOption.*;
 import static java.util.Collections.singletonList;
 
-public class DataStorageFile<K extends Comparable<K>, V, A> implements HasSortedStream<K, V>, Synchronizer {
+public class DataStorageFileReader<K extends Comparable<K>, V> implements HasSortedStream<K, V> {
 	private static final OpenOption[] READ_OPTIONS = new OpenOption[]{CREATE, READ};
-	private static final OpenOption[] WRITE_OPTIONS = new OpenOption[]{CREATE, WRITE, TRUNCATE_EXISTING};
 
 	private final Eventloop eventloop;
 	private final Path[] files;
@@ -40,28 +39,19 @@ public class DataStorageFile<K extends Comparable<K>, V, A> implements HasSorted
 	private final int bufferSize;
 	private final BufferSerializer<KeyValue<K, V>> bufferSerializer;
 	private final Function<KeyValue<K, V>, K> keyFunction;
-	private final Predicate<K> filter;
-	// improve without reducer using merge node and 1 peer ???
-	private final List<? extends HasSortedStream<K, V>> peers;
-	private final StreamReducers.Reducer<K, KeyValue<K, V>, KeyValue<K, V>, A> reducer;
 
 	private int currentStateFile;
 
-	public DataStorageFile(Eventloop eventloop, Path currentStateFile, Path nextStateFile,
-	                       ExecutorService executorService, int bufferSize,
-	                       BufferSerializer<KeyValue<K, V>> bufferSerializer, Function<KeyValue<K, V>, K> keyFunction,
-	                       List<? extends HasSortedStream<K, V>> peers,
-	                       StreamReducers.Reducer<K, KeyValue<K, V>, KeyValue<K, V>, A> reducer,
-	                       Predicate<K> filter) {
+	public DataStorageFileReader(Eventloop eventloop, Path currentStateFile, Path nextStateFile,
+	                             ExecutorService executorService, int bufferSize,
+	                             BufferSerializer<KeyValue<K, V>> bufferSerializer,
+	                             Function<KeyValue<K, V>, K> keyFunction) {
 		this.eventloop = eventloop;
 		this.files = new Path[]{currentStateFile, nextStateFile};
 		this.executorService = executorService;
 		this.bufferSize = bufferSize;
 		this.bufferSerializer = bufferSerializer;
 		this.keyFunction = keyFunction;
-		this.peers = peers;
-		this.reducer = reducer;
-		this.filter = filter;
 	}
 
 	@Override
@@ -80,32 +70,8 @@ public class DataStorageFile<K extends Comparable<K>, V, A> implements HasSorted
 		});
 	}
 
-	@Override
-	public void synchronize(final CompletionCallback callback) {
-		// можем добавити себе як peer, бо наш стейт точно не зміниться, поки не закінчиться synchronize
-		final Iterable<HasSortedStream<K, V>> peers = Iterables.concat(this.peers, singletonList(this));
-		mergeStreams(eventloop, Ordering.<K>natural(), keyFunction, reducer, peers, filter, new ForwardingResultCallback<StreamProducer<KeyValue<K, V>>>(callback) {
-			@Override
-			protected void onResult(final StreamProducer<KeyValue<K, V>> producer) {
-				AsyncFile.open(eventloop, executorService, files[1 - currentStateFile], WRITE_OPTIONS, new ForwardingResultCallback<AsyncFile>(callback) {
-					@Override
-					protected void onResult(AsyncFile asyncFile) {
-						final StreamBinarySerializer<KeyValue<K, V>> serializer = StreamBinarySerializer.create(eventloop, bufferSerializer);
-						final StreamFileWriter fileStream = StreamFileWriter.create(eventloop, asyncFile);
-						fileStream.setFlushCallback(new ForwardingCompletionCallback(callback) {
-							@Override
-							protected void onComplete() {
-								currentStateFile = 1 - currentStateFile;
-								callback.setComplete();
-							}
-						});
-
-						producer.streamTo(serializer.getInput());
-						serializer.getOutput().streamTo(fileStream);
-					}
-				});
-			}
-		});
+	public void changeFiles() {
+		currentStateFile = 1 - currentStateFile;
 	}
 
 	// refactor StreamFilter like this
