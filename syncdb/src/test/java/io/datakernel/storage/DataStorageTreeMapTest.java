@@ -36,7 +36,7 @@ public class DataStorageTreeMapTest {
 	private List<? extends HasSortedStream<Integer, Set<String>>> peers;
 	private Predicate<Integer> predicate;
 	private TreeMap<Integer, Set<String>> state;
-	private DataStorageTreeMap<Integer, Set<String>, Void> dataStorageTreeMap;
+	private DataStorageTreeMap<Integer, Set<String>> dataStorageTreeMap;
 
 	private static KeyValue<Integer, Set<String>> newKeyValue(int key, String... value) {
 		return new KeyValue<Integer, Set<String>>(key, Sets.newTreeSet(asList(value)));
@@ -138,7 +138,11 @@ public class DataStorageTreeMapTest {
 		assertFalse(dataStorageTreeMap.hasKey(1));
 		assertNull(dataStorageTreeMap.put(1, ImmutableSet.of("A", "B", "C")));
 		assertTrue(dataStorageTreeMap.hasKey(1));
-		assertEquals(ImmutableSet.of("A", "B", "C"), dataStorageTreeMap.get(1));
+
+		assertNotNull(dataStorageTreeMap.put(1, ImmutableSet.of("A", "B", "E")));
+		assertEquals(1, dataStorageTreeMap.size());
+
+		assertEquals(ImmutableSet.of("A", "B", "E"), dataStorageTreeMap.get(1));
 		assertNull(dataStorageTreeMap.get(2));
 		assertEquals(1, dataStorageTreeMap.size());
 	}

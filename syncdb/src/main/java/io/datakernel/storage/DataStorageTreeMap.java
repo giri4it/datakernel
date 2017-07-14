@@ -25,7 +25,7 @@ import static io.datakernel.stream.StreamProducers.ofIterable;
 
 // interface DataStorage extends HasSortedStream<Integer, Set<String>>, Synchronizer ???
 @SuppressWarnings("WeakerAccess")
-public final class DataStorageTreeMap<K extends Comparable<K>, V, A> implements HasSortedStream<K, V>, Synchronizer {
+public final class DataStorageTreeMap<K extends Comparable<K>, V> implements HasSortedStream<K, V>, Synchronizer {
 	private final Eventloop eventloop;
 	private final Ordering<K> ordering = Ordering.natural();
 	private final Function<Map.Entry<K, V>, KeyValue<K, V>> TO_KEY_VALUE = new Function<Map.Entry<K, V>, KeyValue<K, V>>() {
@@ -42,7 +42,7 @@ public final class DataStorageTreeMap<K extends Comparable<K>, V, A> implements 
 		}
 	};
 
-	private final Reducer<K, KeyValue<K, V>, KeyValue<K, V>, A> reducer;
+	private final Reducer<K, KeyValue<K, V>, KeyValue<K, V>, ?> reducer;
 	private final Merger<KeyValue<K, V>> merger;
 	private final List<? extends HasSortedStream<K, V>> peers;
 	private final Predicate<K> keyFilter;
@@ -50,7 +50,7 @@ public final class DataStorageTreeMap<K extends Comparable<K>, V, A> implements 
 	private final TreeMap<K, V> values;
 
 	public DataStorageTreeMap(Eventloop eventloop, TreeMap<K, V> values, List<? extends HasSortedStream<K, V>> peers,
-	                          Reducer<K, KeyValue<K, V>, KeyValue<K, V>, A> reducer, Predicate<K> keyFilter) {
+	                          Reducer<K, KeyValue<K, V>, KeyValue<K, V>, ?> reducer, Predicate<K> keyFilter) {
 		this.eventloop = eventloop;
 		// as argument ???
 		this.merger = new MergerReducer<>(reducer);
@@ -106,7 +106,6 @@ public final class DataStorageTreeMap<K extends Comparable<K>, V, A> implements 
 
 	public V put(K key, V value) {
 		assert eventloop.inEventloopThread();
-		assert !values.containsKey(key);
 		return values.put(key, value);
 	}
 

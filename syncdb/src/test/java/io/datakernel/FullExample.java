@@ -100,7 +100,7 @@ public class FullExample {
 		return predicate(2, true);
 	}
 
-	private static <K extends Comparable<K>, V> DataStorageTreeMap<K, V, Void> createAndStartNode(
+	private static <K extends Comparable<K>, V> DataStorageTreeMap<K, V> createAndStartNode(
 			final Eventloop eventloop, Gson gson, BufferSerializer<KeyValue<K, V>> bufferSerializer,
 			int port, List<InetSocketAddress> addresses, Predicate<K> keyFilter,
 			TreeMap<K, V> treeMap, StreamReducers.Reducer<K, KeyValue<K, V>, KeyValue<K, V>, Void> reducer) throws IOException {
@@ -110,7 +110,7 @@ public class FullExample {
 			remoteClients.add(new DataStorageRemoteClient<>(eventloop, address, gson, bufferSerializer, null, null));
 		}
 
-		final DataStorageTreeMap<K, V, Void> dataStorageTreeMap = new DataStorageTreeMap<>(eventloop, treeMap, remoteClients, reducer, keyFilter);
+		final DataStorageTreeMap<K, V> dataStorageTreeMap = new DataStorageTreeMap<>(eventloop, treeMap, remoteClients, reducer, keyFilter);
 		final DataStorageRemoteServer<K, V> remoteServer = new DataStorageRemoteServer<>(eventloop, dataStorageTreeMap, gson, bufferSerializer)
 				.withListenPort(port);
 
@@ -143,32 +143,32 @@ public class FullExample {
 
 		final TreeMap<Key, Set<String>> treeMap0 = map(0, keyValue(1, "1:a"), keyValue(2, "2:a"), keyValue(3, "3:a"));
 		final List<InetSocketAddress> addresses0 = asList(addresses.get(4), addresses.get(5));
-		final DataStorageTreeMap<Key, Set<String>, Void> node0 = createAndStartNode(eventloop, gson, KEY_VALUE_SERIALIZER,
+		final DataStorageTreeMap<Key, Set<String>> node0 = createAndStartNode(eventloop, gson, KEY_VALUE_SERIALIZER,
 				START_PORT, addresses0, evenPredicate(), treeMap0, reducer);
 
 		final TreeMap<Key, Set<String>> treeMap1 = map(1, keyValue(4, "4:a"), keyValue(5, "5:a"), keyValue(6, "6:a"));
 		final List<InetSocketAddress> addresses1 = asList(addresses.get(0), addresses.get(5));
-		final DataStorageTreeMap<Key, Set<String>, Void> node1 = createAndStartNode(eventloop, gson, KEY_VALUE_SERIALIZER,
+		final DataStorageTreeMap<Key, Set<String>> node1 = createAndStartNode(eventloop, gson, KEY_VALUE_SERIALIZER,
 				START_PORT + 1, addresses1, oddPredicate(), treeMap1, reducer);
 
 		final TreeMap<Key, Set<String>> treeMap2 = map(2, keyValue(7, "7:b"), keyValue(8, "8:a"), keyValue(9, "9:a"));
 		final List<InetSocketAddress> addresses2 = asList(addresses.get(0), addresses.get(1));
-		final DataStorageTreeMap<Key, Set<String>, Void> node2 = createAndStartNode(eventloop, gson, KEY_VALUE_SERIALIZER,
+		final DataStorageTreeMap<Key, Set<String>> node2 = createAndStartNode(eventloop, gson, KEY_VALUE_SERIALIZER,
 				START_PORT + 2, addresses2, evenPredicate(), treeMap2, reducer);
 
 		final TreeMap<Key, Set<String>> treeMap3 = map(3, keyValue(10, "10:b"), keyValue(11, "11:a"), keyValue(12, "12:a"));
 		final List<InetSocketAddress> addresses3 = asList(addresses.get(1), addresses.get(2));
-		final DataStorageTreeMap<Key, Set<String>, Void> node3 = createAndStartNode(eventloop, gson, KEY_VALUE_SERIALIZER,
+		final DataStorageTreeMap<Key, Set<String>> node3 = createAndStartNode(eventloop, gson, KEY_VALUE_SERIALIZER,
 				START_PORT + 3, addresses3, oddPredicate(), treeMap3, reducer);
 
 		final TreeMap<Key, Set<String>> treeMap4 = map(4, keyValue(13, "13:b"), keyValue(14, "14:a"), keyValue(15, "15:a"));
 		final List<InetSocketAddress> addresses4 = asList(addresses.get(2), addresses.get(3));
-		final DataStorageTreeMap<Key, Set<String>, Void> node4 = createAndStartNode(eventloop, gson, KEY_VALUE_SERIALIZER,
+		final DataStorageTreeMap<Key, Set<String>> node4 = createAndStartNode(eventloop, gson, KEY_VALUE_SERIALIZER,
 				START_PORT + 4, addresses4, evenPredicate(), treeMap4, reducer);
 
 		final TreeMap<Key, Set<String>> treeMap5 = map(5, keyValue(16, "13:b"), keyValue(17, "14:a"), keyValue(18, "15:a"));
 		final List<InetSocketAddress> addresses5 = asList(addresses.get(3), addresses.get(4));
-		final DataStorageTreeMap<Key, Set<String>, Void> node5 = createAndStartNode(eventloop, gson, KEY_VALUE_SERIALIZER,
+		final DataStorageTreeMap<Key, Set<String>> node5 = createAndStartNode(eventloop, gson, KEY_VALUE_SERIALIZER,
 				START_PORT + 5, addresses5, oddPredicate(), treeMap5, reducer);
 
 		System.out.println("All nodes started");
@@ -184,12 +184,12 @@ public class FullExample {
 	}
 
 	@SafeVarargs
-	private static void scheduleStateCheck(final Eventloop eventloop, final DataStorageTreeMap<Key, Set<String>, Void>... nodes) {
+	private static void scheduleStateCheck(final Eventloop eventloop, final DataStorageTreeMap<Key, Set<String>>... nodes) {
 		eventloop.schedule(eventloop.currentTimeMillis() + 9000, new Runnable() {
 			@Override
 			public void run() {
 				final List<AsyncCallable<List<KeyValue<Key, Set<String>>>>> asyncCallables = new ArrayList<>();
-				for (DataStorageTreeMap<Key, Set<String>, Void> node : nodes) {
+				for (DataStorageTreeMap<Key, Set<String>> node : nodes) {
 					asyncCallables.add(getState(eventloop, Predicates.<Key>alwaysTrue(), node));
 				}
 
@@ -218,7 +218,7 @@ public class FullExample {
 
 	@SafeVarargs
 	private static <V, A> void schedulePrintAndSync(final Eventloop eventloop,
-	                                                final DataStorageTreeMap<Key, V, A>... nodes) {
+	                                                final DataStorageTreeMap<Key, V>... nodes) {
 		eventloop.schedule(eventloop.currentTimeMillis() + 3000, new Runnable() {
 			@Override
 			public void run() {
@@ -256,10 +256,10 @@ public class FullExample {
 	}
 
 	@SafeVarargs
-	private static <V, A> List<AsyncRunnable> printState(final Eventloop eventloop, DataStorageTreeMap<Key, V, A>... nodes) {
+	private static <V, A> List<AsyncRunnable> printState(final Eventloop eventloop, DataStorageTreeMap<Key, V>... nodes) {
 		final List<AsyncRunnable> asyncRunnables = new ArrayList<>();
 		for (int nodeId = 0; nodeId < nodes.length; nodeId++) {
-			final DataStorageTreeMap<Key, V, A> node = nodes[nodeId];
+			final DataStorageTreeMap<Key, V> node = nodes[nodeId];
 			final int finalNodeId = nodeId;
 			asyncRunnables.add(new AsyncRunnable() {
 				@Override
