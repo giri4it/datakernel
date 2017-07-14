@@ -21,7 +21,6 @@ import com.google.common.base.Function;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.LinkedHashMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Ordering;
 import io.datakernel.aggregation.*;
@@ -114,8 +113,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 	private final Map<String, Class<?>> attributeTypes = new LinkedHashMap<>();
 	private final Map<String, AttributeResolverContainer> attributes = new LinkedHashMap<>();
 
-	private final Map<String, String> childParentRelationships = new LinkedHashMap<>();
-	private final Multimap<String, String> parentChildRelationships = LinkedHashMultimap.create();
+	private final Map<String, String> childParentRelations = new LinkedHashMap<>();
 
 	// settings
 	private int aggregationsChunkSize = Aggregation.DEFAULT_CHUNK_SIZE;
@@ -274,18 +272,12 @@ public final class Cube implements ICube, EventloopJmxMBean {
 	}
 
 	public Cube withRelation(String child, String parent) {
-		this.childParentRelationships.put(child, parent);
-		parentChildRelationships.put(parent, child);
+		this.childParentRelations.put(child, parent);
 		return this;
 	}
 
 	public Cube withRelations(Map<String, String> childParentRelationships) {
-		this.childParentRelationships.putAll(childParentRelationships);
-		for (Map.Entry<String, String> parentChildEntry : childParentRelationships.entrySet()) {
-			String parent = parentChildEntry.getKey();
-			String child = parentChildEntry.getValue();
-			parentChildRelationships.put(child, parent);
-		}
+		this.childParentRelations.putAll(childParentRelationships);
 		return this;
 	}
 
@@ -871,7 +863,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 		chain.add(dimension);
 		String child = dimension;
 		String parent;
-		while ((parent = childParentRelationships.get(child)) != null) {
+		while ((parent = childParentRelations.get(child)) != null) {
 			chain.addFirst(parent);
 			child = parent;
 		}
@@ -908,6 +900,17 @@ public final class Cube implements ICube, EventloopJmxMBean {
 				newLinkedHashSet(cubeQuery.getMeasures()),
 				cubeQuery.getWhere().getDimensions()));
 		final long queryStarted = eventloop.currentTimeMillis();
+
+		// TODO: 14.07.17 create separate Cube API method?
+		if (cubeQuery.isFetchCubeInfo()) {
+			queryTimes.recordValue((int) (eventloop.currentTimeMillis() - queryStarted));
+			resultCallback.setResult(QueryResult.create(null, null, null, 0,
+					newArrayList(concat(dimensionTypes.keySet(), newArrayList(attributeTypes.keySet()))),
+					newArrayList(concat(newArrayList(measures.keySet()), newArrayList(computedMeasures.keySet()))),
+					null, null, childParentRelations));
+			return;
+		}
+
 		new RequestContext().execute(queryClassLoader, cubeQuery, new ResultCallback<QueryResult>() {
 			@Override
 			protected void onResult(QueryResult result) {
@@ -986,7 +989,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 			if (compatibleAggregations.isEmpty()) {
 				RecordScheme recordScheme = createRecordScheme();
 				QueryResult result = QueryResult.create(recordScheme, null, null, 0, newArrayList(resultAttributes),
-						newArrayList(resultMeasures), null, null);
+						newArrayList(resultMeasures), null, null, null);
 				resultCallback.setResult(result);
 				return;
 			}
@@ -1001,7 +1004,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 
 			if (ReportType.METADATA.equals(reportType)) {
 				QueryResult result = QueryResult.create(recordScheme, null, null, 0, newArrayList(resultAttributes),
-						newArrayList(resultMeasures), null, null);
+						newArrayList(resultMeasures), null, null, null);
 				resultCallback.setResult(result);
 				return;
 			}
@@ -1231,7 +1234,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 
 			if (ReportType.DATA.equals(reportType)) {
 				QueryResult result = QueryResult.create(recordScheme, resultRecords, null, totalCount,
-						newArrayList(resultAttributes), newArrayList(queryMeasures), resultOrderings, filterAttributes);
+						newArrayList(resultAttributes), newArrayList(queryMeasures), resultOrderings, filterAttributes, null);
 				callback.setResult(result);
 				return;
 			}
@@ -1240,7 +1243,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 			if (ReportType.DATA_WITH_TOTALS.equals(reportType)) {
 				recordFunction.copyMeasures(totals, totalRecord);
 				QueryResult result = QueryResult.create(recordScheme, resultRecords, totalRecord, totalCount,
-						newArrayList(resultAttributes), newArrayList(queryMeasures), resultOrderings, filterAttributes);
+						newArrayList(resultAttributes), newArrayList(queryMeasures), resultOrderings, filterAttributes, null);
 				callback.setResult(result);
 			}
 		}

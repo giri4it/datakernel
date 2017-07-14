@@ -55,7 +55,8 @@ public final class ReportingServiceServlet implements AsyncServlet {
 
 	public static MiddlewareServlet createRootServlet(Eventloop eventloop, ICube cube) {
 		MiddlewareServlet middlewareServlet = MiddlewareServlet.create()
-				.with(GET, "/", create(eventloop, cube));
+				.with(GET, "/", create(eventloop, cube))
+				.with(GET, "/info", CubeInfoServlet.create(cube));
 		if (cube instanceof Cube) {
 			middlewareServlet = middlewareServlet
 					.with(GET, "/consolidation-debug", ConsolidationDebugServlet.create((Cube) cube));
@@ -87,9 +88,11 @@ public final class ReportingServiceServlet implements AsyncServlet {
 			logger.error("Query exception: " + httpRequest, e);
 			callback.setException(e);
 		}
+
+
 	}
 
-	private static HttpResponse createResponse(String body) {
+	static HttpResponse createResponse(String body) {
 		HttpResponse response = HttpResponse.ok200();
 		response.setContentType(ContentType.of(MediaTypes.JSON, Charsets.UTF_8));
 		response.setBody(wrapUtf8(body));

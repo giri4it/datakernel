@@ -25,19 +25,16 @@ import com.google.gson.stream.JsonWriter;
 import io.datakernel.cube.QueryResult;
 import io.datakernel.cube.Record;
 import io.datakernel.cube.RecordScheme;
-import io.datakernel.cube.ReportType;
 
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 import static com.google.common.base.MoreObjects.firstNonNull;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.Maps.newLinkedHashMap;
-import static io.datakernel.cube.http.Utils.*;
 
 final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
 	private static final String MEASURES_FIELD = "measures";
@@ -48,6 +45,7 @@ final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
 	private static final String COUNT_FIELD = "count";
 	private static final String SORTED_BY_FIELD = "sortedBy";
 	private static final String METADATA_FIELD = "metadata";
+	private static final String RELATIONS = "relations";
 
 	private final Map<String, TypeAdapter<?>> attributeAdapters;
 	private final Map<String, TypeAdapter<?>> measureAdapters;
@@ -56,13 +54,15 @@ final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
 	private final Map<String, Class<?>> measureTypes;
 
 	private final TypeAdapter<List<String>> stringListAdapter;
+	private final TypeAdapter<Map<String, String>> childParentRelationsAdapter;
 
-	public QueryResultGsonAdapter(Map<String, TypeAdapter<?>> attributeAdapters, Map<String, TypeAdapter<?>> measureAdapters, Map<String, Class<?>> attributeTypes, Map<String, Class<?>> measureTypes, TypeAdapter<List<String>> stringListAdapter) {
+	public QueryResultGsonAdapter(Map<String, TypeAdapter<?>> attributeAdapters, Map<String, TypeAdapter<?>> measureAdapters, Map<String, Class<?>> attributeTypes, Map<String, Class<?>> measureTypes, TypeAdapter<Map<String, String>> childParentRelationsAdapter, TypeAdapter<List<String>> stringListAdapter) {
 		this.attributeAdapters = attributeAdapters;
 		this.measureAdapters = measureAdapters;
 		this.attributeTypes = attributeTypes;
 		this.measureTypes = measureTypes;
 		this.stringListAdapter = stringListAdapter;
+		this.childParentRelationsAdapter = childParentRelationsAdapter;
 	}
 
 	public static QueryResultGsonAdapter create(Gson gson, Map<String, Type> attributeTypes, Map<String, Type> measureTypes) {
@@ -80,9 +80,10 @@ final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
 			measureAdapters.put(measure, gson.getAdapter(typeToken));
 			measureRawTypes.put(measure, typeToken.getRawType());
 		}
+		TypeAdapter<Map<String, String>> childParentRelationsAdapter = gson.getAdapter(new TypeToken<Map<String, String>>() {});
 		TypeAdapter<List<String>> stringListAdapter = gson.getAdapter(new TypeToken<List<String>>() {});
 		return new QueryResultGsonAdapter(attributeAdapters, measureAdapters, attributeRawTypes, measureRawTypes,
-				stringListAdapter);
+				childParentRelationsAdapter, stringListAdapter);
 	}
 
 	@Override
@@ -99,7 +100,6 @@ final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
 		List<String> measures = stringListAdapter.read(reader);
 
 		reader.endObject();
-
 
 		List<String> sortedBy = null;
 		if (reader.hasNext() && SORTED_BY_FIELD.equals(reader.nextName())) {
@@ -129,7 +129,7 @@ final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
 		reader.endObject();
 
 		return QueryResult.create(recordScheme, records, totals, count,
-				attributes, measures, sortedBy, filterAttributes);
+				attributes, measures, sortedBy, filterAttributes, null);
 	}
 
 	private List<Record> readRecords(JsonReader reader, RecordScheme recordScheme) throws JsonParseException, IOException {
@@ -182,6 +182,23 @@ final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
 
 	@Override
 	public void write(JsonWriter writer, QueryResult result) throws IOException {
+
+		if (result.getChildParentRelations() != null) {
+			writer.beginObject();
+
+			writer.name(ATTRIBUTES_FIELD);
+			stringListAdapter.write(writer, result.getAttributes());
+
+			writer.name(MEASURES_FIELD);
+			stringListAdapter.write(writer, result.getMeasures());
+
+			writer.name(RELATIONS);
+			childParentRelationsAdapter.write(writer, result.getChildParentRelations());
+
+			writer.endObject();
+			return;
+		}
+
 		writer.beginObject();
 
 		writer.name(METADATA_FIELD);
@@ -280,136 +297,4 @@ final class QueryResultGsonAdapter extends TypeAdapter<QueryResult> {
 		return fieldTypeAdapters;
 	}
 
-	// region helper classes
-	private interface QueryResultCodec {
-
-		void write(JsonWriter writer, QueryResult result) throws IOException;
-
-		QueryResult read(JsonReader reader) throws IOException;
-
-	}
-
-	private final class MetadataFormatter implements QueryResultCodec {
-
-		@Override
-		public void write(JsonWriter writer, QueryResult result) throws IOException {
-			writer.name(METADATA_FIELD);
-			writer.beginObject();
-
-			writer.name(ATTRIBUTES_FIELD);
-			stringListAdapter.write(writer, result.getAttributes());
-
-			writer.name(MEASURES_FIELD);
-			stringListAdapter.write(writer, result.getMeasures());
-
-			writer.endObject();
-		}
-
-		@Override
-		public QueryResult read(JsonReader reader) throws IOException {
-			checkArgument(METADATA_FIELD.equals(reader.nextName()));
-			reader.beginObject();
-
-			checkArgument(ATTRIBUTES_FIELD.equals(reader.nextName()));
-			final List<String> attributes = stringListAdapter.read(reader);
-
-			checkArgument(MEASURES_FIELD.equals(reader.nextName()));
-			final List<String> measures = stringListAdapter.read(reader);
-
-			reader.endObject();
-
-			final RecordScheme recordScheme = RecordScheme.create();
-			return QueryResult.create(recordScheme, Collections.<Record>emptyList(), Record.create(recordScheme), 0,
-					attributes, measures, Collections.<String>emptyList(), Collections.<String, Object>emptyMap());
-		}
-
-	}
-
-	private final class DataFormatter implements QueryResultCodec {
-		private final QueryResultCodec metadataFormatter = new MetadataFormatter();
-
-		@Override
-		public void write(JsonWriter writer, QueryResult result) throws IOException {
-			metadataFormatter.write(writer, result);
-
-			writer.name(SORTED_BY_FIELD);
-			stringListAdapter.write(writer, result.getSortedBy());
-
-			writer.name(RECORDS_FIELD);
-			writeRecords(writer, result.getRecordScheme(), result.getRecords());
-
-			writer.name(COUNT_FIELD);
-			writer.value(result.getTotalCount());
-
-			writer.name(FILTER_ATTRIBUTES_FIELD);
-			writeFilterAttributes(writer, result.getFilterAttributes());
-		}
-
-		@Override
-		public QueryResult read(JsonReader reader) throws IOException {
-			QueryResult result = metadataFormatter.read(reader);
-
-			checkArgument(SORTED_BY_FIELD.equals(reader.nextName()));
-			List<String> sortedBy = stringListAdapter.read(reader);
-
-			RecordScheme recordScheme = recordScheme(result.getAttributes(), result.getMeasures());
-
-			checkArgument(RECORDS_FIELD.equals(reader.nextName()));
-			List<Record> records = readRecords(reader, recordScheme);
-
-			checkArgument(COUNT_FIELD.equals(reader.nextName()));
-			int count = reader.nextInt();
-
-			// TODO: 30.06.17 remove after implementing separata resolver servlet
-			checkArgument(FILTER_ATTRIBUTES_FIELD.equals(reader.nextName()));
-			Map<String, Object> filterAttributes = readFilterAttributes(reader);
-
-			return QueryResult.create(recordScheme, records, result.getTotals(), count, result.getAttributes(),
-					result.getMeasures(), sortedBy, filterAttributes);
-		}
-
-	}
-
-	private final class DataWithTotalsFormatter implements QueryResultCodec {
-		private final QueryResultCodec dataFormatter = new DataFormatter();
-
-		@Override
-		public void write(JsonWriter writer, QueryResult result) throws IOException {
-			dataFormatter.write(writer, result);
-
-			writer.name(TOTALS_FIELD);
-			writeTotals(writer, result.getRecordScheme(), result.getTotals());
-		}
-
-		@Override
-		public QueryResult read(JsonReader reader) throws IOException {
-			QueryResult result = dataFormatter.read(reader);
-
-			RecordScheme recordScheme = recordScheme(result.getAttributes(), result.getMeasures());
-			checkArgument(TOTALS_FIELD.equals(reader.nextName()));
-			Record totals = readTotals(reader, recordScheme);
-
-			return QueryResult.create(result.getRecordScheme(), result.getRecords(), totals, result.getTotalCount(),
-					result.getAttributes(), result.getMeasures(), result.getSortedBy(), result.getFilterAttributes());
-		}
-
-	}
-
-	private static String getResultTypeName(ReportType resultType) {
-		String type;
-		switch (resultType) {
-			case METADATA:
-				type = METADATA_REPORT;
-				break;
-			case DATA:
-				type = DATA_REPORT;
-				break;
-			case DATA_WITH_TOTALS:
-				type = DATA_WITH_TOTALS_REPORT;
-				break;
-			default:
-				throw new IllegalArgumentException("Unexpected query result type: " + resultType);
-		}
-		return type;
-	}
 }

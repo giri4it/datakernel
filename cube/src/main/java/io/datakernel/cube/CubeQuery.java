@@ -32,6 +32,7 @@ public final class CubeQuery {
 	private Integer limit = null;
 	private Integer offset = null;
 	private List<Ordering> orderings = new ArrayList<>();
+	private boolean isFetchCubeInfo = false;
 
 	private ReportType reportType = ReportType.DATA_WITH_TOTALS;
 
@@ -104,6 +105,11 @@ public final class CubeQuery {
 		return this;
 	}
 
+	public CubeQuery fetchCubeInfo() {
+		this.isFetchCubeInfo = true;
+		return this;
+	}
+
 	// endregion
 
 	// region getters
@@ -137,6 +143,10 @@ public final class CubeQuery {
 
 	public ReportType getReportType() {
 		return reportType;
+	}
+
+	public boolean isFetchCubeInfo() {
+		return isFetchCubeInfo;
 	}
 	// endregion
 

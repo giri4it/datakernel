@@ -30,12 +30,13 @@ public final class QueryResult {
 	private final List<Record> records;
 	private final Record totals;
 	private final int totalCount;
+	private Map<String, String> childParentRelations;
 
 	private final Map<String, Object> filterAttributes;
 
 	private QueryResult(RecordScheme recordScheme, List<Record> records, Record totals, int totalCount,
 	                    List<String> attributes, List<String> measures, List<String> sortedBy,
-	                    Map<String, Object> filterAttributes) {
+	                    Map<String, Object> filterAttributes, Map<String, String> childParentRelations) {
 		this.recordScheme = recordScheme;
 		this.records = records;
 		this.totals = totals;
@@ -44,12 +45,13 @@ public final class QueryResult {
 		this.measures = measures;
 		this.sortedBy = sortedBy;
 		this.filterAttributes = filterAttributes;
+		this.childParentRelations = childParentRelations;
 	}
 
 	public static QueryResult create(RecordScheme recordScheme, List<Record> records, Record totals, int totalCount,
 	                                 List<String> attributes, List<String> measures, List<String> sortedBy,
-	                                 Map<String, Object> filterAttributes) {
-		return new QueryResult(recordScheme, records, totals, totalCount, attributes, measures, sortedBy, filterAttributes);
+	                                 Map<String, Object> filterAttributes, Map<String, String> childParentRelations) {
+		return new QueryResult(recordScheme, records, totals, totalCount, attributes, measures, sortedBy, filterAttributes, childParentRelations);
 	}
 
 	public RecordScheme getRecordScheme() {
@@ -84,6 +86,10 @@ public final class QueryResult {
 		return sortedBy;
 	}
 
+	public Map<String, String> getChildParentRelations() {
+		return childParentRelations;
+	}
+
 	@Override
 	public String toString() {
 		return MoreObjects.toStringHelper(this)
@@ -93,6 +99,7 @@ public final class QueryResult {
 				.add("totals", totals)
 				.add("count", totalCount)
 				.add("sortedBy", sortedBy)
+				.add("getChildParentRelations", childParentRelations)
 				.toString();
 	}
 }
