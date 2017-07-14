@@ -58,6 +58,10 @@ public final class ListenableResultCallback<T> extends ResultCallback<T> {
 		listeners.add(listener);
 	}
 
+	public int size() {
+		return listeners.size();
+	}
+
 	/**
 	 * Sets result to this callback and calls sendResult() from all listeners.
 	 *

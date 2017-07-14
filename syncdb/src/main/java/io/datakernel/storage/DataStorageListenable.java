@@ -1,6 +1,7 @@
 package io.datakernel.storage;
 
 import com.google.common.base.Predicate;
+import io.datakernel.async.CompletionCallback;
 import io.datakernel.async.ListenableResultCallback;
 import io.datakernel.async.ResultCallback;
 import io.datakernel.eventloop.Eventloop;
@@ -8,6 +9,8 @@ import io.datakernel.stream.StreamConsumer;
 import io.datakernel.stream.StreamProducer;
 import io.datakernel.stream.StreamProducerDecorator;
 import io.datakernel.stream.processor.StreamSplitter;
+
+import static io.datakernel.stream.StreamConsumers.listenableConsumer;
 
 public final class DataStorageListenable<K, V> implements HasSortedStream<K, V> {
 	private final Eventloop eventloop;
@@ -44,9 +47,10 @@ public final class DataStorageListenable<K, V> implements HasSortedStream<K, V> 
 			@Override
 			protected void onResult(StreamProducer<KeyValue<K, V>> producer) {
 				final ListenableResultCallback<StreamProducer<KeyValue<K, V>>> callbacks = listenable;
-				listenable = null;
+				listenable = ListenableResultCallback.create();
 				final StreamSplitter<KeyValue<K, V>> splitter = StreamSplitter.create(eventloop);
-				producer.streamTo(splitter.getInput());
+				producer.streamTo(listenableConsumer(splitter.getInput(), processNextListeners(predicate)));
+
 				callbacks.setResult(new StreamProducerDecorator<KeyValue<K, V>>(producer) {
 					@Override
 					public void streamTo(StreamConsumer<KeyValue<K, V>> downstreamConsumer) {
@@ -58,9 +62,36 @@ public final class DataStorageListenable<K, V> implements HasSortedStream<K, V> 
 			@Override
 			protected void onException(Exception e) {
 				final ListenableResultCallback<StreamProducer<KeyValue<K, V>>> callbacks = listenable;
-				listenable = null;
+				listenable = ListenableResultCallback.create();
 				callbacks.setException(e);
 			}
 		});
+	}
+
+	private CompletionCallback processNextListeners(final Predicate<K> predicate) {
+		return new CompletionCallback() {
+			@Override
+			protected void onComplete() {
+				onCompleteOrException();
+			}
+
+			@Override
+			protected void onException(Exception e) {
+				onCompleteOrException();
+			}
+
+			private void onCompleteOrException() {
+				if (listenable.size() != 0) {
+					eventloop.post(new Runnable() {
+						@Override
+						public void run() {
+							doGetSortedStream(predicate);
+						}
+					});
+				} else {
+					listenable = null;
+				}
+			}
+		};
 	}
 }
