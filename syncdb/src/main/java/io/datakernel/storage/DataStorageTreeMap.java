@@ -24,8 +24,8 @@ import static io.datakernel.storage.StreamMergeUtils.mergeStreams;
 import static io.datakernel.stream.StreamProducers.ofIterable;
 
 // interface DataStorage extends HasSortedStream<Integer, Set<String>>, Synchronizer ???
-public class DataStorageTreeMap<K extends Comparable<K>, V, A> implements HasSortedStream<K, V>, Synchronizer {
-
+@SuppressWarnings("WeakerAccess")
+public final class DataStorageTreeMap<K extends Comparable<K>, V, A> implements HasSortedStream<K, V>, Synchronizer {
 	private final Eventloop eventloop;
 	private final Ordering<K> ordering = Ordering.natural();
 	private final Function<Map.Entry<K, V>, KeyValue<K, V>> TO_KEY_VALUE = new Function<Map.Entry<K, V>, KeyValue<K, V>>() {
@@ -92,6 +92,26 @@ public class DataStorageTreeMap<K extends Comparable<K>, V, A> implements HasSor
 				});
 			}
 		});
+	}
 
+	public boolean hasKey(K key) {
+		assert eventloop.inEventloopThread();
+		return values.containsKey(key);
+	}
+
+	public V get(K key) {
+		assert eventloop.inEventloopThread();
+		return values.get(key);
+	}
+
+	public V put(K key, V value) {
+		assert eventloop.inEventloopThread();
+		assert !values.containsKey(key);
+		return values.put(key, value);
+	}
+
+	public int size() {
+		assert eventloop.inEventloopThread();
+		return values.size();
 	}
 }

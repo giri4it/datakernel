@@ -2,6 +2,7 @@ package io.datakernel.storage;
 
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import io.datakernel.async.CompletionCallbackFuture;
 import io.datakernel.async.ResultCallback;
@@ -23,14 +24,13 @@ import java.util.concurrent.ExecutionException;
 
 import static io.datakernel.stream.StreamProducers.ofIterable;
 import static java.util.Arrays.asList;
-import static java.util.Collections.emptyList;
-import static java.util.Collections.singleton;
-import static java.util.Collections.singletonList;
-import static org.junit.Assert.assertEquals;
+import static java.util.Collections.*;
+import static junit.framework.TestCase.assertNull;
+import static org.junit.Assert.*;
 
 public class DataStorageTreeMapTest {
+	private static final Predicate<Integer> ALWAYS_TRUE = Predicates.alwaysTrue();
 
-	public static final Predicate<Integer> ALWAYS_TRUE = Predicates.alwaysTrue();
 	private Eventloop eventloop;
 	private StreamReducers.Reducer<Integer, KeyValue<Integer, Set<String>>, KeyValue<Integer, Set<String>>, Void> reducer;
 	private List<? extends HasSortedStream<Integer, Set<String>>> peers;
@@ -52,7 +52,7 @@ public class DataStorageTreeMapTest {
 		setUpTreeStorage();
 	}
 
-	public void setUpTreeStorage() {
+	private void setUpTreeStorage() {
 		dataStorageTreeMap = new DataStorageTreeMap<>(eventloop, state, peers, reducer, predicate);
 	}
 
@@ -133,4 +133,13 @@ public class DataStorageTreeMapTest {
 		}
 	}
 
+	@Test
+	public void testAccessors() {
+		assertFalse(dataStorageTreeMap.hasKey(1));
+		assertNull(dataStorageTreeMap.put(1, ImmutableSet.of("A", "B", "C")));
+		assertTrue(dataStorageTreeMap.hasKey(1));
+		assertEquals(ImmutableSet.of("A", "B", "C"), dataStorageTreeMap.get(1));
+		assertNull(dataStorageTreeMap.get(2));
+		assertEquals(1, dataStorageTreeMap.size());
+	}
 }
