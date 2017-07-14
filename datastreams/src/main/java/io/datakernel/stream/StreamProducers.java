@@ -27,6 +27,7 @@ import java.util.List;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static io.datakernel.async.AsyncIterators.asyncIteratorOfIterator;
+import static io.datakernel.stream.StreamConsumers.listenableConsumer;
 
 public final class StreamProducers {
 	private StreamProducers() {
@@ -434,6 +435,24 @@ public final class StreamProducers {
 					inputConsumer.resume();
 				}
 			}
+		}
+	}
+
+	public static <T> StreamProducerListenable<T> listenableProducer(StreamProducer<T> producer, CompletionCallback callback) {
+		return new StreamProducerListenable<>(producer, callback);
+	}
+
+	public static final class StreamProducerListenable<T> extends StreamProducerDecorator<T> {
+		private final CompletionCallback callback;
+
+		public StreamProducerListenable(StreamProducer<T> producer, CompletionCallback callback) {
+			super(producer);
+			this.callback = callback;
+		}
+
+		@Override
+		public void streamTo(StreamConsumer<T> downstreamConsumer) {
+			super.streamTo(listenableConsumer(downstreamConsumer, callback));
 		}
 	}
 }
