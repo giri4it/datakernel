@@ -92,7 +92,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 
 	private final Map<String, FieldType> fieldTypes = new LinkedHashMap<>();
 	private final Map<String, FieldType> dimensionTypes = new LinkedHashMap<>();
-	private final Map<String, Object> dimensionEmptyElements = new LinkedHashMap<>();
+	private final Map<String, Object> dimensionNullValue = new LinkedHashMap<>();
 	private final Map<String, Measure> measures = new LinkedHashMap<>();
 	private final Map<String, ComputedMeasure> computedMeasures = newLinkedHashMap();
 
@@ -232,9 +232,12 @@ public final class Cube implements ICube, EventloopJmxMBean {
 
 	public Cube withDimension(String dimensionId, FieldType type, Object nullValue) {
 		checkState(aggregations.isEmpty());
-		dimensionTypes.put(dimensionId, type);
-		fieldTypes.put(dimensionId, type);
-		dimensionEmptyElements.put(dimensionId, nullValue);
+		dimensionNullValue.put(dimensionId, nullValue);
+		return this;
+	}
+
+	public Cube withDimensionNullValue(String dimensionId, Object nullValue) {
+		dimensionNullValue.put(dimensionId, nullValue);
 		return this;
 	}
 
@@ -982,6 +985,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 
 			prepareDimensions();
 			prepareMeasures();
+			autocompleteQueryPredicate();
 
 			List<String> measures = query.getMeasures();
 			prepareCompatibleAggregations(newArrayList(concat(queryDimensions)), measures, queryPredicate);
@@ -1038,6 +1042,18 @@ public final class Cube implements ICube, EventloopJmxMBean {
 				resultAttributes.addAll(dimensions);
 				resultAttributes.add(attribute);
 			}
+		}
+
+		private void autocompleteQueryPredicate() {
+			queryPredicate = AggregationPredicates.and(newArrayList(concat(singletonList(queryPredicate),
+					transform(queryDimensions, new Function<String, AggregationPredicate>() {
+						@Override
+						public AggregationPredicate apply(String input) {
+							return (dimensionNullValue.get(input) != null)
+									? AggregationPredicates.notEq(input, dimensionNullValue.get(input))
+									: AggregationPredicates.alwaysTrue();
+						}
+					})))).simplify();
 		}
 
 		void prepareMeasures() throws QueryException {

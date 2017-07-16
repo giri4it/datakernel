@@ -308,6 +308,11 @@ public class ReportingTest {
 		cube = Cube.create(eventloop, executor, classLoader, cubeMetadataStorageSql, aggregationChunkStorage)
 				.withClassLoaderCache(CubeClassLoaderCache.create(classLoader, 5))
 				.withDimensions(DIMENSIONS_CUBE)
+				.withDimensionNullValue("advertiser", EXCLUDE_ADVERTISER)
+				.withDimensionNullValue("campaign", EXCLUDE_CAMPAIGN)
+				.withDimensionNullValue("banner", EXCLUDE_BANNER)
+				.withDimensionNullValue("affiliate", EXCLUDE_AFFILIATE)
+				.withDimensionNullValue("site", EXCLUDE_SITE)
 				.withMeasures(MEASURES)
 				.withRelation("campaign", "advertiser")
 				.withRelation("banner", "campaign")
@@ -758,6 +763,27 @@ public class ReportingTest {
 				.withMeasures(newArrayList("clicks", "impressions", "revenue", "errors"))
 				.withWhere(and(notEq("advertiser", EXCLUDE_ADVERTISER), notEq("campaign", EXCLUDE_CAMPAIGN), notEq("banner", EXCLUDE_BANNER),
 						between("date", LocalDate.parse("2000-01-02"), LocalDate.parse("2000-01-02"))))
+				.withReportType(DATA_WITH_TOTALS);
+
+		final QueryResult resultByAdvertisers = getQueryResult(queryAdvertisers);
+
+		Record advertisersTotals = resultByAdvertisers.getTotals();
+		long advertisersImpressions = (long) advertisersTotals.get("impressions");
+		long advertisersClicks = (long) advertisersTotals.get("clicks");
+		double advertisersRevenue = (double) advertisersTotals.get("revenue");
+		long advertisersErrors = (long) advertisersTotals.get("errors");
+		assertEquals(200, advertisersImpressions);
+		assertEquals(13, advertisersClicks);
+		assertEquals(1.08, advertisersRevenue, Double.MIN_VALUE);
+		assertEquals(10, advertisersErrors);
+	}
+
+	@Test
+	public void testQueryWithoutSpecifiedNullElements() {
+		CubeQuery queryAdvertisers = CubeQuery.create()
+				.withAttributes("date", "advertiser", "campaign", "banner")
+				.withMeasures(newArrayList("clicks", "impressions", "revenue", "errors"))
+				.withWhere(between("date", LocalDate.parse("2000-01-02"), LocalDate.parse("2000-01-02")))
 				.withReportType(DATA_WITH_TOTALS);
 
 		final QueryResult resultByAdvertisers = getQueryResult(queryAdvertisers);
