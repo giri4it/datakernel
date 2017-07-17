@@ -1,6 +1,5 @@
 package io.datakernel.storage;
 
-import com.google.common.base.Function;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.collect.Iterables;
@@ -14,11 +13,11 @@ import io.datakernel.serializer.BufferSerializer;
 import io.datakernel.storage.HasSortedStreamProducer.KeyValue;
 import io.datakernel.stream.StreamConsumers;
 import io.datakernel.stream.StreamProducer;
+import io.datakernel.stream.StreamProducers;
 import io.datakernel.stream.file.StreamFileReader;
 import io.datakernel.stream.file.StreamFileWriter;
 import io.datakernel.stream.processor.StreamBinaryDeserializer;
 import io.datakernel.stream.processor.StreamBinarySerializer;
-import io.datakernel.stream.processor.StreamReducers;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -37,19 +36,10 @@ import java.util.concurrent.Executors;
 import static io.datakernel.stream.StreamProducers.ofIterable;
 import static io.datakernel.stream.StreamProducers.ofValue;
 import static java.util.Arrays.asList;
-import static java.util.Collections.singletonList;
 import static org.junit.Assert.assertEquals;
 
 public class DataStorageFileWriterTest {
-
 	private static final Predicate<Integer> ALWAYS_TRUE = Predicates.alwaysTrue();
-	private static final List<? extends HasSortedStreamProducer<Integer, Set<String>>> EMPTY_PEERS = new ArrayList<>();
-	private static final Function<KeyValue<Integer, Set<String>>, Integer> KEY_FUNCTION = new Function<KeyValue<Integer, Set<String>>, Integer>() {
-		@Override
-		public Integer apply(KeyValue<Integer, Set<String>> input) {
-			return input.getKey();
-		}
-	};
 	private static final BufferSerializer<KeyValue<Integer, Set<String>>> SERIALIZER = new BufferSerializer<KeyValue<Integer, Set<String>>>() {
 		@Override
 		public void serialize(ByteBuf output, KeyValue<Integer, Set<String>> item) {
@@ -74,15 +64,10 @@ public class DataStorageFileWriterTest {
 	private Path currentStateFile;
 	private Path nextStateFile;
 	private ExecutorService executorService;
-	//	private DataStorageFileReader<Integer, Set<String>> fileStorageReader;
-	private DataStorageFileWriter<Integer, Set<String>, Void> fileStorageWriter;
-	private StreamReducers.Reducer<Integer, KeyValue<Integer, Set<String>>, KeyValue<Integer, Set<String>>, Void> mergeReducer;
+	private DataStorageFileWriter<Integer, Set<String>> fileStorageWriter;
 
-	private BufferSerializer<KeyValue<Integer, Set<String>>> serializer = SERIALIZER;
-	private Function<KeyValue<Integer, Set<String>>, Integer> keyFunction = KEY_FUNCTION;
-	private List<? extends HasSortedStreamProducer<Integer, Set<String>>> peers = EMPTY_PEERS;
-	private Predicate<Integer> alwaysTrue = ALWAYS_TRUE;
-	private int bufferSize = 1;
+	private BufferSerializer<KeyValue<Integer, Set<String>>> serializer;
+	private HasSortedStreamProducer<Integer, Set<String>> peer;
 
 	private static KeyValue<Integer, Set<String>> newKeyValue(int key, String... value) {
 		return new KeyValue<Integer, Set<String>>(key, Sets.newTreeSet(asList(value)));
@@ -100,7 +85,8 @@ public class DataStorageFileWriterTest {
 	@Before
 	public void before() throws IOException {
 		eventloop = Eventloop.create().withFatalErrorHandler(FatalErrorHandlers.rethrowOnAnyError());
-		mergeReducer = StreamReducers.mergeSortReducer();
+		peer = wrapHasSortedStream(StreamProducers.<KeyValue<Integer, Set<String>>>closing(eventloop));
+		serializer = SERIALIZER;
 		currentStateFile = Paths.get(folder.newFile("currentState.bin").toURI());
 		nextStateFile = Paths.get(folder.newFile("nextState.bin").toURI());
 		executorService = Executors.newFixedThreadPool(4);
@@ -109,9 +95,7 @@ public class DataStorageFileWriterTest {
 
 	private void setUpFileStorage() {
 		fileStorageWriter = new DataStorageFileWriter<>(eventloop, nextStateFile, currentStateFile, executorService,
-				SERIALIZER, KEY_FUNCTION, peers, mergeReducer, ALWAYS_TRUE);
-//		fileStorageReader = new DataStorageFileReader<>(eventloop, currentStateFile, nextStateFile, executorService,
-//				bufferSize, serializer, keyFunction);
+				serializer, peer, ALWAYS_TRUE);
 	}
 
 	private void writeStateToFile(Path currentStateFile, StreamProducer<KeyValue<Integer, Set<String>>> initStateProducer) throws IOException {
@@ -146,7 +130,7 @@ public class DataStorageFileWriterTest {
 	@Test
 	public void testSynchronize() throws IOException, ExecutionException, InterruptedException {
 		final KeyValue<Integer, Set<String>> dataId1 = newKeyValue(1, "b");
-		peers = singletonList(wrapHasSortedStream(ofValue(eventloop, dataId1)));
+		peer = wrapHasSortedStream(ofValue(eventloop, dataId1));
 
 		setUpFileStorage();
 

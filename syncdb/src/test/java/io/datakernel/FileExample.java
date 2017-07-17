@@ -13,6 +13,7 @@ import io.datakernel.eventloop.Eventloop;
 import io.datakernel.serializer.BufferSerializer;
 import io.datakernel.storage.DataStorageFileReader;
 import io.datakernel.storage.DataStorageFileWriter;
+import io.datakernel.storage.DataStorageMerger;
 import io.datakernel.storage.HasSortedStreamProducer;
 import io.datakernel.storage.HasSortedStreamProducer.KeyValue;
 import io.datakernel.stream.StreamConsumers;
@@ -92,10 +93,9 @@ public class FileExample {
 
 		final StreamReducers.Reducer<Integer, KeyValue<Integer, Set<String>>, KeyValue<Integer, Set<String>>, KeyValue<Integer, Set<String>>> reducer =
 				TestUnion.getInstance().inputToAccumulator();
-		final List<? extends HasSortedStreamProducer<Integer, Set<String>>> peers = asList(storage, fileStorageReader);
-		final DataStorageFileWriter<Integer, Set<String>, KeyValue<Integer, Set<String>>> fileStorageWriter =
-				new DataStorageFileWriter<>(eventloop, nextStateFile, currentStateFile, executorService,
-				KEY_VALUE_SERIALIZER, KEY_FUNCTION, peers, reducer, ALWAYS_TRUE);
+		DataStorageMerger<Integer, Set<String>, KeyValue<Integer, Set<String>>> merger = new DataStorageMerger<>(eventloop, reducer, asList(storage, fileStorageReader));
+		final DataStorageFileWriter<Integer, Set<String>> fileStorageWriter = new DataStorageFileWriter<>(eventloop,
+				nextStateFile, currentStateFile, executorService, KEY_VALUE_SERIALIZER, merger, ALWAYS_TRUE);
 
 		{
 			final ResultCallbackFuture<StreamProducer<KeyValue<Integer, Set<String>>>> sortedStreamCallback = ResultCallbackFuture.create();
