@@ -6,15 +6,15 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import io.datakernel.annotation.Nullable;
 import io.datakernel.async.CompletionCallbackFuture;
-import io.datakernel.async.ResultCallback;
+import io.datakernel.async.ForwardingResultCallback;
 import io.datakernel.async.ResultCallbackFuture;
 import io.datakernel.eventloop.Eventloop;
 import io.datakernel.eventloop.FatalErrorHandlers;
 import io.datakernel.merger.Merger;
 import io.datakernel.storage.HasSortedStreamProducer.KeyValue;
+import io.datakernel.stream.StreamConsumer;
 import io.datakernel.stream.StreamConsumers;
 import io.datakernel.stream.StreamProducer;
-import io.datakernel.stream.StreamProducers;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -32,9 +32,7 @@ public class DataStorageTreeMapTest {
 	private static final Predicate<Integer> ALWAYS_TRUE = Predicates.alwaysTrue();
 
 	private Eventloop eventloop;
-	private HasSortedStreamProducer<Integer, Set<String>> peer;
 	private Merger<KeyValue<Integer, Set<String>>> merger;
-	private Predicate<Integer> predicate;
 	private TreeMap<Integer, Set<String>> state;
 	private DataStorageTreeMap<Integer, Set<String>> dataStorageTreeMap;
 
@@ -54,18 +52,11 @@ public class DataStorageTreeMapTest {
 				return new KeyValue<Integer, Set<String>>(arg1.getKey(), set);
 			}
 		};
-		peer = new HasSortedStreamProducer<Integer, Set<String>>() {
-			@Override
-			public void getSortedStreamProducer(Predicate<Integer> predicate, ResultCallback<StreamProducer<KeyValue<Integer, Set<String>>>> callback) {
-				callback.setResult(StreamProducers.<KeyValue<Integer, Set<String>>>closing(eventloop));
-			}
-		};
-		predicate = Predicates.alwaysTrue();
 		setUpTreeStorage();
 	}
 
 	private void setUpTreeStorage() {
-		dataStorageTreeMap = new DataStorageTreeMap<>(eventloop, state, peer, merger, predicate);
+		dataStorageTreeMap = new DataStorageTreeMap<>(eventloop, state, merger);
 	}
 
 	private <T> List<T> toList(StreamProducer<T> producer) {
@@ -114,12 +105,6 @@ public class DataStorageTreeMapTest {
 		state.put(dataId2.getKey(), dataId2.getValue());
 
 		final KeyValue<Integer, Set<String>> dataId1 = newKeyValue(1, "a");
-		peer = new HasSortedStreamProducer<Integer, Set<String>>() {
-			@Override
-			public void getSortedStreamProducer(Predicate<Integer> predicate, ResultCallback<StreamProducer<KeyValue<Integer, Set<String>>>> callback) {
-				callback.setResult(ofIterable(eventloop, singleton(dataId1)));
-			}
-		};
 		setUpTreeStorage();
 
 		{
@@ -131,7 +116,12 @@ public class DataStorageTreeMapTest {
 		}
 		{
 			final CompletionCallbackFuture syncCallback = CompletionCallbackFuture.create();
-			dataStorageTreeMap.synchronize(syncCallback);
+			dataStorageTreeMap.getSortedStreamConsumer(new ForwardingResultCallback<StreamConsumer<KeyValue<Integer, Set<String>>>>(syncCallback) {
+				@Override
+				protected void onResult(StreamConsumer<KeyValue<Integer, Set<String>>> consumer) {
+					ofIterable(eventloop, singleton(dataId1)).streamTo(consumer);
+				}
+			});
 
 			eventloop.run();
 			syncCallback.get();

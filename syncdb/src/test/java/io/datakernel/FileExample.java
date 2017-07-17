@@ -4,10 +4,7 @@ import com.google.common.base.Function;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.collect.Sets;
-import io.datakernel.async.CompletionCallbackFuture;
-import io.datakernel.async.ForwardingCompletionCallback;
-import io.datakernel.async.ResultCallback;
-import io.datakernel.async.ResultCallbackFuture;
+import io.datakernel.async.*;
 import io.datakernel.bytebuf.ByteBuf;
 import io.datakernel.eventloop.Eventloop;
 import io.datakernel.serializer.BufferSerializer;
@@ -16,6 +13,7 @@ import io.datakernel.storage.DataStorageFileWriter;
 import io.datakernel.storage.DataStorageMerger;
 import io.datakernel.storage.HasSortedStreamProducer;
 import io.datakernel.storage.HasSortedStreamProducer.KeyValue;
+import io.datakernel.stream.StreamConsumer;
 import io.datakernel.stream.StreamConsumers;
 import io.datakernel.stream.StreamProducer;
 import io.datakernel.stream.processor.StreamReducers;
@@ -24,11 +22,14 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.Iterator;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import static io.datakernel.stream.StreamConsumers.listenableConsumer;
 import static io.datakernel.stream.StreamProducers.ofValue;
 import static java.util.Arrays.asList;
 
@@ -95,7 +96,7 @@ public class FileExample {
 				TestUnion.getInstance().inputToAccumulator();
 		DataStorageMerger<Integer, Set<String>, KeyValue<Integer, Set<String>>> merger = new DataStorageMerger<>(eventloop, reducer, asList(storage, fileStorageReader));
 		final DataStorageFileWriter<Integer, Set<String>> fileStorageWriter = new DataStorageFileWriter<>(eventloop,
-				nextStateFile, currentStateFile, executorService, KEY_VALUE_SERIALIZER, merger, ALWAYS_TRUE);
+				nextStateFile, currentStateFile, executorService, KEY_VALUE_SERIALIZER);
 
 		{
 			final ResultCallbackFuture<StreamProducer<KeyValue<Integer, Set<String>>>> sortedStreamCallback = ResultCallbackFuture.create();
@@ -108,11 +109,21 @@ public class FileExample {
 
 		for (int i = 0; i < 2; i++) {
 			final CompletionCallbackFuture syncCallback = CompletionCallbackFuture.create();
-			fileStorageWriter.synchronize(new ForwardingCompletionCallback(syncCallback) {
+			merger.getSortedStreamProducer(ALWAYS_TRUE, new ForwardingResultCallback<StreamProducer<KeyValue<Integer, Set<String>>>>(syncCallback) {
 				@Override
-				protected void onComplete() {
-					fileStorageReader.changeFiles();
-					syncCallback.setComplete();
+				protected void onResult(final StreamProducer<KeyValue<Integer, Set<String>>> producer) {
+					fileStorageWriter.getSortedStreamConsumer(new ForwardingResultCallback<StreamConsumer<KeyValue<Integer, Set<String>>>>(syncCallback) {
+						@Override
+						protected void onResult(StreamConsumer<KeyValue<Integer, Set<String>>> consumer) {
+							producer.streamTo(listenableConsumer(consumer, new ForwardingCompletionCallback(syncCallback) {
+								@Override
+								protected void onComplete() {
+									fileStorageReader.changeFiles();
+									syncCallback.setComplete();
+								}
+							}));
+						}
+					});
 				}
 			});
 

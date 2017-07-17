@@ -13,6 +13,7 @@ import io.datakernel.storage.DataStorageMerger;
 import io.datakernel.storage.DataStorageTreeMap;
 import io.datakernel.storage.HasSortedStreamProducer;
 import io.datakernel.storage.HasSortedStreamProducer.KeyValue;
+import io.datakernel.stream.StreamConsumer;
 import io.datakernel.stream.StreamConsumers;
 import io.datakernel.stream.StreamProducer;
 import io.datakernel.stream.processor.StreamReducers;
@@ -34,11 +35,21 @@ public class SimpleExample {
 			TestUnion.getInstance().inputToOutput();
 	private static final Merger<KeyValue<Integer, Set<String>>> UNION = new MergerReducer<>(UNION_REDUCER);
 
-	private static AsyncRunnable synchronize(final DataStorageTreeMap dataStorage) {
+	private static <K extends Comparable<K>, V> AsyncRunnable synchronize(final Predicate<K> filter, final DataStorageTreeMap<K, V> dataStorage, final HasSortedStreamProducer<K, V> peer) {
 		return new AsyncRunnable() {
 			@Override
-			public void run(CompletionCallback callback) {
-				dataStorage.synchronize(callback);
+			public void run(final CompletionCallback callback) {
+				peer.getSortedStreamProducer(filter, new ForwardingResultCallback<StreamProducer<KeyValue<K, V>>>(callback) {
+					@Override
+					protected void onResult(final StreamProducer<KeyValue<K, V>> producer) {
+						dataStorage.getSortedStreamConsumer(new ForwardingResultCallback<StreamConsumer<KeyValue<K, V>>>(callback) {
+							@Override
+							protected void onResult(StreamConsumer<KeyValue<K, V>> consumer) {
+								producer.streamTo(consumer);
+							}
+						});
+					}
+				});
 			}
 		};
 	}
@@ -52,16 +63,12 @@ public class SimpleExample {
 		};
 	}
 
-	private static DataStorageTreeMap<Integer, Set<String>> createSimpleStorage(
-			final Eventloop eventloop,
-			final KeyValue<Integer, Set<String>> value,
-			final HasSortedStreamProducer<Integer, Set<String>> peer,
-			final Merger<KeyValue<Integer, Set<String>>> merger,
-			final Predicate<Integer> keyFilter) {
-
-		return new DataStorageTreeMap<>(eventloop, new TreeMap<Integer, Set<String>>(){{
+	private static DataStorageTreeMap<Integer, Set<String>> createSimpleStorage(final Eventloop eventloop,
+	                                                                            final KeyValue<Integer, Set<String>> value,
+	                                                                            final Merger<KeyValue<Integer, Set<String>>> merger) {
+		return new DataStorageTreeMap<>(eventloop, new TreeMap<Integer, Set<String>>() {{
 			put(value.getKey(), value.getValue());
-		}}, peer, merger, keyFilter);
+		}}, merger);
 	}
 
 	private static KeyValue<Integer, Set<String>> newKeyValue(int key, String... value) {
@@ -80,19 +87,19 @@ public class SimpleExample {
 				getSortedStream(dataStorage3),
 				getSortedStream(dataStorageMerge1),
 				getSortedStream(dataStorageMerge2)))
-		.call(new AssertingResultCallback<List<StreamProducer<KeyValue<Integer, Set<String>>>>>() {
-			@Override
-			protected void onResult(List<StreamProducer<KeyValue<Integer, Set<String>>>> result) {
-				System.out.println("storage1\t" + SimpleExample.toString(eventloop, result.get(0)));
-				System.out.println("storage2\t" + SimpleExample.toString(eventloop, result.get(1)));
-				System.out.println("storage3\t" + SimpleExample.toString(eventloop, result.get(2)));
-				System.out.println();
-				System.out.println("merger1\t\t" + SimpleExample.toString(eventloop, result.get(3)));
-				System.out.println("merger2\t\t" + SimpleExample.toString(eventloop, result.get(4)));
-				System.out.println();
-			}
+				.call(new AssertingResultCallback<List<StreamProducer<KeyValue<Integer, Set<String>>>>>() {
+					@Override
+					protected void onResult(List<StreamProducer<KeyValue<Integer, Set<String>>>> result) {
+						System.out.println("storage1\t" + SimpleExample.toString(eventloop, result.get(0)));
+						System.out.println("storage2\t" + SimpleExample.toString(eventloop, result.get(1)));
+						System.out.println("storage3\t" + SimpleExample.toString(eventloop, result.get(2)));
+						System.out.println();
+						System.out.println("merger1\t\t" + SimpleExample.toString(eventloop, result.get(3)));
+						System.out.println("merger2\t\t" + SimpleExample.toString(eventloop, result.get(4)));
+						System.out.println();
+					}
 
-		});
+				});
 	}
 
 	private static AsyncCallable<StreamProducer<KeyValue<Integer, Set<String>>>> getSortedStream(final HasSortedStreamProducer<Integer, Set<String>> hasSortedStreamProducer) {
@@ -131,9 +138,9 @@ public class SimpleExample {
 		final KeyValue<Integer, Set<String>> data2 = newKeyValue(1, "ivan:cars", "ivan:phones");
 		final KeyValue<Integer, Set<String>> data3 = newKeyValue(5, "jim:books", "jim:music");
 
-		final DataStorageTreeMap<Integer, Set<String>> dataStorage1 = createSimpleStorage(eventloop, data1, sortedStream1, UNION, ALWAYS_TRUE);
-		final DataStorageTreeMap<Integer, Set<String>> dataStorage2 = createSimpleStorage(eventloop, data2, sortedStream2, UNION, ALWAYS_TRUE);
-		final DataStorageTreeMap<Integer, Set<String>> dataStorage3 = createSimpleStorage(eventloop, data3, sortedStream3, UNION, ALWAYS_TRUE);
+		final DataStorageTreeMap<Integer, Set<String>> dataStorage1 = createSimpleStorage(eventloop, data1, UNION);
+		final DataStorageTreeMap<Integer, Set<String>> dataStorage2 = createSimpleStorage(eventloop, data2, UNION);
+		final DataStorageTreeMap<Integer, Set<String>> dataStorage3 = createSimpleStorage(eventloop, data3, UNION);
 
 		final DataStorageMerger<Integer, Set<String>, KeyValue<Integer, Set<String>>> dataStorageMerge1 = new DataStorageMerger<>(eventloop, UNION_REDUCER, asList(dataStorage1, dataStorage2));
 		final DataStorageMerger<Integer, Set<String>, KeyValue<Integer, Set<String>>> dataStorageMerge2 = new DataStorageMerger<>(eventloop, UNION_REDUCER, asList(dataStorage2, dataStorage3));
@@ -143,9 +150,9 @@ public class SimpleExample {
 		printStreams(eventloop, dataStorage1, dataStorage2, dataStorage3, dataStorageMerge1, dataStorageMerge2);
 
 		AsyncRunnables.runInParallel(eventloop, asList(
-				synchronize(dataStorage1),
-				synchronize(dataStorage2),
-				synchronize(dataStorage3)))
+				synchronize(ALWAYS_TRUE, dataStorage1, sortedStream1),
+				synchronize(ALWAYS_TRUE, dataStorage2, sortedStream2),
+				synchronize(ALWAYS_TRUE, dataStorage3, sortedStream3)))
 				.run(IgnoreCompletionCallback.create());
 
 		eventloop.run();

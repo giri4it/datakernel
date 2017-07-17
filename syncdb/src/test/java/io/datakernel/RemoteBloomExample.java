@@ -84,7 +84,7 @@ public class RemoteBloomExample {
 		treeMap.put(4, newTreeSet(singletonList("4")));
 		treeMap.put(5, newTreeSet(singletonList("5")));
 		treeMap.put(6, newTreeSet(singletonList("6")));
-		final DataStorageTreeMap<Integer, Set<String>> treeStorage = new DataStorageTreeMap<>(eventloop, treeMap, null, null, ALWAYS_TRUE);
+		final DataStorageTreeMap<Integer, Set<String>> treeStorage = new DataStorageTreeMap<>(eventloop, treeMap, null);
 
 		final DataStorageRemoteServer<Integer, Set<String>> server = new DataStorageRemoteServer<>(eventloop, treeStorage, gson, KEY_VALUE_SERIALIZER)
 				.withListenPort(PORT);

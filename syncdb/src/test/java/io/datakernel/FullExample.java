@@ -18,16 +18,15 @@ import io.datakernel.eventloop.Eventloop;
 import io.datakernel.eventloop.FatalErrorHandlers;
 import io.datakernel.merger.MergerReducer;
 import io.datakernel.serializer.BufferSerializer;
-import io.datakernel.storage.DataStorageMerger;
-import io.datakernel.storage.DataStorageTreeMap;
-import io.datakernel.storage.HasSortedStreamProducer;
+import io.datakernel.storage.*;
 import io.datakernel.storage.HasSortedStreamProducer.KeyValue;
-import io.datakernel.storage.Synchronizer;
 import io.datakernel.storage.remote.DataStorageRemoteClient;
 import io.datakernel.storage.remote.DataStorageRemoteServer;
+import io.datakernel.stream.StreamConsumer;
 import io.datakernel.stream.StreamConsumers;
 import io.datakernel.stream.StreamProducer;
 import io.datakernel.stream.processor.StreamReducers;
+import io.datakernel.stream.processor.StreamReducers.Reducer;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -36,6 +35,7 @@ import java.util.*;
 import static io.datakernel.FullExample.Key.newKey;
 import static java.util.Arrays.asList;
 
+// переробити під нову схему
 public class FullExample {
 	private static final int START_PORT = 12457;
 	private static final List<InetSocketAddress> addresses = asList(
@@ -104,18 +104,9 @@ public class FullExample {
 
 	private static <K extends Comparable<K>, V> DataStorageTreeMap<K, V> createAndStartNode(
 			final Eventloop eventloop, Gson gson, BufferSerializer<KeyValue<K, V>> bufferSerializer,
-			int port, List<InetSocketAddress> addresses, Predicate<K> keyFilter,
-			TreeMap<K, V> treeMap, StreamReducers.Reducer<K, KeyValue<K, V>, KeyValue<K, V>, Void> reducer) throws IOException {
+			int port, TreeMap<K, V> treeMap, MergerReducer<K, V, Void> merger) throws IOException {
 
-		final List<DataStorageRemoteClient<K, V>> remoteClients = new ArrayList<>();
-		for (InetSocketAddress address : addresses) {
-			remoteClients.add(new DataStorageRemoteClient<>(eventloop, address, gson, bufferSerializer));
-		}
-
-		final DataStorageMerger<K, V, Void> mergerStream = new DataStorageMerger<>(eventloop, reducer, remoteClients);
-		final MergerReducer<K, V, Void> merger = new MergerReducer<>(reducer);
-
-		final DataStorageTreeMap<K, V> dataStorageTreeMap = new DataStorageTreeMap<>(eventloop, treeMap, mergerStream, merger, keyFilter);
+		final DataStorageTreeMap<K, V> dataStorageTreeMap = new DataStorageTreeMap<>(eventloop, treeMap, merger);
 		final DataStorageRemoteServer<K, V> remoteServer = new DataStorageRemoteServer<>(eventloop, dataStorageTreeMap, gson, bufferSerializer)
 				.withListenPort(port);
 
@@ -141,44 +132,52 @@ public class FullExample {
 		final Eventloop eventloop = Eventloop.create().withFatalErrorHandler(FatalErrorHandlers.rethrowOnAnyError());
 		final Gson gson = new GsonBuilder().registerTypeAdapterFactory(TYPE_ADAPTER_FACTORY).create();
 
-		final StreamReducers.Reducer<Key, KeyValue<Key, Set<String>>, KeyValue<Key, Set<String>>, Void> reducer =
+		final Reducer<Key, KeyValue<Key, Set<String>>, KeyValue<Key, Set<String>>, Void> reducer =
 				StreamReducers.mergeSortReducer();
+		MergerReducer<Key, Set<String>, Void> merger = new MergerReducer<>(reducer);
 
 		System.out.println("Start nodes");
 
 		final TreeMap<Key, Set<String>> treeMap0 = map(0, keyValue(1, "1:a"), keyValue(2, "2:a"), keyValue(3, "3:a"));
 		final List<InetSocketAddress> addresses0 = asList(addresses.get(4), addresses.get(5));
 		final DataStorageTreeMap<Key, Set<String>> node0 = createAndStartNode(eventloop, gson, KEY_VALUE_SERIALIZER,
-				START_PORT, addresses0, evenPredicate(), treeMap0, reducer);
+				START_PORT, treeMap0, merger);
 
 		final TreeMap<Key, Set<String>> treeMap1 = map(1, keyValue(4, "4:a"), keyValue(5, "5:a"), keyValue(6, "6:a"));
 		final List<InetSocketAddress> addresses1 = asList(addresses.get(0), addresses.get(5));
 		final DataStorageTreeMap<Key, Set<String>> node1 = createAndStartNode(eventloop, gson, KEY_VALUE_SERIALIZER,
-				START_PORT + 1, addresses1, oddPredicate(), treeMap1, reducer);
+				START_PORT + 1, treeMap1, merger);
 
 		final TreeMap<Key, Set<String>> treeMap2 = map(2, keyValue(7, "7:b"), keyValue(8, "8:a"), keyValue(9, "9:a"));
 		final List<InetSocketAddress> addresses2 = asList(addresses.get(0), addresses.get(1));
 		final DataStorageTreeMap<Key, Set<String>> node2 = createAndStartNode(eventloop, gson, KEY_VALUE_SERIALIZER,
-				START_PORT + 2, addresses2, evenPredicate(), treeMap2, reducer);
+				START_PORT + 2, treeMap2, merger);
 
 		final TreeMap<Key, Set<String>> treeMap3 = map(3, keyValue(10, "10:b"), keyValue(11, "11:a"), keyValue(12, "12:a"));
 		final List<InetSocketAddress> addresses3 = asList(addresses.get(1), addresses.get(2));
 		final DataStorageTreeMap<Key, Set<String>> node3 = createAndStartNode(eventloop, gson, KEY_VALUE_SERIALIZER,
-				START_PORT + 3, addresses3, oddPredicate(), treeMap3, reducer);
+				START_PORT + 3, treeMap3, merger);
 
 		final TreeMap<Key, Set<String>> treeMap4 = map(4, keyValue(13, "13:b"), keyValue(14, "14:a"), keyValue(15, "15:a"));
 		final List<InetSocketAddress> addresses4 = asList(addresses.get(2), addresses.get(3));
 		final DataStorageTreeMap<Key, Set<String>> node4 = createAndStartNode(eventloop, gson, KEY_VALUE_SERIALIZER,
-				START_PORT + 4, addresses4, evenPredicate(), treeMap4, reducer);
+				START_PORT + 4, treeMap4, merger);
 
 		final TreeMap<Key, Set<String>> treeMap5 = map(5, keyValue(16, "13:b"), keyValue(17, "14:a"), keyValue(18, "15:a"));
 		final List<InetSocketAddress> addresses5 = asList(addresses.get(3), addresses.get(4));
 		final DataStorageTreeMap<Key, Set<String>> node5 = createAndStartNode(eventloop, gson, KEY_VALUE_SERIALIZER,
-				START_PORT + 5, addresses5, oddPredicate(), treeMap5, reducer);
+				START_PORT + 5, treeMap5, merger);
 
 		System.out.println("All nodes started");
 
-		schedulePrintAndSync(eventloop, node0, node1, node2, node3, node4, node5);
+		final Nodes<Set<String>> n0 = new Nodes<>(evenPredicate(), node0, mergeClients(eventloop, addresses0, gson, reducer));
+		final Nodes<Set<String>> n1 = new Nodes<>(oddPredicate(), node1, mergeClients(eventloop, addresses1, gson, reducer));
+		final Nodes<Set<String>> n2 = new Nodes<>(evenPredicate(), node2, mergeClients(eventloop, addresses2, gson, reducer));
+		final Nodes<Set<String>> n3 = new Nodes<>(oddPredicate(), node3, mergeClients(eventloop, addresses3, gson, reducer));
+		final Nodes<Set<String>> n4 = new Nodes<>(evenPredicate(), node4, mergeClients(eventloop, addresses4, gson, reducer));
+		final Nodes<Set<String>> n5 = new Nodes<>(oddPredicate(), node5, mergeClients(eventloop, addresses5, gson, reducer));
+
+		schedulePrintAndSync(eventloop, n0, n1, n2, n3, n4, n5);
 		scheduleStateCheck(eventloop, node0, node1, node2, node3, node4, node5);
 
 		eventloop.keepAlive(true);
@@ -186,6 +185,16 @@ public class FullExample {
 
 		System.out.println("FINISH");
 
+	}
+
+	private static HasSortedStreamProducer<Key, Set<String>> mergeClients(Eventloop eventloop, List<InetSocketAddress> addresses,
+	                                                               Gson gson,
+	                                                               Reducer<Key, KeyValue<Key, Set<String>>, KeyValue<Key, Set<String>>, Void> reducer) {
+		final List<DataStorageRemoteClient<Key, Set<String>>> remoteClients = new ArrayList<>();
+		for (InetSocketAddress address : addresses) {
+			remoteClients.add(new DataStorageRemoteClient<>(eventloop, address, gson, KEY_VALUE_SERIALIZER));
+		}
+		return new DataStorageMerger<>(eventloop, reducer, remoteClients);
 	}
 
 	@SafeVarargs
@@ -223,7 +232,7 @@ public class FullExample {
 
 	@SafeVarargs
 	private static <V> void schedulePrintAndSync(final Eventloop eventloop,
-	                                             final DataStorageTreeMap<Key, V>... nodes) {
+	                                             final Nodes<V>... nodes) {
 		eventloop.schedule(eventloop.currentTimeMillis() + 3000, new Runnable() {
 			@Override
 			public void run() {
@@ -232,7 +241,7 @@ public class FullExample {
 							@Override
 							protected void onComplete() {
 								System.out.println("Start node sync");
-								AsyncRunnables.runInSequence(eventloop, syncState((Synchronizer[]) nodes))
+								AsyncRunnables.runInSequence(eventloop, syncState(nodes))
 										.run(new AssertingCompletionCallback() {
 											@Override
 											protected void onComplete() {
@@ -247,13 +256,24 @@ public class FullExample {
 		});
 	}
 
-	private static List<AsyncRunnable> syncState(final Synchronizer... nodes) {
+	@SafeVarargs
+	private static <V> List<AsyncRunnable> syncState(final Nodes<V>... nodes) {
 		final List<AsyncRunnable> asyncRunnables = new ArrayList<>();
-		for (final Synchronizer node : nodes) {
+		for (final Nodes<V> node : nodes) {
 			asyncRunnables.add(new AsyncRunnable() {
 				@Override
-				public void run(CompletionCallback callback) {
-					node.synchronize(callback);
+				public void run(final CompletionCallback callback) {
+					node.producer.getSortedStreamProducer(node.predicate, new ForwardingResultCallback<StreamProducer<KeyValue<Key, V>>>(callback) {
+						@Override
+						protected void onResult(final StreamProducer<KeyValue<Key, V>> producer) {
+							node.consumer.getSortedStreamConsumer(new ForwardingResultCallback<StreamConsumer<KeyValue<Key, V>>>(callback) {
+								@Override
+								protected void onResult(StreamConsumer<KeyValue<Key, V>> consumer) {
+									producer.streamTo(consumer);
+								}
+							});
+						}
+					});
 				}
 			});
 		}
@@ -261,15 +281,15 @@ public class FullExample {
 	}
 
 	@SafeVarargs
-	private static <V> List<AsyncRunnable> printState(final Eventloop eventloop, DataStorageTreeMap<Key, V>... nodes) {
+	private static <V> List<AsyncRunnable> printState(final Eventloop eventloop, Nodes<V>... nodes) {
 		final List<AsyncRunnable> asyncRunnables = new ArrayList<>();
 		for (int nodeId = 0; nodeId < nodes.length; nodeId++) {
-			final DataStorageTreeMap<Key, V> node = nodes[nodeId];
+			final Nodes<V> node = nodes[nodeId];
 			final int finalNodeId = nodeId;
 			asyncRunnables.add(new AsyncRunnable() {
 				@Override
 				public void run(final CompletionCallback callback) {
-					getState(eventloop, Predicates.<Key>alwaysTrue(), node).call(new ForwardingResultCallback<List<KeyValue<Key, V>>>(callback) {
+					getState(eventloop, Predicates.<Key>alwaysTrue(), node.producer).call(new ForwardingResultCallback<List<KeyValue<Key, V>>>(callback) {
 						@Override
 						protected void onResult(List<KeyValue<Key, V>> result) {
 							prettyPrintState(result, finalNodeId);
@@ -353,6 +373,18 @@ public class FullExample {
 			return "Predicate(n % " + value + ")";
 		}
 
+	}
+
+	private static class Nodes<V> {
+		private final Predicate<Key> predicate;
+		private final HasSortedStreamConsumer<Key, V> consumer;
+		private final HasSortedStreamProducer<Key, V> producer;
+
+		private Nodes(Predicate<Key> predicate, HasSortedStreamConsumer<Key, V> consumer, HasSortedStreamProducer<Key, V> producer) {
+			this.predicate = predicate;
+			this.consumer = consumer;
+			this.producer = producer;
+		}
 	}
 
 	public static class Key implements Comparable<Key> {

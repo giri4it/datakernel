@@ -1,7 +1,5 @@
 package io.datakernel.storage;
 
-import com.google.common.base.Predicate;
-import com.google.common.base.Predicates;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import io.datakernel.async.*;
@@ -11,6 +9,7 @@ import io.datakernel.eventloop.FatalErrorHandlers;
 import io.datakernel.file.AsyncFile;
 import io.datakernel.serializer.BufferSerializer;
 import io.datakernel.storage.HasSortedStreamProducer.KeyValue;
+import io.datakernel.stream.StreamConsumer;
 import io.datakernel.stream.StreamConsumers;
 import io.datakernel.stream.StreamProducer;
 import io.datakernel.stream.StreamProducers;
@@ -39,7 +38,6 @@ import static java.util.Arrays.asList;
 import static org.junit.Assert.assertEquals;
 
 public class DataStorageFileWriterTest {
-	private static final Predicate<Integer> ALWAYS_TRUE = Predicates.alwaysTrue();
 	private static final BufferSerializer<KeyValue<Integer, Set<String>>> SERIALIZER = new BufferSerializer<KeyValue<Integer, Set<String>>>() {
 		@Override
 		public void serialize(ByteBuf output, KeyValue<Integer, Set<String>> item) {
@@ -67,25 +65,14 @@ public class DataStorageFileWriterTest {
 	private DataStorageFileWriter<Integer, Set<String>> fileStorageWriter;
 
 	private BufferSerializer<KeyValue<Integer, Set<String>>> serializer;
-	private HasSortedStreamProducer<Integer, Set<String>> peer;
 
 	private static KeyValue<Integer, Set<String>> newKeyValue(int key, String... value) {
 		return new KeyValue<Integer, Set<String>>(key, Sets.newTreeSet(asList(value)));
 	}
 
-	private static HasSortedStreamProducer<Integer, Set<String>> wrapHasSortedStream(final StreamProducer<KeyValue<Integer, Set<String>>> producer) {
-		return new HasSortedStreamProducer<Integer, Set<String>>() {
-			@Override
-			public void getSortedStreamProducer(Predicate<Integer> predicate, ResultCallback<StreamProducer<KeyValue<Integer, Set<String>>>> callback) {
-				callback.setResult(producer);
-			}
-		};
-	}
-
 	@Before
 	public void before() throws IOException {
 		eventloop = Eventloop.create().withFatalErrorHandler(FatalErrorHandlers.rethrowOnAnyError());
-		peer = wrapHasSortedStream(StreamProducers.<KeyValue<Integer, Set<String>>>closing(eventloop));
 		serializer = SERIALIZER;
 		currentStateFile = Paths.get(folder.newFile("currentState.bin").toURI());
 		nextStateFile = Paths.get(folder.newFile("nextState.bin").toURI());
@@ -94,8 +81,7 @@ public class DataStorageFileWriterTest {
 	}
 
 	private void setUpFileStorage() {
-		fileStorageWriter = new DataStorageFileWriter<>(eventloop, nextStateFile, currentStateFile, executorService,
-				serializer, peer, ALWAYS_TRUE);
+		fileStorageWriter = new DataStorageFileWriter<>(eventloop, nextStateFile, currentStateFile, executorService, serializer);
 	}
 
 	private void writeStateToFile(Path currentStateFile, StreamProducer<KeyValue<Integer, Set<String>>> initStateProducer) throws IOException {
@@ -130,14 +116,18 @@ public class DataStorageFileWriterTest {
 	@Test
 	public void testSynchronize() throws IOException, ExecutionException, InterruptedException {
 		final KeyValue<Integer, Set<String>> dataId1 = newKeyValue(1, "b");
-		peer = wrapHasSortedStream(ofValue(eventloop, dataId1));
 
 		setUpFileStorage();
 
-		final CompletionCallbackFuture syncCallback = CompletionCallbackFuture.create();
-		fileStorageWriter.synchronize(syncCallback);
+		final CompletionCallbackFuture completionCallback = CompletionCallbackFuture.create();
+		fileStorageWriter.getSortedStreamConsumer(new ForwardingResultCallback<StreamConsumer<KeyValue<Integer, Set<String>>>>(completionCallback) {
+			@Override
+			protected void onResult(StreamConsumer<KeyValue<Integer, Set<String>>> consumer) {
+				ofValue(eventloop, dataId1).streamTo(consumer);
+			}
+		});
 		eventloop.run();
-		syncCallback.get();
+		completionCallback.get();
 
 		final ResultCallbackFuture<List<KeyValue<Integer, Set<String>>>> callback = ResultCallbackFuture.create();
 		readStateFromFile(nextStateFile, callback);
@@ -156,10 +146,15 @@ public class DataStorageFileWriterTest {
 			eventloop.run();
 			assertEquals(Collections.emptyList(), callback.get());
 
-			final CompletionCallbackFuture syncCallback = CompletionCallbackFuture.create();
-			fileStorageWriter.synchronize(syncCallback);
+			final CompletionCallbackFuture completionCallback = CompletionCallbackFuture.create();
+			fileStorageWriter.getSortedStreamConsumer(new ForwardingResultCallback<StreamConsumer<KeyValue<Integer, Set<String>>>>(completionCallback) {
+				@Override
+				protected void onResult(StreamConsumer<KeyValue<Integer, Set<String>>> consumer) {
+					StreamProducers.<KeyValue<Integer, Set<String>>>closing(eventloop).streamTo(consumer);
+				}
+			});
 			eventloop.run();
-			syncCallback.get();
+			completionCallback.get();
 		}
 	}
 
