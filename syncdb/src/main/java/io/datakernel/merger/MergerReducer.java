@@ -3,7 +3,7 @@ package io.datakernel.merger;
 import io.datakernel.annotation.Nullable;
 import io.datakernel.stream.StreamDataReceiver;
 import io.datakernel.stream.processor.StreamReducers.Reducer;
-import io.datakernel.storage.HasSortedStream.KeyValue;
+import io.datakernel.storage.HasSortedStreamProducer.KeyValue;
 
 public class MergerReducer<K, V, A> implements Merger<KeyValue<K, V>> {
 	private final Reducer<K, KeyValue<K, V>, KeyValue<K, V>, A> reducer;

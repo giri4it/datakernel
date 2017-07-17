@@ -15,7 +15,7 @@ import io.datakernel.bytebuf.ByteBuf;
 import io.datakernel.eventloop.Eventloop;
 import io.datakernel.serializer.BufferSerializer;
 import io.datakernel.storage.DataStorageTreeMap;
-import io.datakernel.storage.HasSortedStream.KeyValue;
+import io.datakernel.storage.HasSortedStreamProducer.KeyValue;
 import io.datakernel.storage.remote.DataStorageRemoteClient;
 import io.datakernel.storage.remote.DataStorageRemoteServer;
 import io.datakernel.stream.StreamConsumers;
@@ -115,7 +115,7 @@ public class RemoteExample {
 		final InetSocketAddress address = new InetSocketAddress(PORT);
 		final DataStorageRemoteClient<Integer, Set<String>> client = new DataStorageRemoteClient<>(eventloop, address, gson, KEY_VALUE_SERIALIZER);
 
-		client.getSortedStream(new EvenSortedStreamPredicate(2), new ResultCallback<StreamProducer<KeyValue<Integer, Set<String>>>>() {
+		client.getSortedStreamProducer(new EvenSortedStreamPredicate(2), new ResultCallback<StreamProducer<KeyValue<Integer, Set<String>>>>() {
 			@Override
 			protected void onResult(StreamProducer<KeyValue<Integer, Set<String>>> result) {
 				final StreamConsumers.ToList<KeyValue<Integer, Set<String>>> toList = StreamConsumers.toList(eventloop);

@@ -18,7 +18,7 @@ import io.datakernel.predicate.BloomFilterPredicateTypeAdapter;
 import io.datakernel.predicate.HashFunction;
 import io.datakernel.serializer.BufferSerializer;
 import io.datakernel.storage.DataStorageTreeMap;
-import io.datakernel.storage.HasSortedStream.KeyValue;
+import io.datakernel.storage.HasSortedStreamProducer.KeyValue;
 import io.datakernel.storage.remote.DataStorageRemoteClient;
 import io.datakernel.storage.remote.DataStorageRemoteServer;
 import io.datakernel.stream.StreamConsumers;
@@ -92,11 +92,11 @@ public class RemoteBloomExample {
 		server.listen();
 
 		final InetSocketAddress address = new InetSocketAddress(PORT);
-		final DataStorageRemoteClient<Integer, Set<String>> client = new DataStorageRemoteClient<>(eventloop, address, gson, KEY_VALUE_SERIALIZER, null, null);
+		final DataStorageRemoteClient<Integer, Set<String>> client = new DataStorageRemoteClient<>(eventloop, address, gson, KEY_VALUE_SERIALIZER);
 
 		final BloomFilter<Integer> bloomFilter = createBloomFilter(1, 4);
 
-		client.getSortedStream(new BloomFilterPredicate<>(bloomFilter), new ResultCallback<StreamProducer<KeyValue<Integer, Set<String>>>>() {
+		client.getSortedStreamProducer(new BloomFilterPredicate<>(bloomFilter), new ResultCallback<StreamProducer<KeyValue<Integer, Set<String>>>>() {
 			@Override
 			protected void onResult(StreamProducer<KeyValue<Integer, Set<String>>> result) {
 				final StreamConsumers.ToList<KeyValue<Integer, Set<String>>> toList = StreamConsumers.toList(eventloop);

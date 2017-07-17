@@ -12,19 +12,19 @@ import io.datakernel.stream.processor.StreamSplitter;
 
 import static io.datakernel.stream.StreamConsumers.listenableConsumer;
 
-public final class DataStorageListenable<K, V> implements HasSortedStream<K, V> {
+public final class DataStorageListenable<K, V> implements HasSortedStreamProducer<K, V> {
 	private final Eventloop eventloop;
-	private final HasSortedStream<K, V> hasSortedStream;
+	private final HasSortedStreamProducer<K, V> hasSortedStreamProducer;
 
 	private ListenableResultCallback<StreamProducer<KeyValue<K, V>>> listenable = null;
 
-	public DataStorageListenable(Eventloop eventloop, HasSortedStream<K, V> hasSortedStream) {
+	public DataStorageListenable(Eventloop eventloop, HasSortedStreamProducer<K, V> hasSortedStreamProducer) {
 		this.eventloop = eventloop;
-		this.hasSortedStream = hasSortedStream;
+		this.hasSortedStreamProducer = hasSortedStreamProducer;
 	}
 
 	@Override
-	public void getSortedStream(final Predicate<K> predicate, final ResultCallback<StreamProducer<KeyValue<K, V>>> callback) {
+	public void getSortedStreamProducer(final Predicate<K> predicate, final ResultCallback<StreamProducer<KeyValue<K, V>>> callback) {
 		assert eventloop.inEventloopThread();
 
 		if (listenable != null) {
@@ -43,7 +43,7 @@ public final class DataStorageListenable<K, V> implements HasSortedStream<K, V> 
 	}
 
 	private void doGetSortedStream(final Predicate<K> predicate) {
-		hasSortedStream.getSortedStream(predicate, new ResultCallback<StreamProducer<KeyValue<K, V>>>() {
+		hasSortedStreamProducer.getSortedStreamProducer(predicate, new ResultCallback<StreamProducer<KeyValue<K, V>>>() {
 			@Override
 			protected void onResult(StreamProducer<KeyValue<K, V>> producer) {
 				final ListenableResultCallback<StreamProducer<KeyValue<K, V>>> callbacks = listenable;

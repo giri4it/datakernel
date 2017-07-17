@@ -7,7 +7,7 @@ import io.datakernel.async.AsyncCallables;
 import io.datakernel.async.ForwardingResultCallback;
 import io.datakernel.async.ResultCallback;
 import io.datakernel.eventloop.Eventloop;
-import io.datakernel.storage.HasSortedStream.KeyValue;
+import io.datakernel.storage.HasSortedStreamProducer.KeyValue;
 import io.datakernel.stream.StreamProducer;
 import io.datakernel.stream.processor.StreamReducer;
 import io.datakernel.stream.processor.StreamReducers;
@@ -25,16 +25,16 @@ public class StreamMergeUtils {
 	                                          final Comparator<K> keyComparator,
 	                                          final Function<KeyValue<K, V>, K> keyFunction,
 	                                          final StreamReducers.Reducer<K, KeyValue<K, V>, KeyValue<K, V>, A> reducer,
-	                                          final Iterable<? extends HasSortedStream<K, V>> streams,
+	                                          final Iterable<? extends HasSortedStreamProducer<K, V>> streams,
 	                                          final Predicate<K> predicate,
 	                                          final ResultCallback<StreamProducer<KeyValue<K, V>>> callback) {
 
 		final List<AsyncCallable<StreamProducer<KeyValue<K, V>>>> callables = new ArrayList<>();
-		for (final HasSortedStream<K, V> stream : streams) {
+		for (final HasSortedStreamProducer<K, V> stream : streams) {
 			callables.add(new AsyncCallable<StreamProducer<KeyValue<K, V>>>() {
 				@Override
 				public void call(ResultCallback<StreamProducer<KeyValue<K, V>>> callback) {
-					stream.getSortedStream(predicate, callback);
+					stream.getSortedStreamProducer(predicate, callback);
 				}
 			});
 		}

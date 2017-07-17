@@ -9,7 +9,7 @@ import io.datakernel.eventloop.AsyncTcpSocketImpl;
 import io.datakernel.eventloop.Eventloop;
 import io.datakernel.net.SocketSettings;
 import io.datakernel.serializer.BufferSerializer;
-import io.datakernel.storage.HasSortedStream;
+import io.datakernel.storage.HasSortedStreamProducer;
 import io.datakernel.storage.remote.DataStorageRemoteCommands.GetSortedStream;
 import io.datakernel.storage.remote.DataStorageRemoteCommands.RemoteCommand;
 import io.datakernel.storage.remote.DataStorageRemoteResponses.RemoteResponse;
@@ -32,7 +32,7 @@ import static io.datakernel.storage.remote.DataStorageRemoteResponses.responseGs
 import static io.datakernel.stream.net.MessagingSerializers.ofGson;
 
 @SuppressWarnings("unused")
-public final class DataStorageRemoteClient<K, V> implements HasSortedStream<K, V> {
+public final class DataStorageRemoteClient<K, V> implements HasSortedStreamProducer<K, V> {
 	private final Eventloop eventloop;
 	private final InetSocketAddress address;
 	private final MessagingSerializer<RemoteResponse, RemoteCommand> serializer = ofGson(responseGson, RemoteResponse.class, commandGSON, RemoteCommand.class);
@@ -78,7 +78,7 @@ public final class DataStorageRemoteClient<K, V> implements HasSortedStream<K, V
 	}
 
 	@Override
-	public void getSortedStream(final Predicate<K> predicate, final ResultCallback<StreamProducer<KeyValue<K, V>>> callback) {
+	public void getSortedStreamProducer(final Predicate<K> predicate, final ResultCallback<StreamProducer<KeyValue<K, V>>> callback) {
 		connect(address, new ForwardingMessagingConnectCallback(callback) {
 			@Override
 			protected void onConnect(final MessagingWithBinaryStreaming<RemoteResponse, RemoteCommand> messaging) {

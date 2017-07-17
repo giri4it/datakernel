@@ -10,8 +10,8 @@ import io.datakernel.eventloop.AbstractServer;
 import io.datakernel.eventloop.AsyncTcpSocket;
 import io.datakernel.eventloop.Eventloop;
 import io.datakernel.serializer.BufferSerializer;
-import io.datakernel.storage.HasSortedStream;
-import io.datakernel.storage.HasSortedStream.KeyValue;
+import io.datakernel.storage.HasSortedStreamProducer;
+import io.datakernel.storage.HasSortedStreamProducer.KeyValue;
 import io.datakernel.storage.remote.DataStorageRemoteCommands.GetSortedStream;
 import io.datakernel.storage.remote.DataStorageRemoteCommands.RemoteCommand;
 import io.datakernel.storage.remote.DataStorageRemoteResponses.RemoteResponse;
@@ -27,15 +27,15 @@ import static io.datakernel.stream.net.MessagingSerializers.ofGson;
 
 public class DataStorageRemoteServer<K extends Comparable<K>, V> extends AbstractServer<DataStorageRemoteServer<K, V>> {
 	private final Eventloop eventloop;
-	private final HasSortedStream<K, V> hasSortedStream;
+	private final HasSortedStreamProducer<K, V> hasSortedStreamProducer;
 	private final Gson gson;
 	private final MessagingSerializer<RemoteCommand, RemoteResponse> serializer = ofGson(commandGSON, RemoteCommand.class, responseGson, RemoteResponse.class);
 	private final BufferSerializer<KeyValue<K, V>> bufferSerializer;
 
-	public DataStorageRemoteServer(Eventloop eventloop, HasSortedStream<K, V> hasSortedStream, Gson gson, BufferSerializer<KeyValue<K, V>> bufferSerializer) {
+	public DataStorageRemoteServer(Eventloop eventloop, HasSortedStreamProducer<K, V> hasSortedStreamProducer, Gson gson, BufferSerializer<KeyValue<K, V>> bufferSerializer) {
 		super(eventloop);
 		this.eventloop = eventloop;
-		this.hasSortedStream = hasSortedStream;
+		this.hasSortedStreamProducer = hasSortedStreamProducer;
 		this.gson = gson;
 		this.bufferSerializer = bufferSerializer;
 	}
@@ -65,7 +65,7 @@ public class DataStorageRemoteServer<K extends Comparable<K>, V> extends Abstrac
 	private void doRead(final MessagingWithBinaryStreaming<RemoteCommand, RemoteResponse> messaging, RemoteCommand msg) {
 		if (msg instanceof GetSortedStream) {
 			final Predicate<K> predicate = deserializePredicate((GetSortedStream) msg);
-			hasSortedStream.getSortedStream(predicate, new ResultCallback<StreamProducer<KeyValue<K, V>>>() {
+			hasSortedStreamProducer.getSortedStreamProducer(predicate, new ResultCallback<StreamProducer<KeyValue<K, V>>>() {
 				@Override
 				protected void onResult(final StreamProducer<KeyValue<K, V>> result) {
 					messaging.send(new DataStorageRemoteResponses.OkResponse(), new ForwardingCompletionCallback(this) {

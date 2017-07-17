@@ -3,10 +3,6 @@ package io.datakernel.storage;
 import com.google.common.base.Function;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Ordering;
-import io.datakernel.async.CompletionCallback;
-import io.datakernel.async.ForwardingCompletionCallback;
 import io.datakernel.async.ForwardingResultCallback;
 import io.datakernel.async.ResultCallback;
 import io.datakernel.eventloop.Eventloop;
@@ -16,21 +12,16 @@ import io.datakernel.stream.AbstractStreamTransformer_1_1;
 import io.datakernel.stream.StreamDataReceiver;
 import io.datakernel.stream.StreamProducer;
 import io.datakernel.stream.file.StreamFileReader;
-import io.datakernel.stream.file.StreamFileWriter;
 import io.datakernel.stream.processor.StreamBinaryDeserializer;
-import io.datakernel.stream.processor.StreamBinarySerializer;
-import io.datakernel.stream.processor.StreamReducers;
 
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.concurrent.ExecutorService;
 
-import static io.datakernel.storage.StreamMergeUtils.mergeStreams;
-import static java.nio.file.StandardOpenOption.*;
-import static java.util.Collections.singletonList;
+import static java.nio.file.StandardOpenOption.CREATE;
+import static java.nio.file.StandardOpenOption.READ;
 
-public class DataStorageFileReader<K extends Comparable<K>, V> implements HasSortedStream<K, V> {
+public class DataStorageFileReader<K extends Comparable<K>, V> implements HasSortedStreamProducer<K, V> {
 	private static final OpenOption[] READ_OPTIONS = new OpenOption[]{CREATE, READ};
 
 	private final Eventloop eventloop;
@@ -55,7 +46,7 @@ public class DataStorageFileReader<K extends Comparable<K>, V> implements HasSor
 	}
 
 	@Override
-	public void getSortedStream(final Predicate<K> predicate, final ResultCallback<StreamProducer<KeyValue<K, V>>> callback) {
+	public void getSortedStreamProducer(final Predicate<K> predicate, final ResultCallback<StreamProducer<KeyValue<K, V>>> callback) {
 		AsyncFile.open(eventloop, executorService, files[currentStateFile], READ_OPTIONS, new ForwardingResultCallback<AsyncFile>(callback) {
 			@Override
 			protected void onResult(AsyncFile asyncFile) {

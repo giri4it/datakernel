@@ -18,8 +18,8 @@ import io.datakernel.eventloop.Eventloop;
 import io.datakernel.eventloop.FatalErrorHandlers;
 import io.datakernel.serializer.BufferSerializer;
 import io.datakernel.storage.DataStorageTreeMap;
-import io.datakernel.storage.HasSortedStream;
-import io.datakernel.storage.HasSortedStream.KeyValue;
+import io.datakernel.storage.HasSortedStreamProducer;
+import io.datakernel.storage.HasSortedStreamProducer.KeyValue;
 import io.datakernel.storage.Synchronizer;
 import io.datakernel.storage.remote.DataStorageRemoteClient;
 import io.datakernel.storage.remote.DataStorageRemoteServer;
@@ -300,11 +300,11 @@ public class FullExample {
 
 	private static <K, V> AsyncCallable<List<KeyValue<K, V>>> getState(final Eventloop eventloop,
 	                                                                   final Predicate<K> predicate,
-	                                                                   final HasSortedStream<K, V> hasSortedStream) {
+	                                                                   final HasSortedStreamProducer<K, V> hasSortedStreamProducer) {
 		return new AsyncCallable<List<KeyValue<K, V>>>() {
 			@Override
 			public void call(final ResultCallback<List<KeyValue<K, V>>> callback) {
-				hasSortedStream.getSortedStream(predicate, new ForwardingResultCallback<StreamProducer<KeyValue<K, V>>>(callback) {
+				hasSortedStreamProducer.getSortedStreamProducer(predicate, new ForwardingResultCallback<StreamProducer<KeyValue<K, V>>>(callback) {
 					@Override
 					protected void onResult(StreamProducer<KeyValue<K, V>> producer) {
 						final StreamConsumers.ToList<KeyValue<K, V>> consumerToList = StreamConsumers.toList(eventloop);

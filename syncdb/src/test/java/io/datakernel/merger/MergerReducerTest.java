@@ -3,7 +3,7 @@ package io.datakernel.merger;
 import io.datakernel.stream.StreamDataReceiver;
 import io.datakernel.stream.processor.StreamReducers;
 import org.junit.Test;
-import io.datakernel.storage.HasSortedStream.KeyValue;
+import io.datakernel.storage.HasSortedStreamProducer.KeyValue;
 
 import java.util.Set;
 import java.util.TreeSet;

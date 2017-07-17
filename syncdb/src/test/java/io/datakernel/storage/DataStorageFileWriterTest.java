@@ -11,7 +11,7 @@ import io.datakernel.eventloop.Eventloop;
 import io.datakernel.eventloop.FatalErrorHandlers;
 import io.datakernel.file.AsyncFile;
 import io.datakernel.serializer.BufferSerializer;
-import io.datakernel.storage.HasSortedStream.KeyValue;
+import io.datakernel.storage.HasSortedStreamProducer.KeyValue;
 import io.datakernel.stream.StreamConsumers;
 import io.datakernel.stream.StreamProducer;
 import io.datakernel.stream.file.StreamFileReader;
@@ -43,7 +43,7 @@ import static org.junit.Assert.assertEquals;
 public class DataStorageFileWriterTest {
 
 	private static final Predicate<Integer> ALWAYS_TRUE = Predicates.alwaysTrue();
-	private static final List<? extends HasSortedStream<Integer, Set<String>>> EMPTY_PEERS = new ArrayList<>();
+	private static final List<? extends HasSortedStreamProducer<Integer, Set<String>>> EMPTY_PEERS = new ArrayList<>();
 	private static final Function<KeyValue<Integer, Set<String>>, Integer> KEY_FUNCTION = new Function<KeyValue<Integer, Set<String>>, Integer>() {
 		@Override
 		public Integer apply(KeyValue<Integer, Set<String>> input) {
@@ -80,7 +80,7 @@ public class DataStorageFileWriterTest {
 
 	private BufferSerializer<KeyValue<Integer, Set<String>>> serializer = SERIALIZER;
 	private Function<KeyValue<Integer, Set<String>>, Integer> keyFunction = KEY_FUNCTION;
-	private List<? extends HasSortedStream<Integer, Set<String>>> peers = EMPTY_PEERS;
+	private List<? extends HasSortedStreamProducer<Integer, Set<String>>> peers = EMPTY_PEERS;
 	private Predicate<Integer> alwaysTrue = ALWAYS_TRUE;
 	private int bufferSize = 1;
 
@@ -88,10 +88,10 @@ public class DataStorageFileWriterTest {
 		return new KeyValue<Integer, Set<String>>(key, Sets.newTreeSet(asList(value)));
 	}
 
-	private static HasSortedStream<Integer, Set<String>> wrapHasSortedStream(final StreamProducer<KeyValue<Integer, Set<String>>> producer) {
-		return new HasSortedStream<Integer, Set<String>>() {
+	private static HasSortedStreamProducer<Integer, Set<String>> wrapHasSortedStream(final StreamProducer<KeyValue<Integer, Set<String>>> producer) {
+		return new HasSortedStreamProducer<Integer, Set<String>>() {
 			@Override
-			public void getSortedStream(Predicate<Integer> predicate, ResultCallback<StreamProducer<KeyValue<Integer, Set<String>>>> callback) {
+			public void getSortedStreamProducer(Predicate<Integer> predicate, ResultCallback<StreamProducer<KeyValue<Integer, Set<String>>>> callback) {
 				callback.setResult(producer);
 			}
 		};

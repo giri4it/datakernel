@@ -13,8 +13,8 @@ import io.datakernel.eventloop.Eventloop;
 import io.datakernel.serializer.BufferSerializer;
 import io.datakernel.storage.DataStorageFileReader;
 import io.datakernel.storage.DataStorageFileWriter;
-import io.datakernel.storage.HasSortedStream;
-import io.datakernel.storage.HasSortedStream.KeyValue;
+import io.datakernel.storage.HasSortedStreamProducer;
+import io.datakernel.storage.HasSortedStreamProducer.KeyValue;
 import io.datakernel.stream.StreamConsumers;
 import io.datakernel.stream.StreamProducer;
 import io.datakernel.stream.processor.StreamReducers;
@@ -74,14 +74,14 @@ public class FileExample {
 		final Eventloop eventloop = Eventloop.create();
 		final ExecutorService executorService = Executors.newFixedThreadPool(4);
 
-		final HasSortedStream<Integer, Set<String>> storage = new HasSortedStream<Integer, Set<String>>() {
+		final HasSortedStreamProducer<Integer, Set<String>> storage = new HasSortedStreamProducer<Integer, Set<String>>() {
 			private final Iterator<StreamProducer<KeyValue<Integer, Set<String>>>> producers = asList(
 					ofValue(eventloop, newKeyValue(1, "a")),
 					ofValue(eventloop, newKeyValue(2, "b")))
 					.iterator();
 
 			@Override
-			public void getSortedStream(Predicate<Integer> predicate, ResultCallback<StreamProducer<KeyValue<Integer, Set<String>>>> callback) {
+			public void getSortedStreamProducer(Predicate<Integer> predicate, ResultCallback<StreamProducer<KeyValue<Integer, Set<String>>>> callback) {
 				callback.setResult(producers.next());
 			}
 		};
@@ -92,14 +92,14 @@ public class FileExample {
 
 		final StreamReducers.Reducer<Integer, KeyValue<Integer, Set<String>>, KeyValue<Integer, Set<String>>, KeyValue<Integer, Set<String>>> reducer =
 				TestUnion.getInstance().inputToAccumulator();
-		final List<? extends HasSortedStream<Integer, Set<String>>> peers = asList(storage, fileStorageReader);
+		final List<? extends HasSortedStreamProducer<Integer, Set<String>>> peers = asList(storage, fileStorageReader);
 		final DataStorageFileWriter<Integer, Set<String>, KeyValue<Integer, Set<String>>> fileStorageWriter =
 				new DataStorageFileWriter<>(eventloop, nextStateFile, currentStateFile, executorService,
 				KEY_VALUE_SERIALIZER, KEY_FUNCTION, peers, reducer, ALWAYS_TRUE);
 
 		{
 			final ResultCallbackFuture<StreamProducer<KeyValue<Integer, Set<String>>>> sortedStreamCallback = ResultCallbackFuture.create();
-			fileStorageReader.getSortedStream(ALWAYS_TRUE, sortedStreamCallback);
+			fileStorageReader.getSortedStreamProducer(ALWAYS_TRUE, sortedStreamCallback);
 
 			eventloop.run();
 			System.out.println("sortedStream");
@@ -121,7 +121,7 @@ public class FileExample {
 			System.out.println("sync");
 
 			final ResultCallbackFuture<StreamProducer<KeyValue<Integer, Set<String>>>> sortedStreamCallback = ResultCallbackFuture.create();
-			fileStorageReader.getSortedStream(ALWAYS_TRUE, sortedStreamCallback);
+			fileStorageReader.getSortedStreamProducer(ALWAYS_TRUE, sortedStreamCallback);
 
 			eventloop.run();
 			System.out.println("sortedStream");

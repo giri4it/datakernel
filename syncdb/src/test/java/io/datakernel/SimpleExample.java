@@ -14,8 +14,8 @@ import io.datakernel.stream.processor.StreamReducers.Reducer;
 import org.slf4j.LoggerFactory;
 import io.datakernel.storage.DataStorageMerger;
 import io.datakernel.storage.DataStorageTreeMap;
-import io.datakernel.storage.HasSortedStream;
-import io.datakernel.storage.HasSortedStream.KeyValue;
+import io.datakernel.storage.HasSortedStreamProducer;
+import io.datakernel.storage.HasSortedStreamProducer.KeyValue;
 
 import java.util.List;
 import java.util.Set;
@@ -40,10 +40,10 @@ public class SimpleExample {
 		};
 	}
 
-	private static HasSortedStream<Integer, Set<String>> sorterStream(final StreamProducer<KeyValue<Integer, Set<String>>> producer) {
-		return new HasSortedStream<Integer, Set<String>>() {
+	private static HasSortedStreamProducer<Integer, Set<String>> sorterStream(final StreamProducer<KeyValue<Integer, Set<String>>> producer) {
+		return new HasSortedStreamProducer<Integer, Set<String>>() {
 			@Override
-			public void getSortedStream(Predicate<Integer> predicate, ResultCallback<StreamProducer<KeyValue<Integer, Set<String>>>> callback) {
+			public void getSortedStreamProducer(Predicate<Integer> predicate, ResultCallback<StreamProducer<KeyValue<Integer, Set<String>>>> callback) {
 				callback.setResult(producer);
 			}
 		};
@@ -52,7 +52,7 @@ public class SimpleExample {
 	private static DataStorageTreeMap<Integer, Set<String>> createSimpleStorage(
 			final Eventloop eventloop,
 			final KeyValue<Integer, Set<String>> value,
-			final List<? extends HasSortedStream<Integer, Set<String>>> peers,
+			final List<? extends HasSortedStreamProducer<Integer, Set<String>>> peers,
 			final Reducer<Integer, KeyValue<Integer, Set<String>>, KeyValue<Integer, Set<String>>, KeyValue<Integer, Set<String>>> reducer,
 			final Predicate<Integer> keyFilter) {
 
@@ -92,11 +92,11 @@ public class SimpleExample {
 		});
 	}
 
-	private static AsyncCallable<StreamProducer<KeyValue<Integer, Set<String>>>> getSortedStream(final HasSortedStream<Integer, Set<String>> hasSortedStream) {
+	private static AsyncCallable<StreamProducer<KeyValue<Integer, Set<String>>>> getSortedStream(final HasSortedStreamProducer<Integer, Set<String>> hasSortedStreamProducer) {
 		return new AsyncCallable<StreamProducer<KeyValue<Integer, Set<String>>>>() {
 			@Override
 			public void call(ResultCallback<StreamProducer<KeyValue<Integer, Set<String>>>> callback) {
-				hasSortedStream.getSortedStream(ALWAYS_TRUE, callback);
+				hasSortedStreamProducer.getSortedStreamProducer(ALWAYS_TRUE, callback);
 			}
 		};
 	}
@@ -120,9 +120,9 @@ public class SimpleExample {
 		final KeyValue<Integer, Set<String>> value2 = newKeyValue(1, "ivan:phones", "ivan:mouse");
 		final KeyValue<Integer, Set<String>> value3 = newKeyValue(5, "jim:music", "jim:cup");
 
-		final List<HasSortedStream<Integer, Set<String>>> sortedStreams1 = asList(sorterStream(ofValue(eventloop, value1)));
-		final List<HasSortedStream<Integer, Set<String>>> sortedStreams2 = asList(sorterStream(ofValue(eventloop, value2)));
-		final List<HasSortedStream<Integer, Set<String>>> sortedStreams3 = asList(sorterStream(ofValue(eventloop, value3)));
+		final List<HasSortedStreamProducer<Integer, Set<String>>> sortedStreams1 = asList(sorterStream(ofValue(eventloop, value1)));
+		final List<HasSortedStreamProducer<Integer, Set<String>>> sortedStreams2 = asList(sorterStream(ofValue(eventloop, value2)));
+		final List<HasSortedStreamProducer<Integer, Set<String>>> sortedStreams3 = asList(sorterStream(ofValue(eventloop, value3)));
 
 		final KeyValue<Integer, Set<String>> data1 = newKeyValue(1, "ivan:cars", "ivan:dolls");
 		final KeyValue<Integer, Set<String>> data2 = newKeyValue(1, "ivan:cars", "ivan:phones");

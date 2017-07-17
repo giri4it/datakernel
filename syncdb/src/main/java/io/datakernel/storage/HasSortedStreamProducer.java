@@ -5,7 +5,7 @@ import io.datakernel.async.ResultCallback;
 import io.datakernel.stream.StreamProducer;
 
 // K extends Comparable<K> ???
-public interface HasSortedStream<K, V> {
+public interface HasSortedStreamProducer<K, V> {
 
 	// implements Map.Entry<K, V> ???
 	class KeyValue<K, V> {
@@ -53,5 +53,5 @@ public interface HasSortedStream<K, V> {
 		}
 	}
 
-	void getSortedStream(Predicate<K> predicate, ResultCallback<StreamProducer<KeyValue<K, V>>> callback);
+	void getSortedStreamProducer(Predicate<K> predicate, ResultCallback<StreamProducer<KeyValue<K, V>>> callback);
 }

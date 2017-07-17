@@ -9,7 +9,7 @@ import io.datakernel.bytebuf.ByteBuf;
 import io.datakernel.eventloop.Eventloop;
 import io.datakernel.eventloop.FatalErrorHandlers;
 import io.datakernel.serializer.BufferSerializer;
-import io.datakernel.storage.HasSortedStream.KeyValue;
+import io.datakernel.storage.HasSortedStreamProducer.KeyValue;
 import io.datakernel.stream.StreamConsumers;
 import io.datakernel.stream.StreamProducer;
 import io.datakernel.stream.file.StreamFileWriter;
@@ -110,7 +110,7 @@ public class DataStorageFileReaderTest {
 	@Test
 	public void testInitEmptyState() throws IOException, ExecutionException, InterruptedException {
 		final ResultCallbackFuture<StreamProducer<KeyValue<Integer, Set<String>>>> callback = ResultCallbackFuture.create();
-		fileStorageReader.getSortedStream(ALWAYS_TRUE, callback);
+		fileStorageReader.getSortedStreamProducer(ALWAYS_TRUE, callback);
 
 		eventloop.run();
 		assertEquals(Collections.emptyList(), toList(callback.get()));
@@ -121,7 +121,7 @@ public class DataStorageFileReaderTest {
 		final KeyValue<Integer, Set<String>> data = newKeyValue(1, "a");
 		writeStateToFile(currentStateFile, ofValue(eventloop, data));
 		final ResultCallbackFuture<StreamProducer<KeyValue<Integer, Set<String>>>> callback = ResultCallbackFuture.create();
-		fileStorageReader.getSortedStream(ALWAYS_TRUE, callback);
+		fileStorageReader.getSortedStreamProducer(ALWAYS_TRUE, callback);
 
 		eventloop.run();
 		assertEquals(singletonList(data), toList(callback.get()));
@@ -133,7 +133,7 @@ public class DataStorageFileReaderTest {
 		writeStateToFile(currentStateFile, ofIterable(eventloop, data));
 
 		final ResultCallbackFuture<StreamProducer<KeyValue<Integer, Set<String>>>> callback = ResultCallbackFuture.create();
-		fileStorageReader.getSortedStream(Predicates.in(asList(0, 3)), callback);
+		fileStorageReader.getSortedStreamProducer(Predicates.in(asList(0, 3)), callback);
 
 		eventloop.run();
 		assertEquals(asList(data.get(0), data.get(3)), toList(callback.get()));
@@ -148,7 +148,7 @@ public class DataStorageFileReaderTest {
 
 		for (List<KeyValue<Integer, Set<String>>> data : asList(data1, data2, data1, data2)) {
 			final ResultCallbackFuture<StreamProducer<KeyValue<Integer, Set<String>>>> callback = ResultCallbackFuture.create();
-			fileStorageReader.getSortedStream(ALWAYS_TRUE, callback);
+			fileStorageReader.getSortedStreamProducer(ALWAYS_TRUE, callback);
 			eventloop.run();
 			assertEquals(data, toList(callback.get()));
 

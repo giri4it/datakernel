@@ -9,7 +9,7 @@ import io.datakernel.async.ForwardingResultCallback;
 import io.datakernel.eventloop.Eventloop;
 import io.datakernel.file.AsyncFile;
 import io.datakernel.serializer.BufferSerializer;
-import io.datakernel.storage.HasSortedStream.KeyValue;
+import io.datakernel.storage.HasSortedStreamProducer.KeyValue;
 import io.datakernel.stream.StreamProducer;
 import io.datakernel.stream.file.StreamFileWriter;
 import io.datakernel.stream.processor.StreamBinarySerializer;
@@ -32,7 +32,7 @@ public class DataStorageFileWriter<K extends Comparable<K>, V, A> implements Syn
 	private final BufferSerializer<KeyValue<K, V>> bufferSerializer;
 	private final Function<KeyValue<K, V>, K> keyFunction;
 	private final Predicate<K> filter;
-	private final List<? extends HasSortedStream<K, V>> peers;
+	private final List<? extends HasSortedStreamProducer<K, V>> peers;
 	private final Reducer<K, KeyValue<K, V>, KeyValue<K, V>, A> reducer;
 
 	private int currentWriteFile;
@@ -41,7 +41,7 @@ public class DataStorageFileWriter<K extends Comparable<K>, V, A> implements Syn
 	                             ExecutorService executorService,
 	                             BufferSerializer<KeyValue<K, V>> bufferSerializer,
 	                             Function<KeyValue<K, V>, K> keyFunction,
-	                             List<? extends HasSortedStream<K, V>> peers,
+	                             List<? extends HasSortedStreamProducer<K, V>> peers,
 	                             Reducer<K, KeyValue<K, V>, KeyValue<K, V>, A> reducer,
 	                             Predicate<K> filter) {
 		this.eventloop = eventloop;

@@ -8,7 +8,7 @@ import io.datakernel.async.ForwardingCompletionCallback;
 import io.datakernel.async.ResultCallback;
 import io.datakernel.eventloop.Eventloop;
 import io.datakernel.eventloop.FatalErrorHandlers;
-import io.datakernel.storage.HasSortedStream.KeyValue;
+import io.datakernel.storage.HasSortedStreamProducer.KeyValue;
 import io.datakernel.stream.*;
 import org.junit.Before;
 import org.junit.Test;
@@ -44,9 +44,9 @@ public class DataStorageListenableTest {
 	public void testImmediateProducer() {
 		final List<KeyValue<Integer, String>> data = asList(new KeyValue<>(1, "a"), new KeyValue<>(2, "b"));
 
-		final DataStorageListenable<Integer, String> dataStorage = new DataStorageListenable<>(eventloop, new HasSortedStream<Integer, String>() {
+		final DataStorageListenable<Integer, String> dataStorage = new DataStorageListenable<>(eventloop, new HasSortedStreamProducer<Integer, String>() {
 			@Override
-			public void getSortedStream(Predicate<Integer> predicate, ResultCallback<StreamProducer<KeyValue<Integer, String>>> callback) {
+			public void getSortedStreamProducer(Predicate<Integer> predicate, ResultCallback<StreamProducer<KeyValue<Integer, String>>> callback) {
 				callback.setResult(ofIterable(eventloop, data));
 			}
 		});
@@ -54,8 +54,8 @@ public class DataStorageListenableTest {
 		final StreamConsumers.ToList<KeyValue<Integer, String>> toList1 = StreamConsumers.toList(eventloop);
 		final StreamConsumers.ToList<KeyValue<Integer, String>> toList2 = StreamConsumers.toList(eventloop);
 
-		dataStorage.getSortedStream(Predicates.<Integer>alwaysTrue(), streamTo(toList1));
-		dataStorage.getSortedStream(Predicates.<Integer>alwaysTrue(), streamTo(toList2));
+		dataStorage.getSortedStreamProducer(Predicates.<Integer>alwaysTrue(), streamTo(toList1));
+		dataStorage.getSortedStreamProducer(Predicates.<Integer>alwaysTrue(), streamTo(toList2));
 
 		eventloop.run();
 		assertEquals(data, toList1.getList());
@@ -67,9 +67,9 @@ public class DataStorageListenableTest {
 		final long schedule = eventloop.currentTimeMillis() + 100;
 		final List<KeyValue<Integer, String>> data = asList(new KeyValue<>(1, "a"), new KeyValue<>(2, "b"));
 
-		final DataStorageListenable<Integer, String> dataStorage = new DataStorageListenable<>(eventloop, new HasSortedStream<Integer, String>() {
+		final DataStorageListenable<Integer, String> dataStorage = new DataStorageListenable<>(eventloop, new HasSortedStreamProducer<Integer, String>() {
 			@Override
-			public void getSortedStream(Predicate<Integer> predicate, final ResultCallback<StreamProducer<KeyValue<Integer, String>>> callback) {
+			public void getSortedStreamProducer(Predicate<Integer> predicate, final ResultCallback<StreamProducer<KeyValue<Integer, String>>> callback) {
 				eventloop.schedule(schedule, new Runnable() {
 					@Override
 					public void run() {
@@ -82,8 +82,8 @@ public class DataStorageListenableTest {
 		final StreamConsumers.ToList<KeyValue<Integer, String>> toList1 = StreamConsumers.toList(eventloop);
 		final StreamConsumers.ToList<KeyValue<Integer, String>> toList2 = StreamConsumers.toList(eventloop);
 
-		dataStorage.getSortedStream(Predicates.<Integer>alwaysTrue(), streamTo(toList1));
-		dataStorage.getSortedStream(Predicates.<Integer>alwaysTrue(), streamTo(toList2));
+		dataStorage.getSortedStreamProducer(Predicates.<Integer>alwaysTrue(), streamTo(toList1));
+		dataStorage.getSortedStreamProducer(Predicates.<Integer>alwaysTrue(), streamTo(toList2));
 
 		eventloop.run();
 		assertEquals(data, toList1.getList());
@@ -94,9 +94,9 @@ public class DataStorageListenableTest {
 	public void testManyRequestAndAnswerIterations() {
 		final List<KeyValue<Integer, String>> data = asList(new KeyValue<>(1, "a"), new KeyValue<>(2, "b"));
 
-		final DataStorageListenable<Integer, String> dataStorage = new DataStorageListenable<>(eventloop, new HasSortedStream<Integer, String>() {
+		final DataStorageListenable<Integer, String> dataStorage = new DataStorageListenable<>(eventloop, new HasSortedStreamProducer<Integer, String>() {
 			@Override
-			public void getSortedStream(Predicate<Integer> predicate, ResultCallback<StreamProducer<KeyValue<Integer, String>>> callback) {
+			public void getSortedStreamProducer(Predicate<Integer> predicate, ResultCallback<StreamProducer<KeyValue<Integer, String>>> callback) {
 				callback.setResult(ofIterable(eventloop, data));
 			}
 		});
@@ -105,8 +105,8 @@ public class DataStorageListenableTest {
 			final StreamConsumers.ToList<KeyValue<Integer, String>> toList1 = StreamConsumers.toList(eventloop);
 			final StreamConsumers.ToList<KeyValue<Integer, String>> toList2 = StreamConsumers.toList(eventloop);
 
-			dataStorage.getSortedStream(Predicates.<Integer>alwaysTrue(), streamTo(toList1));
-			dataStorage.getSortedStream(Predicates.<Integer>alwaysTrue(), streamTo(toList2));
+			dataStorage.getSortedStreamProducer(Predicates.<Integer>alwaysTrue(), streamTo(toList1));
+			dataStorage.getSortedStreamProducer(Predicates.<Integer>alwaysTrue(), streamTo(toList2));
 
 			eventloop.run();
 			assertEquals(data, toList1.getList());
@@ -118,11 +118,11 @@ public class DataStorageListenableTest {
 	public void testWaitUntilPreviousProducerFinished() {
 		final List<KeyValue<Integer, String>> data = asList(new KeyValue<>(1, "a"), new KeyValue<>(2, "b"));
 
-		final DataStorageListenable<Integer, String> dataStorage = new DataStorageListenable<>(eventloop, new HasSortedStream<Integer, String>() {
+		final DataStorageListenable<Integer, String> dataStorage = new DataStorageListenable<>(eventloop, new HasSortedStreamProducer<Integer, String>() {
 			private int requestsInTime;
 
 			@Override
-			public void getSortedStream(Predicate<Integer> predicate, final ResultCallback<StreamProducer<KeyValue<Integer, String>>> callback) {
+			public void getSortedStreamProducer(Predicate<Integer> predicate, final ResultCallback<StreamProducer<KeyValue<Integer, String>>> callback) {
 				if (++requestsInTime > 1) fail();
 				callback.setResult(new ScheduleEndOfStreamProducer(eventloop, data, new ForwardingCompletionCallback(callback) {
 					@Override
@@ -135,13 +135,13 @@ public class DataStorageListenableTest {
 
 		for (int i = 0; i < 2; i++) {
 			final StreamConsumers.ToList<KeyValue<Integer, String>> toList1 = StreamConsumers.toList(eventloop);
-			dataStorage.getSortedStream(Predicates.<Integer>alwaysTrue(), streamTo(toList1));
+			dataStorage.getSortedStreamProducer(Predicates.<Integer>alwaysTrue(), streamTo(toList1));
 
 			final StreamConsumers.ToList<KeyValue<Integer, String>> toList2 = StreamConsumers.toList(eventloop);
 			eventloop.schedule(eventloop.currentTimeMillis() + 100, new Runnable() {
 				@Override
 				public void run() {
-					dataStorage.getSortedStream(Predicates.<Integer>alwaysTrue(), streamTo(toList2));
+					dataStorage.getSortedStreamProducer(Predicates.<Integer>alwaysTrue(), streamTo(toList2));
 				}
 			});
 
@@ -155,17 +155,17 @@ public class DataStorageListenableTest {
 	@Test
 	public void testExceptionOnGetSortedStream() {
 		final Exception exception = new Exception("test exception");
-		final DataStorageListenable<Integer, String> dataStorage = new DataStorageListenable<>(eventloop, new HasSortedStream<Integer, String>() {
+		final DataStorageListenable<Integer, String> dataStorage = new DataStorageListenable<>(eventloop, new HasSortedStreamProducer<Integer, String>() {
 			@Override
-			public void getSortedStream(Predicate<Integer> predicate, final ResultCallback<StreamProducer<KeyValue<Integer, String>>> callback) {
+			public void getSortedStreamProducer(Predicate<Integer> predicate, final ResultCallback<StreamProducer<KeyValue<Integer, String>>> callback) {
 				callback.setException(exception);
 			}
 		});
 
 		final SaveExceptionCallback<StreamProducer<KeyValue<Integer, String>>> callback1 = new SaveExceptionCallback<>();
 		final SaveExceptionCallback<StreamProducer<KeyValue<Integer, String>>> callback2 = new SaveExceptionCallback<>();
-		dataStorage.getSortedStream(Predicates.<Integer>alwaysTrue(), callback1);
-		dataStorage.getSortedStream(Predicates.<Integer>alwaysTrue(), callback2);
+		dataStorage.getSortedStreamProducer(Predicates.<Integer>alwaysTrue(), callback1);
+		dataStorage.getSortedStreamProducer(Predicates.<Integer>alwaysTrue(), callback2);
 
 		eventloop.run();
 		assertEquals(exception, callback1.getException());
@@ -178,9 +178,9 @@ public class DataStorageListenableTest {
 				ofValue(eventloop, new KeyValue<>(1, "a")),
 				StreamProducers.<KeyValue<Integer, String>>closingWithError(eventloop, new Exception("test exception")));
 
-		final DataStorageListenable<Integer, String> dataStorage = new DataStorageListenable<>(eventloop, new HasSortedStream<Integer, String>() {
+		final DataStorageListenable<Integer, String> dataStorage = new DataStorageListenable<>(eventloop, new HasSortedStreamProducer<Integer, String>() {
 			@Override
-			public void getSortedStream(Predicate<Integer> predicate, final ResultCallback<StreamProducer<KeyValue<Integer, String>>> callback) {
+			public void getSortedStreamProducer(Predicate<Integer> predicate, final ResultCallback<StreamProducer<KeyValue<Integer, String>>> callback) {
 				callback.setResult(producer);
 			}
 		});
@@ -188,8 +188,8 @@ public class DataStorageListenableTest {
 		final StreamConsumers.ToList<KeyValue<Integer, String>> toList1 = StreamConsumers.toList(eventloop);
 		final StreamConsumers.ToList<KeyValue<Integer, String>> toList2 = StreamConsumers.toList(eventloop);
 
-		dataStorage.getSortedStream(Predicates.<Integer>alwaysTrue(), streamTo(toList1));
-		dataStorage.getSortedStream(Predicates.<Integer>alwaysTrue(), streamTo(toList2));
+		dataStorage.getSortedStreamProducer(Predicates.<Integer>alwaysTrue(), streamTo(toList1));
+		dataStorage.getSortedStreamProducer(Predicates.<Integer>alwaysTrue(), streamTo(toList2));
 
 		eventloop.run();
 		assertEquals(CLOSED_WITH_ERROR, toList1.getConsumerStatus());
