@@ -31,25 +31,31 @@ import static io.datakernel.storage.remote.DataStorageRemoteCommands.commandGSON
 import static io.datakernel.storage.remote.DataStorageRemoteResponses.responseGson;
 import static io.datakernel.stream.net.MessagingSerializers.ofGson;
 
-public class DataStorageRemoteClient<K, V> implements HasSortedStream<K, V> {
+@SuppressWarnings("unused")
+public final class DataStorageRemoteClient<K, V> implements HasSortedStream<K, V> {
 	private final Eventloop eventloop;
 	private final InetSocketAddress address;
 	private final MessagingSerializer<RemoteResponse, RemoteCommand> serializer = ofGson(responseGson, RemoteResponse.class, commandGSON, RemoteCommand.class);
 	private final Gson gson;
 	private final BufferSerializer<KeyValue<K, V>> bufferSerializer;
 	private final SocketSettings socketSettings = SocketSettings.create();
-	private final SSLContext sslContext;
-	private final ExecutorService sslExecutor;
 
-	public DataStorageRemoteClient(Eventloop eventloop, InetSocketAddress address,
-	                               Gson gson, BufferSerializer<KeyValue<K, V>> bufferSerializer, SSLContext sslContext,
-	                               ExecutorService sslExecutor) {
+	// optional
+	private SSLContext sslContext;
+	private ExecutorService sslExecutor;
+
+	public DataStorageRemoteClient(Eventloop eventloop, InetSocketAddress address, Gson gson,
+	                               BufferSerializer<KeyValue<K, V>> bufferSerializer) {
 		this.eventloop = eventloop;
 		this.address = address;
 		this.gson = gson;
 		this.bufferSerializer = bufferSerializer;
+	}
+
+	public final DataStorageRemoteClient<K, V> withSsl(SSLContext sslContext, ExecutorService executor) {
 		this.sslContext = sslContext;
-		this.sslExecutor = sslExecutor;
+		this.sslExecutor = executor;
+		return this;
 	}
 
 	private void connect(InetSocketAddress address, final MessagingConnectCallback callback) {
@@ -150,7 +156,7 @@ public class DataStorageRemoteClient<K, V> implements HasSortedStream<K, V> {
 	private abstract class ForwardingMessagingConnectCallback extends MessagingConnectCallback {
 		private final ExceptionCallback callback;
 
-		protected ForwardingMessagingConnectCallback(ExceptionCallback callback) {
+		private ForwardingMessagingConnectCallback(ExceptionCallback callback) {
 			this.callback = callback;
 		}
 
@@ -159,5 +165,4 @@ public class DataStorageRemoteClient<K, V> implements HasSortedStream<K, V> {
 			callback.setException(e);
 		}
 	}
-
 }

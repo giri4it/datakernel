@@ -107,7 +107,7 @@ public class FullExample {
 
 		final List<DataStorageRemoteClient<K, V>> remoteClients = new ArrayList<>();
 		for (InetSocketAddress address : addresses) {
-			remoteClients.add(new DataStorageRemoteClient<>(eventloop, address, gson, bufferSerializer, null, null));
+			remoteClients.add(new DataStorageRemoteClient<>(eventloop, address, gson, bufferSerializer));
 		}
 
 		final DataStorageTreeMap<K, V> dataStorageTreeMap = new DataStorageTreeMap<>(eventloop, treeMap, remoteClients, reducer, keyFilter);
@@ -217,8 +217,8 @@ public class FullExample {
 	}
 
 	@SafeVarargs
-	private static <V, A> void schedulePrintAndSync(final Eventloop eventloop,
-	                                                final DataStorageTreeMap<Key, V>... nodes) {
+	private static <V> void schedulePrintAndSync(final Eventloop eventloop,
+	                                             final DataStorageTreeMap<Key, V>... nodes) {
 		eventloop.schedule(eventloop.currentTimeMillis() + 3000, new Runnable() {
 			@Override
 			public void run() {
@@ -256,7 +256,7 @@ public class FullExample {
 	}
 
 	@SafeVarargs
-	private static <V, A> List<AsyncRunnable> printState(final Eventloop eventloop, DataStorageTreeMap<Key, V>... nodes) {
+	private static <V> List<AsyncRunnable> printState(final Eventloop eventloop, DataStorageTreeMap<Key, V>... nodes) {
 		final List<AsyncRunnable> asyncRunnables = new ArrayList<>();
 		for (int nodeId = 0; nodeId < nodes.length; nodeId++) {
 			final DataStorageTreeMap<Key, V> node = nodes[nodeId];

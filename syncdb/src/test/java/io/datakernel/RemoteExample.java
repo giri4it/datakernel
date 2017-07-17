@@ -113,7 +113,7 @@ public class RemoteExample {
 		server.listen();
 
 		final InetSocketAddress address = new InetSocketAddress(PORT);
-		final DataStorageRemoteClient<Integer, Set<String>> client = new DataStorageRemoteClient<>(eventloop, address, gson, KEY_VALUE_SERIALIZER, null, null);
+		final DataStorageRemoteClient<Integer, Set<String>> client = new DataStorageRemoteClient<>(eventloop, address, gson, KEY_VALUE_SERIALIZER);
 
 		client.getSortedStream(new EvenSortedStreamPredicate(2), new ResultCallback<StreamProducer<KeyValue<Integer, Set<String>>>>() {
 			@Override
