@@ -21,6 +21,7 @@ import org.junit.Test;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
+import static io.datakernel.stream.StreamConsumers.listenableConsumer;
 import static io.datakernel.stream.StreamProducers.ofIterable;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
@@ -119,7 +120,7 @@ public class DataStorageTreeMapTest {
 			dataStorageTreeMap.getSortedStreamConsumer(new ForwardingResultCallback<StreamConsumer<KeyValue<Integer, Set<String>>>>(syncCallback) {
 				@Override
 				protected void onResult(StreamConsumer<KeyValue<Integer, Set<String>>> consumer) {
-					ofIterable(eventloop, singleton(dataId1)).streamTo(consumer);
+					ofIterable(eventloop, singleton(dataId1)).streamTo(listenableConsumer(consumer, syncCallback));
 				}
 			});
 

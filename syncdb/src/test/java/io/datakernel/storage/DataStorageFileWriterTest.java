@@ -32,6 +32,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import static io.datakernel.stream.StreamConsumers.listenableConsumer;
 import static io.datakernel.stream.StreamProducers.ofIterable;
 import static io.datakernel.stream.StreamProducers.ofValue;
 import static java.util.Arrays.asList;
@@ -123,7 +124,7 @@ public class DataStorageFileWriterTest {
 		fileStorageWriter.getSortedStreamConsumer(new ForwardingResultCallback<StreamConsumer<KeyValue<Integer, Set<String>>>>(completionCallback) {
 			@Override
 			protected void onResult(StreamConsumer<KeyValue<Integer, Set<String>>> consumer) {
-				ofValue(eventloop, dataId1).streamTo(consumer);
+				ofValue(eventloop, dataId1).streamTo(listenableConsumer(consumer, completionCallback));
 			}
 		});
 		eventloop.run();
@@ -150,7 +151,7 @@ public class DataStorageFileWriterTest {
 			fileStorageWriter.getSortedStreamConsumer(new ForwardingResultCallback<StreamConsumer<KeyValue<Integer, Set<String>>>>(completionCallback) {
 				@Override
 				protected void onResult(StreamConsumer<KeyValue<Integer, Set<String>>> consumer) {
-					StreamProducers.<KeyValue<Integer, Set<String>>>closing(eventloop).streamTo(consumer);
+					StreamProducers.<KeyValue<Integer, Set<String>>>closing(eventloop).streamTo(listenableConsumer(consumer, completionCallback));
 				}
 			});
 			eventloop.run();
