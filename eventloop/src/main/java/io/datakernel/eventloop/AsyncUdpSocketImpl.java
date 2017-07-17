@@ -2,6 +2,8 @@ package io.datakernel.eventloop;
 
 import io.datakernel.bytebuf.ByteBuf;
 import io.datakernel.bytebuf.ByteBufPool;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -14,6 +16,7 @@ import static io.datakernel.eventloop.AsyncTcpSocketImpl.OP_POSTPONED;
 import static io.datakernel.util.Preconditions.checkNotNull;
 
 public final class AsyncUdpSocketImpl implements AsyncUdpSocket, NioChannelEventHandler {
+	private static final Logger logger = LoggerFactory.getLogger(AsyncUdpSocketImpl.class);
 	private static final int DEFAULT_UDP_BUFFER_SIZE = 16 * 1024;
 
 	private final Eventloop eventloop;
@@ -56,6 +59,7 @@ public final class AsyncUdpSocketImpl implements AsyncUdpSocket, NioChannelEvent
 			eventloop.post(new Runnable() {
 				@Override
 				public void run() {
+					logger.error("Erro while registering UDP socket impl");
 					closeChannel();
 					eventHandler.onClosedWithError(e);
 				}
@@ -77,18 +81,21 @@ public final class AsyncUdpSocketImpl implements AsyncUdpSocket, NioChannelEvent
 	@Override
 	public void onReadReady() {
 		while (isOpen()) {
+			logger.info("SOCKET ON READ READY");
 			ByteBuf buf = ByteBufPool.allocate(receiveBufferSize);
 			ByteBuffer buffer = buf.toWriteByteBuffer();
 			InetSocketAddress sourceAddress;
 			try {
 				sourceAddress = (InetSocketAddress) channel.receive(buffer);
 			} catch (IOException e) {
+				logger.error("CLOSING SOCKET WITH ERROR");
 				buf.recycle();
 				closeWithError(e);
 				return;
 			}
 
 			if (sourceAddress == null) {
+				logger.error("SOURCE ADDRESS IS NULL");
 				buf.recycle();
 				break;
 			}
@@ -117,6 +124,7 @@ public final class AsyncUdpSocketImpl implements AsyncUdpSocket, NioChannelEvent
 			try {
 				sent = channel.send(buffer, packet.getSocketAddress());
 			} catch (IOException e) {
+				logger.debug("Unable to write UDP packet");
 				closeWithError(e);
 				return;
 			}
@@ -166,14 +174,17 @@ public final class AsyncUdpSocketImpl implements AsyncUdpSocket, NioChannelEvent
 		for (UdpPacket packet : writeQueue) {
 			packet.recycle();
 		}
+		logger.info("Closing channel. All UDP packets are deleted from queue.");
 		writeQueue.clear();
 	}
 
 	private void closeChannel() {
 		if (channel == null) return;
 		try {
+			logger.error("CLOSING DATAGRAM CHANNEL");
 			channel.close();
 		} catch (IOException e) {
+			logger.error("ERROR WHILE CLOSING DATAGRAM CHANNEL");
 		}
 	}
 

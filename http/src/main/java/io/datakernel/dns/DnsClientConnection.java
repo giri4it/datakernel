@@ -98,6 +98,7 @@ final class DnsClientConnection implements AsyncUdpSocket.EventHandler {
 			callbacks = new HashSet<>();
 			resultHandlers.put(domainName, callbacks);
 		}
+		logger.info(String.format("Adding callback %s for domain %s", callback, domainName));
 		callbacks.add(callbackWithTimeout);
 		ByteBuf query = DnsMessage.newQuery(domainName, ipv6);
 		UdpPacket queryPacket = UdpPacket.of(query, dnsServerAddress);
@@ -134,7 +135,6 @@ final class DnsClientConnection implements AsyncUdpSocket.EventHandler {
 
 		try {
 			DnsQueryResult dnsQueryResult = DnsMessage.getQueryResult(response);
-
 			String domainName = dnsQueryResult.getDomainName();
 
 			final Set<ResultCallback<DnsQueryResult>> callbacks = resultHandlers.remove(domainName);
@@ -164,6 +164,8 @@ final class DnsClientConnection implements AsyncUdpSocket.EventHandler {
 
 	@Override
 	public void onClosedWithError(Exception e) {
+		logger.error("CLOSED WITH ERROR");
+//		resultHandlers.clear();
 	}
 	// endregion
 }

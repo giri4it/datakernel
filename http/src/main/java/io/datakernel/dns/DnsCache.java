@@ -17,6 +17,7 @@
 package io.datakernel.dns;
 
 import io.datakernel.async.ResultCallback;
+import io.datakernel.eventloop.Eventloop;
 import io.datakernel.time.CurrentTimeProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -72,16 +73,16 @@ final class DnsCache {
 	 * @param hardExpirationDeltaMillis  delta between time at which entry is considered resolved, but needs
 	 *                                   refreshing and time at which entry is considered not resolved
 	 */
-	private DnsCache(CurrentTimeProvider timeProvider, long errorCacheExpirationMillis, long hardExpirationDeltaMillis) {
+	private DnsCache(Eventloop timeProvider, long errorCacheExpirationMillis, long hardExpirationDeltaMillis) {
 		this.errorCacheExpirationSeconds = errorCacheExpirationMillis / 1000;
 		this.hardExpirationDeltaSeconds = hardExpirationDeltaMillis / 1000;
 		this.timeProvider = timeProvider;
 		this.lastCleanupSecond = getCurrentSecond();
 	}
 
-	public static DnsCache create(CurrentTimeProvider timeProvider, long errorCacheExpirationMillis,
+	public static DnsCache create(Eventloop eventloop, long errorCacheExpirationMillis,
 	                              long hardExpirationDeltaMillis) {
-		return new DnsCache(timeProvider, errorCacheExpirationMillis, hardExpirationDeltaMillis);
+		return new DnsCache(eventloop, errorCacheExpirationMillis, hardExpirationDeltaMillis);
 	}
 
 	private boolean isRequestedType(CachedDnsLookupResult cachedResult, boolean requestedIpv6) {
@@ -146,8 +147,10 @@ final class DnsCache {
 		if (result.isSuccessful()) {
 			InetAddress[] ipsFromCache = result.getIps();
 			callback.setResult(ipsFromCache);
-			if (logger.isDebugEnabled())
+			if (logger.isDebugEnabled()) {
 				logger.debug("Cache hit for host: {}", domainName);
+				logger.debug("Cache size: {}. Cache entries: {}. Cache expirations: {}.", cache.size(), expirations.size());
+			}
 		} else {
 			DnsException exception = result.getException();
 			callback.setException(exception);
@@ -213,6 +216,8 @@ final class DnsCache {
 	}
 
 	private void clear(long callSecond, long lastCleanupSecond) {
+		if (logger.isDebugEnabled())
+			logger.debug(String.format("Performing cache cleanup. Call second: %d, last cleanup: %d", callSecond, lastCleanupSecond));
 		for (long i = lastCleanupSecond; i <= callSecond; ++i) {
 			Collection<String> domainNames = expirations.remove(i);
 

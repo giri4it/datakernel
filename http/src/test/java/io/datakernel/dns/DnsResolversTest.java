@@ -23,7 +23,6 @@ import io.datakernel.eventloop.Eventloop;
 import io.datakernel.eventloop.Eventloop.ConcurrentOperationTracker;
 import io.datakernel.time.SettableCurrentTimeProvider;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,11 +32,15 @@ import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.datakernel.bytebuf.ByteBufPool.getPoolItemsString;
 import static io.datakernel.eventloop.FatalErrorHandlers.rethrowOnAnyError;
+import static java.lang.Thread.sleep;
+import static java.util.Arrays.asList;
 import static org.junit.Assert.*;
 
 public class DnsResolversTest {
@@ -48,6 +51,8 @@ public class DnsResolversTest {
 	private static final InetSocketAddress GOOGLE_PUBLIC_DNS = new InetSocketAddress("8.8.8.8", DNS_SERVER_PORT);
 	private static final InetSocketAddress UNREACHABLE_DNS = new InetSocketAddress("8.0.8.8", DNS_SERVER_PORT);
 	private static final InetSocketAddress LOCAL_DNS = new InetSocketAddress("192.168.0.1", DNS_SERVER_PORT);
+	private static final InetSocketAddress STAGING_DNS = new InetSocketAddress("173.239.53.74", DNS_SERVER_PORT);
+	private static final InetSocketAddress LOCAL_MOCK_DNS = new InetSocketAddress("127.0.1.1", 5353);
 
 	private final Logger logger = LoggerFactory.getLogger(DnsResolversTest.class);
 
@@ -143,10 +148,9 @@ public class DnsResolversTest {
 
 		eventloop = Eventloop.create().withFatalErrorHandler(rethrowOnAnyError());
 
-		nativeDnsResolver = AsyncDnsClient.create(eventloop).withTimeout(3_000L).withDnsServerAddress(LOCAL_DNS);
+		nativeDnsResolver = AsyncDnsClient.create(eventloop).withTimeout(3_000L).withDnsServerAddress(STAGING_DNS);
 	}
 
-	@Ignore
 	@Test
 	public void testResolversWithCorrectDomainNames() throws Exception {
 		DnsResolveCallback nativeResult1 = new DnsResolveCallback();
@@ -170,7 +174,6 @@ public class DnsResolversTest {
 		return set;
 	}
 
-	@Ignore
 	@Test
 	public void testResolve6() throws Exception {
 		DnsResolveCallback nativeDnsResolverCallback = new DnsResolveCallback();
@@ -190,7 +193,6 @@ public class DnsResolversTest {
 		assertEquals(getPoolItemsString(), ByteBufPool.getCreatedItems(), ByteBufPool.getPoolItems());
 	}
 
-	@Ignore
 	@Test
 	public void testResolversWithIncorrectDomainNames() throws Exception {
 		DnsResolveCallback nativeDnsResolverCallback = new DnsResolveCallback();
@@ -205,7 +207,6 @@ public class DnsResolversTest {
 		assertEquals(getPoolItemsString(), ByteBufPool.getCreatedItems(), ByteBufPool.getPoolItems());
 	}
 
-	@Ignore
 	@Test
 	public void testConcurrentNativeResolver() throws InterruptedException {
 		Eventloop primaryEventloop = this.eventloop;
@@ -235,7 +236,7 @@ public class DnsResolversTest {
 			@Override
 			public void run() {
 				try {
-					Thread.sleep(delayMillis);
+					sleep(delayMillis);
 				} catch (InterruptedException e) {
 					logger.warn("Thread interrupted.", e);
 				}
@@ -309,18 +310,21 @@ public class DnsResolversTest {
 
 		timeProvider.setTime(1500);
 		eventloop.refreshTimestampAndGet();
-		nativeResolver.resolve4(domainName, new DnsResolveCallback());
+		nativeResolver.resolve4("asdf", new DnsResolveCallback());
 
 		timeProvider.setTime(3500);
 		eventloop.refreshTimestampAndGet();
 		DnsResolveCallback callback = new DnsResolveCallback();
 		nativeResolver.resolve4(domainName, callback);
+		nativeResolver.resolve4("asdf", new DnsResolveCallback());
 		eventloop.run();
 		cache.add(testResult);
 
 		timeProvider.setTime(70000);
 		eventloop.refreshTimestampAndGet();
 		nativeResolver.resolve4(domainName, new DnsResolveCallback());
+		nativeResolver.resolve4("asdf", new DnsResolveCallback());
+
 		eventloop.run();
 
 		assertEquals(getPoolItemsString(), ByteBufPool.getCreatedItems(), ByteBufPool.getPoolItems());
@@ -329,11 +333,88 @@ public class DnsResolversTest {
 	@Test
 	public void testTimeout() throws Exception {
 		String domainName = "www.google.com";
-		AsyncDnsClient asyncDnsClient
-				= AsyncDnsClient.create(eventloop).withTimeout(3_000L).withDnsServerAddress(UNREACHABLE_DNS);
+		AsyncDnsClient asyncDnsClient = AsyncDnsClient.create(eventloop).withTimeout(3_000L).withDnsServerAddress(UNREACHABLE_DNS);
 		asyncDnsClient.resolve4(domainName, new DnsResolveCallback());
 		eventloop.run();
 
 		assertEquals(getPoolItemsString(), ByteBufPool.getCreatedItems(), ByteBufPool.getPoolItems());
+	}
+
+	@Test
+	public void testCacheBug() throws ExecutionException, InterruptedException {
+		final String domainName1 = "results.adregal.com";
+		String domainName2 = "feed.advertiseclick.com";
+		String domainName3 = "google.com";
+		String domainName4 = "ads111fg.com";
+		String domainName6 = "ezmobadult.usbid.mdsp.avazutracking.net";
+		List<String> domains = asList(domainName1, domainName2, domainName3, domainName6, domainName4, domainName1);
+
+		final AsyncDnsClient asyncDnsClient = AsyncDnsClient.create(eventloop)
+				.withExpiration(10 * 1000, 10 * 1000)
+				.withTimeout(1000L).withDnsServerAddress(LOCAL_MOCK_DNS);
+
+		for (int i = 0; i < 1000; i++) {
+			for (final String domain : domains) {
+				asyncDnsClient.resolve4(domain, new DnsResolveCallback());
+			}
+			eventloop.run();
+			Thread.sleep(1000L);
+		}
+
+	}
+
+	@Test
+	public void testCacheBugFakeDns() {
+		String domainName1 = "results.adregal.com";
+		String domainName2 = "feed.advertiseclick.com";
+		String domainName3 = "ezmobadult.usbid.mdsp.avazutracking.net";
+		Set<String> domains = newHashSet(domainName1, domainName2, domainName3);
+
+		SettableCurrentTimeProvider timeProvider = SettableCurrentTimeProvider.create().withTime(0);
+
+		AsyncDnsClient asyncDnsClient = AsyncDnsClient.create(eventloop)
+				.withTimeout(1000L)
+				.withDnsServerAddress(STAGING_DNS);
+		resolveSeveralDomains(domains, asyncDnsClient, eventloop);
+
+	}
+
+	private void resolveDomainsOneByOne(Set<String> domains, AsyncDnsClient asyncDnsClient, Eventloop eventloop) {
+		for (String domain : domains) {
+			asyncDnsClient.resolve4(domain, new DnsResolveCallback());
+			eventloop.run();
+			printCacheEntries(asyncDnsClient.getAllCacheEntries());
+		}
+	}
+
+	private void resolveSeveralDomains(Set<String> domains, AsyncDnsClient asyncDnsClient, Eventloop eventloop) {
+		for (String domain : domains) {
+			asyncDnsClient.resolve4(domain, new DnsResolveCallback());
+		}
+		eventloop.run();
+		printCacheEntries(asyncDnsClient.getAllCacheEntries());
+	}
+
+	private static void printCacheEntries(List<String> allCacheEntries) {
+		System.out.println(String.format("Cache stores %d entries.", allCacheEntries.size()));
+		for (String s : allCacheEntries) {
+			System.out.println(s);
+		}
+	}
+
+	@Test
+	public void testNXDomainResponse() {
+		String domainName1 = "ads111fg.com";
+
+		SettableCurrentTimeProvider timeProvider = SettableCurrentTimeProvider.create().withTime(0);
+		Eventloop eventloop = Eventloop.create().withFatalErrorHandler(rethrowOnAnyError()).withCurrentTimeProvider(timeProvider);
+
+		AsyncDnsClient client = AsyncDnsClient.create(eventloop).withTimeout(2000L).withDnsServerAddress(STAGING_DNS);
+
+		client.resolve4(domainName1, new DnsResolveCallback());
+		eventloop.run();
+
+		client.resolve4(domainName1, new DnsResolveCallback());
+		eventloop.run();
 	}
 }
