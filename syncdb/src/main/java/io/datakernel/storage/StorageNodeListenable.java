@@ -9,16 +9,17 @@ import io.datakernel.stream.StreamConsumer;
 import io.datakernel.stream.StreamProducer;
 import io.datakernel.stream.StreamProducerDecorator;
 import io.datakernel.stream.processor.StreamSplitter;
+import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import static io.datakernel.stream.StreamConsumers.listenableConsumer;
 
-public final class DataStorageListenable<K, V> implements HasSortedStreamProducer<K, V> {
+public final class StorageNodeListenable<K, V> implements StorageNode<K, V> {
 	private final Eventloop eventloop;
-	private final HasSortedStreamProducer<K, V> hasSortedStreamProducer;
+	private final StorageNode<K, V> hasSortedStreamProducer;
 
 	private ListenableResultCallback<StreamProducer<KeyValue<K, V>>> listenable = null;
 
-	public DataStorageListenable(Eventloop eventloop, HasSortedStreamProducer<K, V> hasSortedStreamProducer) {
+	public StorageNodeListenable(Eventloop eventloop, StorageNode<K, V> hasSortedStreamProducer) {
 		this.eventloop = eventloop;
 		this.hasSortedStreamProducer = hasSortedStreamProducer;
 	}

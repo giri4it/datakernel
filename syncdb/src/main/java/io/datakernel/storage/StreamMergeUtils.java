@@ -7,7 +7,7 @@ import io.datakernel.async.AsyncCallables;
 import io.datakernel.async.ForwardingResultCallback;
 import io.datakernel.async.ResultCallback;
 import io.datakernel.eventloop.Eventloop;
-import io.datakernel.storage.HasSortedStreamProducer.KeyValue;
+import io.datakernel.storage.StorageNode.KeyValue;
 import io.datakernel.stream.StreamProducer;
 import io.datakernel.stream.processor.StreamReducer;
 import io.datakernel.stream.processor.StreamReducers;
@@ -23,14 +23,13 @@ public class StreamMergeUtils {
 
 	public static <K, V, A> void mergeStreams(final Eventloop eventloop,
 	                                          final Comparator<K> keyComparator,
-	                                          final Function<KeyValue<K, V>, K> keyFunction,
 	                                          final StreamReducers.Reducer<K, KeyValue<K, V>, KeyValue<K, V>, A> reducer,
-	                                          final Iterable<? extends HasSortedStreamProducer<K, V>> streams,
+	                                          final Iterable<? extends StorageNode<K, V>> streams,
 	                                          final Predicate<K> predicate,
 	                                          final ResultCallback<StreamProducer<KeyValue<K, V>>> callback) {
 
 		final List<AsyncCallable<StreamProducer<KeyValue<K, V>>>> callables = new ArrayList<>();
-		for (final HasSortedStreamProducer<K, V> stream : streams) {
+		for (final StorageNode<K, V> stream : streams) {
 			callables.add(new AsyncCallable<StreamProducer<KeyValue<K, V>>>() {
 				@Override
 				public void call(ResultCallback<StreamProducer<KeyValue<K, V>>> callback) {
@@ -38,6 +37,12 @@ public class StreamMergeUtils {
 				}
 			});
 		}
+		final Function<KeyValue<K, V>, K> keyFunction = new Function<KeyValue<K, V>, K>() {
+			@Override
+			public K apply(KeyValue<K, V> input) {
+				return input.getKey();
+			}
+		};
 		AsyncCallables.callAll(eventloop, callables).call(new ForwardingResultCallback<List<StreamProducer<KeyValue<K, V>>>>(callback) {
 			@Override
 			protected void onResult(List<StreamProducer<KeyValue<K, V>>> result) {

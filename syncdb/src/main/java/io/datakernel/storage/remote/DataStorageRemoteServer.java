@@ -10,8 +10,8 @@ import io.datakernel.eventloop.AbstractServer;
 import io.datakernel.eventloop.AsyncTcpSocket;
 import io.datakernel.eventloop.Eventloop;
 import io.datakernel.serializer.BufferSerializer;
-import io.datakernel.storage.HasSortedStreamProducer;
-import io.datakernel.storage.HasSortedStreamProducer.KeyValue;
+import io.datakernel.storage.StorageNode;
+import io.datakernel.storage.StorageNode.KeyValue;
 import io.datakernel.storage.remote.DataStorageRemoteCommands.GetSortedStream;
 import io.datakernel.storage.remote.DataStorageRemoteCommands.RemoteCommand;
 import io.datakernel.storage.remote.DataStorageRemoteResponses.RemoteResponse;
@@ -27,12 +27,12 @@ import static io.datakernel.stream.net.MessagingSerializers.ofGson;
 
 public class DataStorageRemoteServer<K extends Comparable<K>, V> extends AbstractServer<DataStorageRemoteServer<K, V>> {
 	private final Eventloop eventloop;
-	private final HasSortedStreamProducer<K, V> hasSortedStreamProducer;
+	private final StorageNode<K, V> hasSortedStreamProducer;
 	private final Gson gson;
 	private final MessagingSerializer<RemoteCommand, RemoteResponse> serializer = ofGson(commandGSON, RemoteCommand.class, responseGson, RemoteResponse.class);
 	private final BufferSerializer<KeyValue<K, V>> bufferSerializer;
 
-	public DataStorageRemoteServer(Eventloop eventloop, HasSortedStreamProducer<K, V> hasSortedStreamProducer, Gson gson, BufferSerializer<KeyValue<K, V>> bufferSerializer) {
+	public DataStorageRemoteServer(Eventloop eventloop, StorageNode<K, V> hasSortedStreamProducer, Gson gson, BufferSerializer<KeyValue<K, V>> bufferSerializer) {
 		super(eventloop);
 		this.eventloop = eventloop;
 		this.hasSortedStreamProducer = hasSortedStreamProducer;

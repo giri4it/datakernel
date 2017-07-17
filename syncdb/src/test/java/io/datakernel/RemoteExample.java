@@ -1,7 +1,6 @@
 package io.datakernel;
 
 import com.google.common.base.Predicate;
-import com.google.common.base.Predicates;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.TypeAdapter;
@@ -14,8 +13,8 @@ import io.datakernel.async.ResultCallback;
 import io.datakernel.bytebuf.ByteBuf;
 import io.datakernel.eventloop.Eventloop;
 import io.datakernel.serializer.BufferSerializer;
-import io.datakernel.storage.DataStorageTreeMap;
-import io.datakernel.storage.HasSortedStreamProducer.KeyValue;
+import io.datakernel.storage.StorageNode.KeyValue;
+import io.datakernel.storage.StorageNodeTreeMap;
 import io.datakernel.storage.remote.DataStorageRemoteClient;
 import io.datakernel.storage.remote.DataStorageRemoteServer;
 import io.datakernel.stream.StreamConsumers;
@@ -33,7 +32,6 @@ import static java.util.Collections.singletonList;
 
 public class RemoteExample {
 	private static final int PORT = 12547;
-	private static final Predicate<Integer> ALWAYS_TRUE = Predicates.alwaysTrue();
 	private static final BufferSerializer<KeyValue<Integer, Set<String>>> KEY_VALUE_SERIALIZER = new BufferSerializer<KeyValue<Integer, Set<String>>>() {
 		@Override
 		public void serialize(ByteBuf output, KeyValue<Integer, Set<String>> item) {
@@ -105,7 +103,7 @@ public class RemoteExample {
 		treeMap.put(4, newTreeSet(singletonList("4")));
 		treeMap.put(5, newTreeSet(singletonList("5")));
 		treeMap.put(6, newTreeSet(singletonList("6")));
-		final DataStorageTreeMap<Integer, Set<String>> treeStorage = new DataStorageTreeMap<>(eventloop, treeMap, null);
+		final StorageNodeTreeMap<Integer, Set<String>> treeStorage = new StorageNodeTreeMap<>(eventloop, treeMap, null);
 
 		final DataStorageRemoteServer<Integer, Set<String>> server = new DataStorageRemoteServer<>(eventloop, treeStorage, gson, KEY_VALUE_SERIALIZER)
 				.withListenPort(PORT);

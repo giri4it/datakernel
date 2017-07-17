@@ -9,15 +9,17 @@ import io.datakernel.eventloop.AsyncTcpSocketImpl;
 import io.datakernel.eventloop.Eventloop;
 import io.datakernel.net.SocketSettings;
 import io.datakernel.serializer.BufferSerializer;
-import io.datakernel.storage.HasSortedStreamProducer;
+import io.datakernel.storage.StorageNode;
 import io.datakernel.storage.remote.DataStorageRemoteCommands.GetSortedStream;
 import io.datakernel.storage.remote.DataStorageRemoteCommands.RemoteCommand;
 import io.datakernel.storage.remote.DataStorageRemoteResponses.RemoteResponse;
+import io.datakernel.stream.StreamConsumer;
 import io.datakernel.stream.StreamProducer;
 import io.datakernel.stream.net.Messaging.ReceiveMessageCallback;
 import io.datakernel.stream.net.MessagingSerializer;
 import io.datakernel.stream.net.MessagingWithBinaryStreaming;
 import io.datakernel.stream.processor.StreamBinaryDeserializer;
+import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import javax.net.ssl.SSLContext;
 import java.net.InetSocketAddress;
@@ -32,7 +34,7 @@ import static io.datakernel.storage.remote.DataStorageRemoteResponses.responseGs
 import static io.datakernel.stream.net.MessagingSerializers.ofGson;
 
 @SuppressWarnings("unused")
-public final class DataStorageRemoteClient<K, V> implements HasSortedStreamProducer<K, V> {
+public final class DataStorageRemoteClient<K, V> implements StorageNode<K, V> {
 	private final Eventloop eventloop;
 	private final InetSocketAddress address;
 	private final MessagingSerializer<RemoteResponse, RemoteCommand> serializer = ofGson(responseGson, RemoteResponse.class, commandGSON, RemoteCommand.class);

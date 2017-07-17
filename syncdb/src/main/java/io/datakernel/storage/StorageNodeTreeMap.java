@@ -17,7 +17,7 @@ import static com.google.common.collect.Iterables.transform;
 import static com.google.common.collect.Maps.filterKeys;
 import static io.datakernel.stream.StreamProducers.ofIterable;
 
-public final class DataStorageTreeMap<K extends Comparable<K>, V> implements StorageNode<K, V> {
+public final class StorageNodeTreeMap<K extends Comparable<K>, V> implements StorageNode<K, V> {
 	private final Eventloop eventloop;
 	private final Merger<KeyValue<K, V>> merger;
 	private final Function<Map.Entry<K, V>, KeyValue<K, V>> toKeyValue = new Function<Map.Entry<K, V>, KeyValue<K, V>>() {
@@ -29,7 +29,7 @@ public final class DataStorageTreeMap<K extends Comparable<K>, V> implements Sto
 
 	private final TreeMap<K, V> values;
 
-	public DataStorageTreeMap(Eventloop eventloop, TreeMap<K, V> values, Merger<KeyValue<K, V>> merger) {
+	public StorageNodeTreeMap(Eventloop eventloop, TreeMap<K, V> values, Merger<KeyValue<K, V>> merger) {
 		this.eventloop = eventloop;
 		this.merger = merger;
 		this.values = values;

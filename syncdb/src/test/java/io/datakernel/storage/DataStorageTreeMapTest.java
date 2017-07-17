@@ -11,7 +11,7 @@ import io.datakernel.async.ResultCallbackFuture;
 import io.datakernel.eventloop.Eventloop;
 import io.datakernel.eventloop.FatalErrorHandlers;
 import io.datakernel.merger.Merger;
-import io.datakernel.storage.HasSortedStreamProducer.KeyValue;
+import io.datakernel.storage.StorageNode.KeyValue;
 import io.datakernel.stream.StreamConsumer;
 import io.datakernel.stream.StreamConsumers;
 import io.datakernel.stream.StreamProducer;
@@ -35,7 +35,7 @@ public class DataStorageTreeMapTest {
 	private Eventloop eventloop;
 	private Merger<KeyValue<Integer, Set<String>>> merger;
 	private TreeMap<Integer, Set<String>> state;
-	private DataStorageTreeMap<Integer, Set<String>> dataStorageTreeMap;
+	private StorageNodeTreeMap<Integer, Set<String>> dataStorageTreeMap;
 
 	private static KeyValue<Integer, Set<String>> newKeyValue(int key, String... value) {
 		return new KeyValue<Integer, Set<String>>(key, Sets.newTreeSet(asList(value)));
@@ -57,7 +57,7 @@ public class DataStorageTreeMapTest {
 	}
 
 	private void setUpTreeStorage() {
-		dataStorageTreeMap = new DataStorageTreeMap<>(eventloop, state, merger);
+		dataStorageTreeMap = new StorageNodeTreeMap<>(eventloop, state, merger);
 	}
 
 	private <T> List<T> toList(StreamProducer<T> producer) {

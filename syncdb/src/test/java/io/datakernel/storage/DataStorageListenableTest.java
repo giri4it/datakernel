@@ -8,7 +8,7 @@ import io.datakernel.async.ForwardingCompletionCallback;
 import io.datakernel.async.ResultCallback;
 import io.datakernel.eventloop.Eventloop;
 import io.datakernel.eventloop.FatalErrorHandlers;
-import io.datakernel.storage.HasSortedStreamProducer.KeyValue;
+import io.datakernel.storage.StorageNode.KeyValue;
 import io.datakernel.stream.*;
 import org.junit.Before;
 import org.junit.Test;
@@ -44,7 +44,7 @@ public class DataStorageListenableTest {
 	public void testImmediateProducer() {
 		final List<KeyValue<Integer, String>> data = asList(new KeyValue<>(1, "a"), new KeyValue<>(2, "b"));
 
-		final DataStorageListenable<Integer, String> dataStorage = new DataStorageListenable<>(eventloop, new HasSortedStreamProducer<Integer, String>() {
+		final StorageNodeListenable<Integer, String> dataStorage = new StorageNodeListenable<>(eventloop, new StorageNode<Integer, String>() {
 			@Override
 			public void getSortedStreamProducer(Predicate<Integer> predicate, ResultCallback<StreamProducer<KeyValue<Integer, String>>> callback) {
 				callback.setResult(ofIterable(eventloop, data));
@@ -67,7 +67,7 @@ public class DataStorageListenableTest {
 		final long schedule = eventloop.currentTimeMillis() + 100;
 		final List<KeyValue<Integer, String>> data = asList(new KeyValue<>(1, "a"), new KeyValue<>(2, "b"));
 
-		final DataStorageListenable<Integer, String> dataStorage = new DataStorageListenable<>(eventloop, new HasSortedStreamProducer<Integer, String>() {
+		final StorageNodeListenable<Integer, String> dataStorage = new StorageNodeListenable<>(eventloop, new StorageNode<Integer, String>() {
 			@Override
 			public void getSortedStreamProducer(Predicate<Integer> predicate, final ResultCallback<StreamProducer<KeyValue<Integer, String>>> callback) {
 				eventloop.schedule(schedule, new Runnable() {
@@ -94,7 +94,7 @@ public class DataStorageListenableTest {
 	public void testManyRequestAndAnswerIterations() {
 		final List<KeyValue<Integer, String>> data = asList(new KeyValue<>(1, "a"), new KeyValue<>(2, "b"));
 
-		final DataStorageListenable<Integer, String> dataStorage = new DataStorageListenable<>(eventloop, new HasSortedStreamProducer<Integer, String>() {
+		final StorageNodeListenable<Integer, String> dataStorage = new StorageNodeListenable<>(eventloop, new StorageNode<Integer, String>() {
 			@Override
 			public void getSortedStreamProducer(Predicate<Integer> predicate, ResultCallback<StreamProducer<KeyValue<Integer, String>>> callback) {
 				callback.setResult(ofIterable(eventloop, data));
@@ -118,7 +118,7 @@ public class DataStorageListenableTest {
 	public void testWaitUntilPreviousProducerFinished() {
 		final List<KeyValue<Integer, String>> data = asList(new KeyValue<>(1, "a"), new KeyValue<>(2, "b"));
 
-		final DataStorageListenable<Integer, String> dataStorage = new DataStorageListenable<>(eventloop, new HasSortedStreamProducer<Integer, String>() {
+		final StorageNodeListenable<Integer, String> dataStorage = new StorageNodeListenable<>(eventloop, new StorageNode<Integer, String>() {
 			private int requestsInTime;
 
 			@Override
@@ -155,7 +155,7 @@ public class DataStorageListenableTest {
 	@Test
 	public void testExceptionOnGetSortedStream() {
 		final Exception exception = new Exception("test exception");
-		final DataStorageListenable<Integer, String> dataStorage = new DataStorageListenable<>(eventloop, new HasSortedStreamProducer<Integer, String>() {
+		final StorageNodeListenable<Integer, String> dataStorage = new StorageNodeListenable<>(eventloop, new StorageNode<Integer, String>() {
 			@Override
 			public void getSortedStreamProducer(Predicate<Integer> predicate, final ResultCallback<StreamProducer<KeyValue<Integer, String>>> callback) {
 				callback.setException(exception);
@@ -178,7 +178,7 @@ public class DataStorageListenableTest {
 				ofValue(eventloop, new KeyValue<>(1, "a")),
 				StreamProducers.<KeyValue<Integer, String>>closingWithError(eventloop, new Exception("test exception")));
 
-		final DataStorageListenable<Integer, String> dataStorage = new DataStorageListenable<>(eventloop, new HasSortedStreamProducer<Integer, String>() {
+		final StorageNodeListenable<Integer, String> dataStorage = new StorageNodeListenable<>(eventloop, new StorageNode<Integer, String>() {
 			@Override
 			public void getSortedStreamProducer(Predicate<Integer> predicate, final ResultCallback<StreamProducer<KeyValue<Integer, String>>> callback) {
 				callback.setResult(producer);
