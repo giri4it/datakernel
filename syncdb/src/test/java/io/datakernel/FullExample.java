@@ -16,7 +16,9 @@ import io.datakernel.async.*;
 import io.datakernel.bytebuf.ByteBuf;
 import io.datakernel.eventloop.Eventloop;
 import io.datakernel.eventloop.FatalErrorHandlers;
+import io.datakernel.merger.MergerReducer;
 import io.datakernel.serializer.BufferSerializer;
+import io.datakernel.storage.DataStorageMerger;
 import io.datakernel.storage.DataStorageTreeMap;
 import io.datakernel.storage.HasSortedStreamProducer;
 import io.datakernel.storage.HasSortedStreamProducer.KeyValue;
@@ -110,7 +112,10 @@ public class FullExample {
 			remoteClients.add(new DataStorageRemoteClient<>(eventloop, address, gson, bufferSerializer));
 		}
 
-		final DataStorageTreeMap<K, V> dataStorageTreeMap = new DataStorageTreeMap<>(eventloop, treeMap, remoteClients, reducer, keyFilter);
+		final DataStorageMerger<K, V, Void> mergerStream = new DataStorageMerger<>(eventloop, reducer, remoteClients);
+		final MergerReducer<K, V, Void> merger = new MergerReducer<>(reducer);
+
+		final DataStorageTreeMap<K, V> dataStorageTreeMap = new DataStorageTreeMap<>(eventloop, treeMap, mergerStream, merger, keyFilter);
 		final DataStorageRemoteServer<K, V> remoteServer = new DataStorageRemoteServer<>(eventloop, dataStorageTreeMap, gson, bufferSerializer)
 				.withListenPort(port);
 

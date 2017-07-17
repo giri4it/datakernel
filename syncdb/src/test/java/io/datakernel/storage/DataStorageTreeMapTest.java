@@ -4,27 +4,27 @@ import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+import io.datakernel.annotation.Nullable;
 import io.datakernel.async.CompletionCallbackFuture;
 import io.datakernel.async.ResultCallback;
 import io.datakernel.async.ResultCallbackFuture;
 import io.datakernel.eventloop.Eventloop;
 import io.datakernel.eventloop.FatalErrorHandlers;
+import io.datakernel.merger.Merger;
 import io.datakernel.storage.HasSortedStreamProducer.KeyValue;
 import io.datakernel.stream.StreamConsumers;
 import io.datakernel.stream.StreamProducer;
-import io.datakernel.stream.processor.StreamReducers;
+import io.datakernel.stream.StreamProducers;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
-import java.util.TreeMap;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 
 import static io.datakernel.stream.StreamProducers.ofIterable;
 import static java.util.Arrays.asList;
-import static java.util.Collections.*;
+import static java.util.Collections.singleton;
+import static java.util.Collections.singletonList;
 import static junit.framework.TestCase.assertNull;
 import static org.junit.Assert.*;
 
@@ -32,8 +32,8 @@ public class DataStorageTreeMapTest {
 	private static final Predicate<Integer> ALWAYS_TRUE = Predicates.alwaysTrue();
 
 	private Eventloop eventloop;
-	private StreamReducers.Reducer<Integer, KeyValue<Integer, Set<String>>, KeyValue<Integer, Set<String>>, Void> reducer;
-	private List<? extends HasSortedStreamProducer<Integer, Set<String>>> peers;
+	private HasSortedStreamProducer<Integer, Set<String>> peer;
+	private Merger<KeyValue<Integer, Set<String>>> merger;
 	private Predicate<Integer> predicate;
 	private TreeMap<Integer, Set<String>> state;
 	private DataStorageTreeMap<Integer, Set<String>> dataStorageTreeMap;
@@ -45,15 +45,27 @@ public class DataStorageTreeMapTest {
 	@Before
 	public void before() {
 		eventloop = Eventloop.create().withFatalErrorHandler(FatalErrorHandlers.rethrowOnAnyError());
-		reducer = StreamReducers.mergeSortReducer();
 		state = new TreeMap<>();
-		peers = emptyList();
+		merger = new Merger<KeyValue<Integer, Set<String>>>() {
+			@Override
+			public KeyValue<Integer, Set<String>> merge(KeyValue<Integer, Set<String>> arg1, @Nullable KeyValue<Integer, Set<String>> arg2) {
+				final TreeSet<String> set = new TreeSet<>(arg1.getValue());
+				if (arg2.getValue() != null) set.addAll(arg2.getValue());
+				return new KeyValue<Integer, Set<String>>(arg1.getKey(), set);
+			}
+		};
+		peer = new HasSortedStreamProducer<Integer, Set<String>>() {
+			@Override
+			public void getSortedStreamProducer(Predicate<Integer> predicate, ResultCallback<StreamProducer<KeyValue<Integer, Set<String>>>> callback) {
+				callback.setResult(StreamProducers.<KeyValue<Integer, Set<String>>>closing(eventloop));
+			}
+		};
 		predicate = Predicates.alwaysTrue();
 		setUpTreeStorage();
 	}
 
 	private void setUpTreeStorage() {
-		dataStorageTreeMap = new DataStorageTreeMap<>(eventloop, state, peers, reducer, predicate);
+		dataStorageTreeMap = new DataStorageTreeMap<>(eventloop, state, peer, merger, predicate);
 	}
 
 	private <T> List<T> toList(StreamProducer<T> producer) {
@@ -102,12 +114,12 @@ public class DataStorageTreeMapTest {
 		state.put(dataId2.getKey(), dataId2.getValue());
 
 		final KeyValue<Integer, Set<String>> dataId1 = newKeyValue(1, "a");
-		peers = singletonList(new HasSortedStreamProducer<Integer, Set<String>>() {
+		peer = new HasSortedStreamProducer<Integer, Set<String>>() {
 			@Override
 			public void getSortedStreamProducer(Predicate<Integer> predicate, ResultCallback<StreamProducer<KeyValue<Integer, Set<String>>>> callback) {
 				callback.setResult(ofIterable(eventloop, singleton(dataId1)));
 			}
-		});
+		};
 		setUpTreeStorage();
 
 		{

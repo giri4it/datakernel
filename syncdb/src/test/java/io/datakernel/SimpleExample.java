@@ -7,15 +7,17 @@ import com.google.common.base.Predicates;
 import com.google.common.collect.Sets;
 import io.datakernel.async.*;
 import io.datakernel.eventloop.Eventloop;
+import io.datakernel.merger.Merger;
+import io.datakernel.merger.MergerReducer;
+import io.datakernel.storage.DataStorageMerger;
+import io.datakernel.storage.DataStorageTreeMap;
+import io.datakernel.storage.HasSortedStreamProducer;
+import io.datakernel.storage.HasSortedStreamProducer.KeyValue;
 import io.datakernel.stream.StreamConsumers;
 import io.datakernel.stream.StreamProducer;
 import io.datakernel.stream.processor.StreamReducers;
 import io.datakernel.stream.processor.StreamReducers.Reducer;
 import org.slf4j.LoggerFactory;
-import io.datakernel.storage.DataStorageMerger;
-import io.datakernel.storage.DataStorageTreeMap;
-import io.datakernel.storage.HasSortedStreamProducer;
-import io.datakernel.storage.HasSortedStreamProducer.KeyValue;
 
 import java.util.List;
 import java.util.Set;
@@ -30,6 +32,7 @@ public class SimpleExample {
 	private static final Predicate<Integer> ALWAYS_TRUE = Predicates.alwaysTrue();
 	private static final Reducer<Integer, KeyValue<Integer, Set<String>>, KeyValue<Integer, Set<String>>, KeyValue<Integer, Set<String>>> UNION_REDUCER =
 			TestUnion.getInstance().inputToOutput();
+	private static final Merger<KeyValue<Integer, Set<String>>> UNION = new MergerReducer<>(UNION_REDUCER);
 
 	private static AsyncRunnable synchronize(final DataStorageTreeMap dataStorage) {
 		return new AsyncRunnable() {
@@ -52,13 +55,13 @@ public class SimpleExample {
 	private static DataStorageTreeMap<Integer, Set<String>> createSimpleStorage(
 			final Eventloop eventloop,
 			final KeyValue<Integer, Set<String>> value,
-			final List<? extends HasSortedStreamProducer<Integer, Set<String>>> peers,
-			final Reducer<Integer, KeyValue<Integer, Set<String>>, KeyValue<Integer, Set<String>>, KeyValue<Integer, Set<String>>> reducer,
+			final HasSortedStreamProducer<Integer, Set<String>> peer,
+			final Merger<KeyValue<Integer, Set<String>>> merger,
 			final Predicate<Integer> keyFilter) {
 
 		return new DataStorageTreeMap<>(eventloop, new TreeMap<Integer, Set<String>>(){{
 			put(value.getKey(), value.getValue());
-		}}, peers, reducer, keyFilter);
+		}}, peer, merger, keyFilter);
 	}
 
 	private static KeyValue<Integer, Set<String>> newKeyValue(int key, String... value) {
@@ -120,17 +123,17 @@ public class SimpleExample {
 		final KeyValue<Integer, Set<String>> value2 = newKeyValue(1, "ivan:phones", "ivan:mouse");
 		final KeyValue<Integer, Set<String>> value3 = newKeyValue(5, "jim:music", "jim:cup");
 
-		final List<HasSortedStreamProducer<Integer, Set<String>>> sortedStreams1 = asList(sorterStream(ofValue(eventloop, value1)));
-		final List<HasSortedStreamProducer<Integer, Set<String>>> sortedStreams2 = asList(sorterStream(ofValue(eventloop, value2)));
-		final List<HasSortedStreamProducer<Integer, Set<String>>> sortedStreams3 = asList(sorterStream(ofValue(eventloop, value3)));
+		final HasSortedStreamProducer<Integer, Set<String>> sortedStream1 = sorterStream(ofValue(eventloop, value1));
+		final HasSortedStreamProducer<Integer, Set<String>> sortedStream2 = sorterStream(ofValue(eventloop, value2));
+		final HasSortedStreamProducer<Integer, Set<String>> sortedStream3 = sorterStream(ofValue(eventloop, value3));
 
 		final KeyValue<Integer, Set<String>> data1 = newKeyValue(1, "ivan:cars", "ivan:dolls");
 		final KeyValue<Integer, Set<String>> data2 = newKeyValue(1, "ivan:cars", "ivan:phones");
 		final KeyValue<Integer, Set<String>> data3 = newKeyValue(5, "jim:books", "jim:music");
 
-		final DataStorageTreeMap<Integer, Set<String>> dataStorage1 = createSimpleStorage(eventloop, data1, sortedStreams1, UNION_REDUCER, ALWAYS_TRUE);
-		final DataStorageTreeMap<Integer, Set<String>> dataStorage2 = createSimpleStorage(eventloop, data2, sortedStreams2, UNION_REDUCER, ALWAYS_TRUE);
-		final DataStorageTreeMap<Integer, Set<String>> dataStorage3 = createSimpleStorage(eventloop, data3, sortedStreams3, UNION_REDUCER, ALWAYS_TRUE);
+		final DataStorageTreeMap<Integer, Set<String>> dataStorage1 = createSimpleStorage(eventloop, data1, sortedStream1, UNION, ALWAYS_TRUE);
+		final DataStorageTreeMap<Integer, Set<String>> dataStorage2 = createSimpleStorage(eventloop, data2, sortedStream2, UNION, ALWAYS_TRUE);
+		final DataStorageTreeMap<Integer, Set<String>> dataStorage3 = createSimpleStorage(eventloop, data3, sortedStream3, UNION, ALWAYS_TRUE);
 
 		final DataStorageMerger<Integer, Set<String>, KeyValue<Integer, Set<String>>> dataStorageMerge1 = new DataStorageMerger<>(eventloop, UNION_REDUCER, asList(dataStorage1, dataStorage2));
 		final DataStorageMerger<Integer, Set<String>, KeyValue<Integer, Set<String>>> dataStorageMerge2 = new DataStorageMerger<>(eventloop, UNION_REDUCER, asList(dataStorage2, dataStorage3));

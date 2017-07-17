@@ -2,32 +2,25 @@ package io.datakernel.storage;
 
 import com.google.common.base.Function;
 import com.google.common.base.Predicate;
-import com.google.common.collect.Ordering;
 import io.datakernel.async.CompletionCallback;
 import io.datakernel.async.ForwardingResultCallback;
 import io.datakernel.async.ResultCallback;
 import io.datakernel.eventloop.Eventloop;
 import io.datakernel.merger.Merger;
-import io.datakernel.merger.MergerReducer;
 import io.datakernel.stream.AbstractStreamConsumer;
 import io.datakernel.stream.StreamDataReceiver;
 import io.datakernel.stream.StreamProducer;
-import io.datakernel.stream.processor.StreamReducers.Reducer;
 
-import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
 import static com.google.common.collect.Iterables.transform;
 import static com.google.common.collect.Maps.filterKeys;
-import static io.datakernel.storage.StreamMergeUtils.mergeStreams;
 import static io.datakernel.stream.StreamProducers.ofIterable;
 
 // interface DataStorage extends HasSortedStream<Integer, Set<String>>, Synchronizer ???
-@SuppressWarnings("WeakerAccess")
 public final class DataStorageTreeMap<K extends Comparable<K>, V> implements HasSortedStreamProducer<K, V>, Synchronizer {
 	private final Eventloop eventloop;
-	private final Ordering<K> ordering = Ordering.natural();
 	private final Function<Map.Entry<K, V>, KeyValue<K, V>> TO_KEY_VALUE = new Function<Map.Entry<K, V>, KeyValue<K, V>>() {
 		@Override
 		public KeyValue<K, V> apply(Map.Entry<K, V> input) {
@@ -35,28 +28,18 @@ public final class DataStorageTreeMap<K extends Comparable<K>, V> implements Has
 		}
 	};
 
-	private final Function<KeyValue<K, V>, K> toKey = new Function<KeyValue<K, V>, K>() {
-		@Override
-		public K apply(KeyValue<K, V> input) {
-			return input.getKey();
-		}
-	};
-
-	private final Reducer<K, KeyValue<K, V>, KeyValue<K, V>, ?> reducer;
 	private final Merger<KeyValue<K, V>> merger;
-	private final List<? extends HasSortedStreamProducer<K, V>> peers;
+	private final HasSortedStreamProducer<K, V> peer;
 	private final Predicate<K> keyFilter;
 
 	private final TreeMap<K, V> values;
 
-	public DataStorageTreeMap(Eventloop eventloop, TreeMap<K, V> values, List<? extends HasSortedStreamProducer<K, V>> peers,
-	                          Reducer<K, KeyValue<K, V>, KeyValue<K, V>, ?> reducer, Predicate<K> keyFilter) {
+	public DataStorageTreeMap(Eventloop eventloop, TreeMap<K, V> values, HasSortedStreamProducer<K, V> peer,
+	                          Merger<KeyValue<K, V>> merger, Predicate<K> keyFilter) {
 		this.eventloop = eventloop;
-		// as argument ???
-		this.merger = new MergerReducer<>(reducer);
+		this.merger = merger;
 		this.values = values;
-		this.reducer = reducer;
-		this.peers = peers;
+		this.peer = peer;
 		this.keyFilter = keyFilter;
 	}
 
@@ -69,7 +52,7 @@ public final class DataStorageTreeMap<K extends Comparable<K>, V> implements Has
 	@Override
 	public void synchronize(final CompletionCallback callback) {
 		assert eventloop.inEventloopThread();
-		mergeStreams(eventloop, ordering, toKey, reducer, peers, keyFilter, new ForwardingResultCallback<StreamProducer<KeyValue<K, V>>>(callback) {
+		peer.getSortedStreamProducer(keyFilter, new ForwardingResultCallback<StreamProducer<KeyValue<K, V>>>(callback) {
 			@Override
 			protected void onResult(StreamProducer<KeyValue<K, V>> producer) {
 				producer.streamTo(new AbstractStreamConsumer<KeyValue<K, V>>(eventloop) {
