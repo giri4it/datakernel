@@ -10,9 +10,9 @@ import io.datakernel.eventloop.Eventloop;
 import io.datakernel.net.SocketSettings;
 import io.datakernel.serializer.BufferSerializer;
 import io.datakernel.storage.StorageNode;
-import io.datakernel.storage.remote.DataStorageRemoteCommands.GetSortedStream;
-import io.datakernel.storage.remote.DataStorageRemoteCommands.RemoteCommand;
-import io.datakernel.storage.remote.DataStorageRemoteResponses.RemoteResponse;
+import io.datakernel.storage.remote.RemoteCommands.GetSortedStream;
+import io.datakernel.storage.remote.RemoteCommands.RemoteCommand;
+import io.datakernel.storage.remote.RemoteResponses.RemoteResponse;
 import io.datakernel.stream.StreamConsumer;
 import io.datakernel.stream.StreamProducer;
 import io.datakernel.stream.net.Messaging.ReceiveMessageCallback;
@@ -29,12 +29,12 @@ import java.util.concurrent.ExecutorService;
 
 import static io.datakernel.eventloop.AsyncSslSocket.wrapClientSocket;
 import static io.datakernel.eventloop.AsyncTcpSocketImpl.wrapChannel;
-import static io.datakernel.storage.remote.DataStorageRemoteCommands.commandGSON;
-import static io.datakernel.storage.remote.DataStorageRemoteResponses.responseGson;
+import static io.datakernel.storage.remote.RemoteCommands.commandGSON;
+import static io.datakernel.storage.remote.RemoteResponses.responseGson;
 import static io.datakernel.stream.net.MessagingSerializers.ofGson;
 
 @SuppressWarnings("unused")
-public final class DataStorageRemoteClient<K, V> implements StorageNode<K, V> {
+public final class StorageNodeRemoteClient<K, V> implements StorageNode<K, V> {
 	private final Eventloop eventloop;
 	private final InetSocketAddress address;
 	private final MessagingSerializer<RemoteResponse, RemoteCommand> serializer = ofGson(responseGson, RemoteResponse.class, commandGSON, RemoteCommand.class);
@@ -46,7 +46,7 @@ public final class DataStorageRemoteClient<K, V> implements StorageNode<K, V> {
 	private SSLContext sslContext;
 	private ExecutorService sslExecutor;
 
-	public DataStorageRemoteClient(Eventloop eventloop, InetSocketAddress address, Gson gson,
+	public StorageNodeRemoteClient(Eventloop eventloop, InetSocketAddress address, Gson gson,
 	                               BufferSerializer<KeyValue<K, V>> bufferSerializer) {
 		this.eventloop = eventloop;
 		this.address = address;
@@ -54,7 +54,7 @@ public final class DataStorageRemoteClient<K, V> implements StorageNode<K, V> {
 		this.bufferSerializer = bufferSerializer;
 	}
 
-	public final DataStorageRemoteClient<K, V> withSsl(SSLContext sslContext, ExecutorService executor) {
+	public final StorageNodeRemoteClient<K, V> withSsl(SSLContext sslContext, ExecutorService executor) {
 		this.sslContext = sslContext;
 		this.sslExecutor = executor;
 		return this;
@@ -119,7 +119,7 @@ public final class DataStorageRemoteClient<K, V> implements StorageNode<K, V> {
 				messaging.receive(new ReceiveMessageCallback<RemoteResponse>() {
 					@Override
 					public void onReceive(RemoteResponse msg) {
-						if (msg instanceof DataStorageRemoteResponses.OkResponse) {
+						if (msg instanceof RemoteResponses.OkResponse) {
 							final StreamBinaryDeserializer<KeyValue<K, V>> deserializer = StreamBinaryDeserializer.create(eventloop, bufferSerializer);
 							messaging.receiveBinaryStreamTo(deserializer.getInput(), new CompletionCallback() {
 								@Override

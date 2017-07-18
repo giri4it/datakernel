@@ -4,7 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import io.datakernel.serializer.GsonSubclassesAdapter;
 
-public class DataStorageRemoteResponses {
+class RemoteResponses {
 	static Gson responseGson = new GsonBuilder()
 			.registerTypeAdapter(RemoteResponse.class, GsonSubclassesAdapter.create()
 					.withSubclassField("commandType")
@@ -13,9 +13,7 @@ public class DataStorageRemoteResponses {
 			.enableComplexMapKeySerialization()
 			.create();
 
-	public static abstract class RemoteResponse {
-
-	}
+	static abstract class RemoteResponse {}
 
 	public static class OkResponse extends RemoteResponse {
 		@Override
@@ -23,5 +21,4 @@ public class DataStorageRemoteResponses {
 			return "Operation{OK}";
 		}
 	}
-
 }

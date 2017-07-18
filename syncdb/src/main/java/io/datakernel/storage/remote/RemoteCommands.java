@@ -4,7 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import io.datakernel.serializer.GsonSubclassesAdapter;
 
-public class DataStorageRemoteCommands {
+class RemoteCommands {
 	static Gson commandGSON = new GsonBuilder()
 			.registerTypeAdapter(RemoteCommand.class, GsonSubclassesAdapter.create()
 					.withSubclassField("commandType")
@@ -13,18 +13,16 @@ public class DataStorageRemoteCommands {
 			.enableComplexMapKeySerialization()
 			.create();
 
-	public static abstract class RemoteCommand {
-
-	}
+	static abstract class RemoteCommand {}
 
 	public static final class GetSortedStream extends RemoteCommand {
 		private final String predicateString;
 
-		public GetSortedStream(String predicateString) {
+		GetSortedStream(String predicateString) {
 			this.predicateString = predicateString;
 		}
 
-		public String getPredicateString() {
+		String getPredicateString() {
 			return predicateString;
 		}
 
@@ -33,5 +31,4 @@ public class DataStorageRemoteCommands {
 			return "GetSortedStream";
 		}
 	}
-
 }

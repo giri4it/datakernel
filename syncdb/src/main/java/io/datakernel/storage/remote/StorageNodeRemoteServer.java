@@ -12,27 +12,27 @@ import io.datakernel.eventloop.Eventloop;
 import io.datakernel.serializer.BufferSerializer;
 import io.datakernel.storage.StorageNode;
 import io.datakernel.storage.StorageNode.KeyValue;
-import io.datakernel.storage.remote.DataStorageRemoteCommands.GetSortedStream;
-import io.datakernel.storage.remote.DataStorageRemoteCommands.RemoteCommand;
-import io.datakernel.storage.remote.DataStorageRemoteResponses.RemoteResponse;
+import io.datakernel.storage.remote.RemoteCommands.GetSortedStream;
+import io.datakernel.storage.remote.RemoteCommands.RemoteCommand;
+import io.datakernel.storage.remote.RemoteResponses.RemoteResponse;
 import io.datakernel.stream.StreamProducer;
 import io.datakernel.stream.net.Messaging;
 import io.datakernel.stream.net.MessagingSerializer;
 import io.datakernel.stream.net.MessagingWithBinaryStreaming;
 import io.datakernel.stream.processor.StreamBinarySerializer;
 
-import static io.datakernel.storage.remote.DataStorageRemoteCommands.commandGSON;
-import static io.datakernel.storage.remote.DataStorageRemoteResponses.responseGson;
+import static io.datakernel.storage.remote.RemoteCommands.commandGSON;
+import static io.datakernel.storage.remote.RemoteResponses.responseGson;
 import static io.datakernel.stream.net.MessagingSerializers.ofGson;
 
-public class DataStorageRemoteServer<K extends Comparable<K>, V> extends AbstractServer<DataStorageRemoteServer<K, V>> {
+public final class StorageNodeRemoteServer<K extends Comparable<K>, V> extends AbstractServer<StorageNodeRemoteServer<K, V>> {
 	private final Eventloop eventloop;
 	private final StorageNode<K, V> hasSortedStreamProducer;
 	private final Gson gson;
 	private final MessagingSerializer<RemoteCommand, RemoteResponse> serializer = ofGson(commandGSON, RemoteCommand.class, responseGson, RemoteResponse.class);
 	private final BufferSerializer<KeyValue<K, V>> bufferSerializer;
 
-	public DataStorageRemoteServer(Eventloop eventloop, StorageNode<K, V> hasSortedStreamProducer, Gson gson, BufferSerializer<KeyValue<K, V>> bufferSerializer) {
+	public StorageNodeRemoteServer(Eventloop eventloop, StorageNode<K, V> hasSortedStreamProducer, Gson gson, BufferSerializer<KeyValue<K, V>> bufferSerializer) {
 		super(eventloop);
 		this.eventloop = eventloop;
 		this.hasSortedStreamProducer = hasSortedStreamProducer;
@@ -68,7 +68,7 @@ public class DataStorageRemoteServer<K extends Comparable<K>, V> extends Abstrac
 			hasSortedStreamProducer.getSortedStreamProducer(predicate, new ResultCallback<StreamProducer<KeyValue<K, V>>>() {
 				@Override
 				protected void onResult(final StreamProducer<KeyValue<K, V>> result) {
-					messaging.send(new DataStorageRemoteResponses.OkResponse(), new ForwardingCompletionCallback(this) {
+					messaging.send(new RemoteResponses.OkResponse(), new ForwardingCompletionCallback(this) {
 						@Override
 						protected void onComplete() {
 							final StreamBinarySerializer<KeyValue<K, V>> binarySerializer = StreamBinarySerializer.create(eventloop, bufferSerializer);
@@ -106,5 +106,4 @@ public class DataStorageRemoteServer<K extends Comparable<K>, V> extends Abstrac
 		//noinspection unchecked
 		return (Predicate<K>) gson.fromJson(predicateString, new TypeToken<Predicate<K>>() {}.getRawType());
 	}
-
 }

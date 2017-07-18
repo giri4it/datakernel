@@ -15,8 +15,8 @@ import io.datakernel.eventloop.Eventloop;
 import io.datakernel.serializer.BufferSerializer;
 import io.datakernel.storage.StorageNode.KeyValue;
 import io.datakernel.storage.StorageNodeTreeMap;
-import io.datakernel.storage.remote.DataStorageRemoteClient;
-import io.datakernel.storage.remote.DataStorageRemoteServer;
+import io.datakernel.storage.remote.StorageNodeRemoteClient;
+import io.datakernel.storage.remote.StorageNodeRemoteServer;
 import io.datakernel.stream.StreamConsumers;
 import io.datakernel.stream.StreamProducer;
 
@@ -70,10 +70,10 @@ public class RemoteExample {
 		}
 	};
 
-	public static class EvenSortedStreamPredicate implements Predicate<Integer> {
+	private static class EvenSortedStreamPredicate implements Predicate<Integer> {
 		private final int value;
 
-		public EvenSortedStreamPredicate(int value) {
+		EvenSortedStreamPredicate(int value) {
 			this.value = value;
 		}
 
@@ -82,7 +82,7 @@ public class RemoteExample {
 			return input % getValue() == 0;
 		}
 
-		public int getValue() {
+		int getValue() {
 			return value;
 		}
 
@@ -105,13 +105,13 @@ public class RemoteExample {
 		treeMap.put(6, newTreeSet(singletonList("6")));
 		final StorageNodeTreeMap<Integer, Set<String>> treeStorage = new StorageNodeTreeMap<>(eventloop, treeMap, null);
 
-		final DataStorageRemoteServer<Integer, Set<String>> server = new DataStorageRemoteServer<>(eventloop, treeStorage, gson, KEY_VALUE_SERIALIZER)
+		final StorageNodeRemoteServer<Integer, Set<String>> server = new StorageNodeRemoteServer<>(eventloop, treeStorage, gson, KEY_VALUE_SERIALIZER)
 				.withListenPort(PORT);
 
 		server.listen();
 
 		final InetSocketAddress address = new InetSocketAddress(PORT);
-		final DataStorageRemoteClient<Integer, Set<String>> client = new DataStorageRemoteClient<>(eventloop, address, gson, KEY_VALUE_SERIALIZER);
+		final StorageNodeRemoteClient<Integer, Set<String>> client = new StorageNodeRemoteClient<>(eventloop, address, gson, KEY_VALUE_SERIALIZER);
 
 		client.getSortedStreamProducer(new EvenSortedStreamPredicate(2), new ResultCallback<StreamProducer<KeyValue<Integer, Set<String>>>>() {
 			@Override
@@ -129,7 +129,7 @@ public class RemoteExample {
 			@Override
 			protected void onException(Exception e) {
 				System.out.println("client getSortedStream onException");
-				System.out.println(e);
+				System.out.println(e.getMessage() == null ? e.getClass() : e.getMessage());
 			}
 		});
 

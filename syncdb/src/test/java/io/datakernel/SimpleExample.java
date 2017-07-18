@@ -64,8 +64,8 @@ public class SimpleExample {
 	private static void printStreams(final Eventloop eventloop, final StorageNodeTreeMap<Integer, Set<String>> dataStorage1,
 	                                 final StorageNodeTreeMap<Integer, Set<String>> dataStorage2,
 	                                 final StorageNodeTreeMap<Integer, Set<String>> dataStorage3,
-	                                 final StorageNodeMerger<Integer, Set<String>, KeyValue<Integer, Set<String>>> dataStorageMerge1,
-	                                 final StorageNodeMerger<Integer, Set<String>, KeyValue<Integer, Set<String>>> dataStorageMerge2) {
+	                                 final StorageNodeMerger<Integer, Set<String>> dataStorageMerge1,
+	                                 final StorageNodeMerger<Integer, Set<String>> dataStorageMerge2) {
 		System.out.println("--------------------------------------------");
 		AsyncCallables.callAll(eventloop, asList(
 				getSortedStream(dataStorage1),
@@ -128,8 +128,8 @@ public class SimpleExample {
 		final StorageNodeTreeMap<Integer, Set<String>> dataStorage2 = createSimpleStorage(eventloop, data2, UNION);
 		final StorageNodeTreeMap<Integer, Set<String>> dataStorage3 = createSimpleStorage(eventloop, data3, UNION);
 
-		final StorageNodeMerger<Integer, Set<String>, KeyValue<Integer, Set<String>>> dataStorageMerge1 = new StorageNodeMerger<>(eventloop, UNION_REDUCER, asList(dataStorage1, dataStorage2));
-		final StorageNodeMerger<Integer, Set<String>, KeyValue<Integer, Set<String>>> dataStorageMerge2 = new StorageNodeMerger<>(eventloop, UNION_REDUCER, asList(dataStorage2, dataStorage3));
+		final StorageNodeMerger<Integer, Set<String>> dataStorageMerge1 = new StorageNodeMerger<>(eventloop, UNION_REDUCER, asList(dataStorage1, dataStorage2));
+		final StorageNodeMerger<Integer, Set<String>> dataStorageMerge2 = new StorageNodeMerger<>(eventloop, UNION_REDUCER, asList(dataStorage2, dataStorage3));
 
 		eventloop.run();
 

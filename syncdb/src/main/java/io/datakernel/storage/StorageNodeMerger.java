@@ -17,15 +17,15 @@ import java.util.List;
 
 import static io.datakernel.storage.StreamMergeUtils.mergeStreams;
 
-public class StorageNodeMerger<K extends Comparable<K>, V, A> implements StorageNode<K, V> {
+public class StorageNodeMerger<K extends Comparable<K>, V> implements StorageNode<K, V> {
 
 	private final Eventloop eventloop;
 	private final Ordering<K> ordering = Ordering.natural();
 
-	private final Reducer<K, KeyValue<K, V>, KeyValue<K, V>, A> reducer;
+	private final Reducer<K, KeyValue<K, V>, KeyValue<K, V>, ?> reducer;
 	private final List<? extends StorageNode<K, V>> peers;
 
-	public StorageNodeMerger(Eventloop eventloop, Reducer<K, KeyValue<K, V>, KeyValue<K, V>, A> reducer,
+	public StorageNodeMerger(Eventloop eventloop, Reducer<K, KeyValue<K, V>, KeyValue<K, V>, ?> reducer,
 	                         List<? extends StorageNode<K, V>> peers) {
 		this.eventloop = eventloop;
 		this.reducer = reducer;
@@ -60,7 +60,7 @@ public class StorageNodeMerger<K extends Comparable<K>, V, A> implements Storage
 			asyncCallables.add(new AsyncCallable<StreamConsumer<KeyValue<K, V>>>() {
 				@Override
 				public void call(ResultCallback<StreamConsumer<KeyValue<K, V>>> callback) {
-					peer.getSortedStreamConsumer(callback); ;
+					peer.getSortedStreamConsumer(callback);
 				}
 			});
 		}

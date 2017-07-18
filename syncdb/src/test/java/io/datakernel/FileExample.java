@@ -88,7 +88,7 @@ public class FileExample {
 		final StorageNodeFile<Integer, Set<String>, KeyValue<Integer, Set<String>>> fileStorage = new StorageNodeFile<>(eventloop,
 				Paths.get(Files.createTempDir().getAbsolutePath()), executorService, 100, KEY_VALUE_SERIALIZER, reducer);
 
-		final StorageNodeMerger<Integer, Set<String>, KeyValue<Integer, Set<String>>> merger = new StorageNodeMerger<>(eventloop, reducer, asList(storage, fileStorage));
+		final StorageNodeMerger<Integer, Set<String>> merger = new StorageNodeMerger<>(eventloop, reducer, asList(storage, fileStorage));
 
 		{
 			final ResultCallbackFuture<StreamProducer<KeyValue<Integer, Set<String>>>> sortedStreamCallback = ResultCallbackFuture.create();
