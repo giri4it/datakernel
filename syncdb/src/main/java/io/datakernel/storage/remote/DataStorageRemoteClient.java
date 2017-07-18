@@ -101,6 +101,12 @@ public final class DataStorageRemoteClient<K, V> implements StorageNode<K, V> {
 		});
 	}
 
+	@Override
+	public void getSortedStreamConsumer(ResultCallback<StreamConsumer<KeyValue<K, V>>> callback) {
+		// TODO
+		throw new NotImplementedException();
+	}
+
 	private String serializerPredicate(Predicate<K> predicate) {
 		return gson.toJson(predicate, new TypeToken<Predicate<K>>() {}.getRawType());
 	}
