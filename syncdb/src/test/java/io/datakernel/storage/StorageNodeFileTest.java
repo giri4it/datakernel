@@ -23,7 +23,9 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.NotDirectoryException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
@@ -42,7 +44,7 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
 import static org.junit.Assert.assertEquals;
 
-public class DataStorageFileWriterTest {
+public class StorageNodeFileTest {
 	private static final Predicate<Integer> ALWAYS_TRUE = Predicates.alwaysTrue();
 	private static final BufferSerializer<KeyValue<Integer, Set<String>>> SERIALIZER = new BufferSerializer<KeyValue<Integer, Set<String>>>() {
 		@Override
@@ -155,6 +157,27 @@ public class DataStorageFileWriterTest {
 		fileStorage.getSortedOutput(ALWAYS_TRUE, callback);
 		eventloop.run();
 		assertEquals(singletonList(dataId1), toList(callback.get()));
+	}
+
+	@Test(expected = NotDirectoryException.class)
+	public void testDirectoryException() throws Throwable {
+		final File file = folder.newFile();
+		storagePath = Paths.get(file.getAbsolutePath());
+		setUpFileStorage();
+
+		final ResultCallbackFuture<StreamProducer<KeyValue<Integer, Set<String>>>> callback = ResultCallbackFuture.create();
+		fileStorage.getSortedOutput(ALWAYS_TRUE, callback);
+
+		eventloop.run();
+		throwCause(callback);
+	}
+
+	private static <T> void throwCause(ResultCallbackFuture<T> future) throws Throwable {
+		try {
+			future.get();
+		} catch (ExecutionException e) {
+			throw e.getCause();
+		}
 	}
 
 }

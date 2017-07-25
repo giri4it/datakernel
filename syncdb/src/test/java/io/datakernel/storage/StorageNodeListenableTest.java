@@ -23,7 +23,7 @@ import static io.datakernel.stream.StreamStatus.CLOSED_WITH_ERROR;
 import static java.util.Arrays.asList;
 import static org.junit.Assert.assertEquals;
 
-public class DataStorageListenableTest {
+public class StorageNodeListenableTest {
 
 	private static <K, V> ResultCallback<StreamProducer<KeyValue<K, V>>> streamTo(final StreamConsumer<KeyValue<K, V>> consumer) {
 		return new AssertingResultCallback<StreamProducer<KeyValue<K, V>>>() {

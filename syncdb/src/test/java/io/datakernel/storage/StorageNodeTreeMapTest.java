@@ -29,7 +29,7 @@ import static java.util.Collections.singletonList;
 import static junit.framework.TestCase.assertNull;
 import static org.junit.Assert.*;
 
-public class DataStorageTreeMapTest {
+public class StorageNodeTreeMapTest {
 	private static final Predicate<Integer> ALWAYS_TRUE = Predicates.alwaysTrue();
 
 	private Eventloop eventloop;
