@@ -9,6 +9,7 @@ import io.datakernel.async.*;
 import io.datakernel.eventloop.Eventloop;
 import io.datakernel.merger.Merger;
 import io.datakernel.merger.MergerReducer;
+import io.datakernel.storage.PredicateFactory;
 import io.datakernel.storage.StorageNode;
 import io.datakernel.storage.StorageNode.KeyValue;
 import io.datakernel.storage.StorageNodeMerger;
@@ -34,6 +35,13 @@ public class SimpleExample {
 	private static final Reducer<Integer, KeyValue<Integer, Set<String>>, KeyValue<Integer, Set<String>>, KeyValue<Integer, Set<String>>> UNION_REDUCER =
 			TestUnion.getInstance().inputToOutput();
 	private static final Merger<KeyValue<Integer, Set<String>>> UNION = new MergerReducer<>(UNION_REDUCER);
+
+	private static final PredicateFactory<Integer> PREDICATES = new PredicateFactory<Integer>() {
+		@Override
+		public <K, V> Predicate<Integer> create(StorageNode<K, V> node) {
+			return Predicates.alwaysTrue();
+		}
+	};
 
 	private static <K extends Comparable<K>, V> AsyncRunnable synchronize(final StorageNodeTreeMap<K, V> dataStorage, final StreamProducer<KeyValue<K, V>> producer) {
 		return new AsyncRunnable() {
@@ -128,8 +136,8 @@ public class SimpleExample {
 		final StorageNodeTreeMap<Integer, Set<String>> dataStorage2 = createSimpleStorage(eventloop, data2, UNION);
 		final StorageNodeTreeMap<Integer, Set<String>> dataStorage3 = createSimpleStorage(eventloop, data3, UNION);
 
-		final StorageNodeMerger<Integer, Set<String>> dataStorageMerge1 = new StorageNodeMerger<>(eventloop, UNION_REDUCER, asList(dataStorage1, dataStorage2));
-		final StorageNodeMerger<Integer, Set<String>> dataStorageMerge2 = new StorageNodeMerger<>(eventloop, UNION_REDUCER, asList(dataStorage2, dataStorage3));
+		final StorageNodeMerger<Integer, Set<String>> dataStorageMerge1 = new StorageNodeMerger<>(eventloop, UNION_REDUCER, PREDICATES, asList(dataStorage1, dataStorage2));
+		final StorageNodeMerger<Integer, Set<String>> dataStorageMerge2 = new StorageNodeMerger<>(eventloop, UNION_REDUCER, PREDICATES, asList(dataStorage2, dataStorage3));
 
 		eventloop.run();
 
