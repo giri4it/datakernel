@@ -70,7 +70,7 @@ public class DataStorageTreeMapTest {
 	@Test
 	public void testInitEmptyState() throws ExecutionException, InterruptedException {
 		final ResultCallbackFuture<StreamProducer<KeyValue<Integer, Set<String>>>> callback = ResultCallbackFuture.create();
-		dataStorageTreeMap.getSortedStreamProducer(ALWAYS_TRUE, callback);
+		dataStorageTreeMap.getSortedOutput(ALWAYS_TRUE, callback);
 
 		eventloop.run();
 		assertEquals(Collections.emptyList(), toList(callback.get()));
@@ -82,7 +82,7 @@ public class DataStorageTreeMapTest {
 		for (KeyValue<Integer, Set<String>> keyValue : data) state.put(keyValue.getKey(), keyValue.getValue());
 
 		final ResultCallbackFuture<StreamProducer<KeyValue<Integer, Set<String>>>> callback = ResultCallbackFuture.create();
-		dataStorageTreeMap.getSortedStreamProducer(ALWAYS_TRUE, callback);
+		dataStorageTreeMap.getSortedOutput(ALWAYS_TRUE, callback);
 
 		eventloop.run();
 		assertEquals(data, toList(callback.get()));
@@ -94,7 +94,7 @@ public class DataStorageTreeMapTest {
 		for (KeyValue<Integer, Set<String>> keyValue : data) state.put(keyValue.getKey(), keyValue.getValue());
 
 		final ResultCallbackFuture<StreamProducer<KeyValue<Integer, Set<String>>>> callback = ResultCallbackFuture.create();
-		dataStorageTreeMap.getSortedStreamProducer(Predicates.in(asList(0, 3)), callback);
+		dataStorageTreeMap.getSortedOutput(Predicates.in(asList(0, 3)), callback);
 
 		eventloop.run();
 		assertEquals(asList(data.get(0), data.get(3)), toList(callback.get()));
@@ -110,14 +110,14 @@ public class DataStorageTreeMapTest {
 
 		{
 			final ResultCallbackFuture<StreamProducer<KeyValue<Integer, Set<String>>>> callback = ResultCallbackFuture.create();
-			dataStorageTreeMap.getSortedStreamProducer(ALWAYS_TRUE, callback);
+			dataStorageTreeMap.getSortedOutput(ALWAYS_TRUE, callback);
 
 			eventloop.run();
 			assertEquals(singletonList(dataId2), toList(callback.get()));
 		}
 		{
 			final CompletionCallbackFuture syncCallback = CompletionCallbackFuture.create();
-			dataStorageTreeMap.getSortedStreamConsumer(new ForwardingResultCallback<StreamConsumer<KeyValue<Integer, Set<String>>>>(syncCallback) {
+			dataStorageTreeMap.getSortedInput(new ForwardingResultCallback<StreamConsumer<KeyValue<Integer, Set<String>>>>(syncCallback) {
 				@Override
 				protected void onResult(StreamConsumer<KeyValue<Integer, Set<String>>> consumer) {
 					ofIterable(eventloop, singleton(dataId1)).streamTo(listenableConsumer(consumer, syncCallback));
@@ -129,7 +129,7 @@ public class DataStorageTreeMapTest {
 		}
 		{
 			final ResultCallbackFuture<StreamProducer<KeyValue<Integer, Set<String>>>> callback = ResultCallbackFuture.create();
-			dataStorageTreeMap.getSortedStreamProducer(ALWAYS_TRUE, callback);
+			dataStorageTreeMap.getSortedOutput(ALWAYS_TRUE, callback);
 
 			eventloop.run();
 			assertEquals(asList(dataId1, dataId2), toList(callback.get()));

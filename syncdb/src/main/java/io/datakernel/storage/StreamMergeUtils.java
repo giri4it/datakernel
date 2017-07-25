@@ -33,7 +33,7 @@ public class StreamMergeUtils {
 			callables.add(new AsyncCallable<StreamProducer<KeyValue<K, V>>>() {
 				@Override
 				public void call(ResultCallback<StreamProducer<KeyValue<K, V>>> callback) {
-					stream.getSortedStreamProducer(predicate, callback);
+					stream.getSortedOutput(predicate, callback);
 				}
 			});
 		}

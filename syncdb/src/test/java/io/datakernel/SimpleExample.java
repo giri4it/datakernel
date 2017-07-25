@@ -39,7 +39,7 @@ public class SimpleExample {
 		return new AsyncRunnable() {
 			@Override
 			public void run(final CompletionCallback callback) {
-				dataStorage.getSortedStreamConsumer(new ForwardingResultCallback<StreamConsumer<KeyValue<K, V>>>(callback) {
+				dataStorage.getSortedInput(new ForwardingResultCallback<StreamConsumer<KeyValue<K, V>>>(callback) {
 					@Override
 					protected void onResult(StreamConsumer<KeyValue<K, V>> consumer) {
 						producer.streamTo(consumer);
@@ -92,7 +92,7 @@ public class SimpleExample {
 		return new AsyncCallable<StreamProducer<KeyValue<Integer, Set<String>>>>() {
 			@Override
 			public void call(ResultCallback<StreamProducer<KeyValue<Integer, Set<String>>>> callback) {
-				hasSortedStreamProducer.getSortedStreamProducer(ALWAYS_TRUE, callback);
+				hasSortedStreamProducer.getSortedOutput(ALWAYS_TRUE, callback);
 			}
 		};
 	}

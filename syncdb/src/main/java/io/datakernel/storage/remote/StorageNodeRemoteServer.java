@@ -65,7 +65,7 @@ public final class StorageNodeRemoteServer<K extends Comparable<K>, V> extends A
 	private void doRead(final MessagingWithBinaryStreaming<RemoteCommand, RemoteResponse> messaging, RemoteCommand msg) {
 		if (msg instanceof GetSortedStream) {
 			final Predicate<K> predicate = deserializePredicate((GetSortedStream) msg);
-			hasSortedStreamProducer.getSortedStreamProducer(predicate, new ResultCallback<StreamProducer<KeyValue<K, V>>>() {
+			hasSortedStreamProducer.getSortedOutput(predicate, new ResultCallback<StreamProducer<KeyValue<K, V>>>() {
 				@Override
 				protected void onResult(final StreamProducer<KeyValue<K, V>> result) {
 					messaging.send(new RemoteResponses.OkResponse(), new ForwardingCompletionCallback(this) {

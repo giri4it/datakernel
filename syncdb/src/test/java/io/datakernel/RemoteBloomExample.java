@@ -93,7 +93,7 @@ public class RemoteBloomExample {
 
 		final BloomFilter<Integer> bloomFilter = createBloomFilter(1, 4);
 
-		client.getSortedStreamProducer(new BloomFilterPredicate<>(bloomFilter), new ResultCallback<StreamProducer<KeyValue<Integer, Set<String>>>>() {
+		client.getSortedOutput(new BloomFilterPredicate<>(bloomFilter), new ResultCallback<StreamProducer<KeyValue<Integer, Set<String>>>>() {
 			@Override
 			protected void onResult(StreamProducer<KeyValue<Integer, Set<String>>> result) {
 				final StreamConsumers.ToList<KeyValue<Integer, Set<String>>> toList = StreamConsumers.toList(eventloop);

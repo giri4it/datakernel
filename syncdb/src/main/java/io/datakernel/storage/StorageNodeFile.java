@@ -78,7 +78,7 @@ public class StorageNodeFile<K extends Comparable<K>, V, A> implements StorageNo
 	}
 
 	@Override
-	public void getSortedStreamProducer(final Predicate<K> predicate, final ResultCallback<StreamProducer<KeyValue<K, V>>> callback) {
+	public void getSortedOutput(final Predicate<K> predicate, final ResultCallback<StreamProducer<KeyValue<K, V>>> callback) {
 		assert eventloop.inEventloopThread();
 		try (final DirectoryStream<Path> paths = Files.newDirectoryStream(storagePath, STORAGE_FILES_TEMPLATE)) {
 			final List<AsyncCallable<AsyncFile>> asyncCallables = createCallableAsyncFiles(paths);
@@ -108,7 +108,7 @@ public class StorageNodeFile<K extends Comparable<K>, V, A> implements StorageNo
 	}
 
 	@Override
-	public void getSortedStreamConsumer(final ResultCallback<StreamConsumer<KeyValue<K, V>>> callback) {
+	public void getSortedInput(final ResultCallback<StreamConsumer<KeyValue<K, V>>> callback) {
 		assert eventloop.inEventloopThread();
 
 		final Path nextFile = storagePath.resolve(createFileName(eventloop.currentTimeMillis()));

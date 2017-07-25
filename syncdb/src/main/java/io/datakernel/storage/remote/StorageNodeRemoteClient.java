@@ -80,7 +80,7 @@ public final class StorageNodeRemoteClient<K, V> implements StorageNode<K, V> {
 	}
 
 	@Override
-	public void getSortedStreamProducer(final Predicate<K> predicate, final ResultCallback<StreamProducer<KeyValue<K, V>>> callback) {
+	public void getSortedOutput(final Predicate<K> predicate, final ResultCallback<StreamProducer<KeyValue<K, V>>> callback) {
 		connect(address, new ForwardingMessagingConnectCallback(callback) {
 			@Override
 			protected void onConnect(final MessagingWithBinaryStreaming<RemoteResponse, RemoteCommand> messaging) {
@@ -102,7 +102,7 @@ public final class StorageNodeRemoteClient<K, V> implements StorageNode<K, V> {
 	}
 
 	@Override
-	public void getSortedStreamConsumer(ResultCallback<StreamConsumer<KeyValue<K, V>>> callback) {
+	public void getSortedInput(ResultCallback<StreamConsumer<KeyValue<K, V>>> callback) {
 		// TODO
 		throw new NotImplementedException();
 	}

@@ -113,7 +113,7 @@ public class RemoteExample {
 		final InetSocketAddress address = new InetSocketAddress(PORT);
 		final StorageNodeRemoteClient<Integer, Set<String>> client = new StorageNodeRemoteClient<>(eventloop, address, gson, KEY_VALUE_SERIALIZER);
 
-		client.getSortedStreamProducer(new EvenSortedStreamPredicate(2), new ResultCallback<StreamProducer<KeyValue<Integer, Set<String>>>>() {
+		client.getSortedOutput(new EvenSortedStreamPredicate(2), new ResultCallback<StreamProducer<KeyValue<Integer, Set<String>>>>() {
 			@Override
 			protected void onResult(StreamProducer<KeyValue<Integer, Set<String>>> result) {
 				final StreamConsumers.ToList<KeyValue<Integer, Set<String>>> toList = StreamConsumers.toList(eventloop);

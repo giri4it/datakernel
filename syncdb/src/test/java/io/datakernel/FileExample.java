@@ -72,12 +72,12 @@ public class FileExample {
 					.iterator();
 
 			@Override
-			public void getSortedStreamProducer(Predicate<Integer> predicate, ResultCallback<StreamProducer<KeyValue<Integer, Set<String>>>> callback) {
+			public void getSortedOutput(Predicate<Integer> predicate, ResultCallback<StreamProducer<KeyValue<Integer, Set<String>>>> callback) {
 				callback.setResult(producers.next());
 			}
 
 			@Override
-			public void getSortedStreamConsumer(ResultCallback<StreamConsumer<KeyValue<Integer, Set<String>>>> callback) {
+			public void getSortedInput(ResultCallback<StreamConsumer<KeyValue<Integer, Set<String>>>> callback) {
 				throw new UnsupportedOperationException();
 			}
 		};
@@ -92,7 +92,7 @@ public class FileExample {
 
 		{
 			final ResultCallbackFuture<StreamProducer<KeyValue<Integer, Set<String>>>> sortedStreamCallback = ResultCallbackFuture.create();
-			fileStorage.getSortedStreamProducer(ALWAYS_TRUE, sortedStreamCallback);
+			fileStorage.getSortedOutput(ALWAYS_TRUE, sortedStreamCallback);
 
 			eventloop.run();
 			System.out.println("sortedStream");
@@ -111,10 +111,10 @@ public class FileExample {
 
 		for (int i = 0; i < 2; i++) {
 			final CompletionCallbackFuture syncCallback = CompletionCallbackFuture.create();
-			merger.getSortedStreamProducer(ALWAYS_TRUE, new ForwardingResultCallback<StreamProducer<KeyValue<Integer, Set<String>>>>(syncCallback) {
+			merger.getSortedOutput(ALWAYS_TRUE, new ForwardingResultCallback<StreamProducer<KeyValue<Integer, Set<String>>>>(syncCallback) {
 				@Override
 				protected void onResult(final StreamProducer<KeyValue<Integer, Set<String>>> producer) {
-					fileStorage.getSortedStreamConsumer(new ForwardingResultCallback<StreamConsumer<KeyValue<Integer, Set<String>>>>(syncCallback) {
+					fileStorage.getSortedInput(new ForwardingResultCallback<StreamConsumer<KeyValue<Integer, Set<String>>>>(syncCallback) {
 						@Override
 						protected void onResult(StreamConsumer<KeyValue<Integer, Set<String>>> consumer) {
 							producer.streamTo(listenableConsumer(consumer, syncCallback));
@@ -128,7 +128,7 @@ public class FileExample {
 			System.out.println("sync");
 
 			final ResultCallbackFuture<StreamProducer<KeyValue<Integer, Set<String>>>> sortedStreamCallback = ResultCallbackFuture.create();
-			fileStorage.getSortedStreamProducer(ALWAYS_TRUE, sortedStreamCallback);
+			fileStorage.getSortedOutput(ALWAYS_TRUE, sortedStreamCallback);
 
 			eventloop.run();
 			System.out.println("sortedStream");

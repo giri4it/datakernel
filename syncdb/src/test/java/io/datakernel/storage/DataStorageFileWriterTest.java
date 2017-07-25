@@ -108,7 +108,7 @@ public class DataStorageFileWriterTest {
 	@Test
 	public void testInitEmptyState() throws IOException, ExecutionException, InterruptedException {
 		final ResultCallbackFuture<StreamProducer<KeyValue<Integer, Set<String>>>> callback = ResultCallbackFuture.create();
-		fileStorage.getSortedStreamProducer(ALWAYS_TRUE, callback);
+		fileStorage.getSortedOutput(ALWAYS_TRUE, callback);
 
 		eventloop.run();
 		assertEquals(Collections.emptyList(), toList(callback.get()));
@@ -119,7 +119,7 @@ public class DataStorageFileWriterTest {
 		final KeyValue<Integer, Set<String>> data = newKeyValue(1, "a");
 		writeStateToFile(storagePath.resolve(Paths.get("1" + FILES_EXT)), ofValue(eventloop, data));
 		final ResultCallbackFuture<StreamProducer<KeyValue<Integer, Set<String>>>> callback = ResultCallbackFuture.create();
-		fileStorage.getSortedStreamProducer(ALWAYS_TRUE, callback);
+		fileStorage.getSortedOutput(ALWAYS_TRUE, callback);
 
 		eventloop.run();
 		assertEquals(singletonList(data), toList(callback.get()));
@@ -131,7 +131,7 @@ public class DataStorageFileWriterTest {
 		writeStateToFile(storagePath.resolve(Paths.get("1" + FILES_EXT)), ofIterable(eventloop, data));
 
 		final ResultCallbackFuture<StreamProducer<KeyValue<Integer, Set<String>>>> callback = ResultCallbackFuture.create();
-		fileStorage.getSortedStreamProducer(Predicates.in(asList(0, 3)), callback);
+		fileStorage.getSortedOutput(Predicates.in(asList(0, 3)), callback);
 
 		eventloop.run();
 		assertEquals(asList(data.get(0), data.get(3)), toList(callback.get()));
@@ -142,7 +142,7 @@ public class DataStorageFileWriterTest {
 		final KeyValue<Integer, Set<String>> dataId1 = newKeyValue(1, "b");
 
 		final CompletionCallbackFuture completionCallback = CompletionCallbackFuture.create();
-		fileStorage.getSortedStreamConsumer(new ForwardingResultCallback<StreamConsumer<KeyValue<Integer, Set<String>>>>(completionCallback) {
+		fileStorage.getSortedInput(new ForwardingResultCallback<StreamConsumer<KeyValue<Integer, Set<String>>>>(completionCallback) {
 			@Override
 			protected void onResult(StreamConsumer<KeyValue<Integer, Set<String>>> consumer) {
 				ofValue(eventloop, dataId1).streamTo(listenableConsumer(consumer, completionCallback));
@@ -152,7 +152,7 @@ public class DataStorageFileWriterTest {
 		completionCallback.get();
 
 		final ResultCallbackFuture<StreamProducer<KeyValue<Integer, Set<String>>>> callback = ResultCallbackFuture.create();
-		fileStorage.getSortedStreamProducer(ALWAYS_TRUE, callback);
+		fileStorage.getSortedOutput(ALWAYS_TRUE, callback);
 		eventloop.run();
 		assertEquals(singletonList(dataId1), toList(callback.get()));
 	}

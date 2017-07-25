@@ -45,7 +45,7 @@ public final class StorageNodeListenable<K extends Comparable<K>, V, A> implemen
 	}
 
 	@Override
-	public void getSortedStreamProducer(final Predicate<K> predicate, final ResultCallback<StreamProducer<KeyValue<K, V>>> callback) {
+	public void getSortedOutput(final Predicate<K> predicate, final ResultCallback<StreamProducer<KeyValue<K, V>>> callback) {
 		assert eventloop.inEventloopThread();
 
 		if (producerCallbacks != null) {
@@ -62,7 +62,7 @@ public final class StorageNodeListenable<K extends Comparable<K>, V, A> implemen
 		//noinspection AssertWithSideEffects
 		assert ++getSortedProducerCounter == 1;
 
-		storageNode.getSortedStreamProducer(predicate, new ResultCallback<StreamProducer<KeyValue<K, V>>>() {
+		storageNode.getSortedOutput(predicate, new ResultCallback<StreamProducer<KeyValue<K, V>>>() {
 			@Override
 			protected void onResult(StreamProducer<KeyValue<K, V>> producer) {
 				final List<ResultCallback<StreamProducer<KeyValue<K, V>>>> callbacks = producerCallbacks;
@@ -94,7 +94,7 @@ public final class StorageNodeListenable<K extends Comparable<K>, V, A> implemen
 	}
 
 	@Override
-	public void getSortedStreamConsumer(ResultCallback<StreamConsumer<KeyValue<K, V>>> callback) {
+	public void getSortedInput(ResultCallback<StreamConsumer<KeyValue<K, V>>> callback) {
 		assert eventloop.inEventloopThread();
 
 		if (consumerCallbacks != null) {
@@ -111,7 +111,7 @@ public final class StorageNodeListenable<K extends Comparable<K>, V, A> implemen
 		//noinspection AssertWithSideEffects
 		assert ++getSortedConsumerCounter == 1;
 
-		storageNode.getSortedStreamConsumer(new ResultCallback<StreamConsumer<KeyValue<K, V>>>() {
+		storageNode.getSortedInput(new ResultCallback<StreamConsumer<KeyValue<K, V>>>() {
 			@Override
 			protected void onResult(StreamConsumer<KeyValue<K, V>> consumer) {
 				final List<ResultCallback<StreamConsumer<KeyValue<K, V>>>> callbacks = consumerCallbacks;

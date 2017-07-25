@@ -54,8 +54,8 @@ public interface StorageNode<K, V> {
 		}
 	}
 
-	void getSortedStreamProducer(Predicate<K> predicate, ResultCallback<StreamProducer<KeyValue<K, V>>> callback);
+	void getSortedOutput(Predicate<K> predicate, ResultCallback<StreamProducer<KeyValue<K, V>>> callback);
 
-	void getSortedStreamConsumer(ResultCallback<StreamConsumer<KeyValue<K, V>>> callback);
+	void getSortedInput(ResultCallback<StreamConsumer<KeyValue<K, V>>> callback);
 
 }

@@ -36,13 +36,13 @@ public final class StorageNodeTreeMap<K extends Comparable<K>, V> implements Sto
 	}
 
 	@Override
-	public void getSortedStreamProducer(Predicate<K> predicate, ResultCallback<StreamProducer<KeyValue<K, V>>> callback) {
+	public void getSortedOutput(Predicate<K> predicate, ResultCallback<StreamProducer<KeyValue<K, V>>> callback) {
 		assert eventloop.inEventloopThread();
 		callback.setResult(ofIterable(eventloop, transform(filterKeys(values, predicate).entrySet(), toKeyValue)));
 	}
 
 	@Override
-	public void getSortedStreamConsumer(ResultCallback<StreamConsumer<KeyValue<K, V>>> callback) {
+	public void getSortedInput(ResultCallback<StreamConsumer<KeyValue<K, V>>> callback) {
 		callback.setResult(new AbstractStreamConsumer<KeyValue<K, V>>(eventloop) {
 			@Override
 			public StreamDataReceiver<KeyValue<K, V>> getDataReceiver() {

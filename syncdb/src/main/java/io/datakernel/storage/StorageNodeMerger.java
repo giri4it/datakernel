@@ -33,14 +33,14 @@ public class StorageNodeMerger<K extends Comparable<K>, V> implements StorageNod
 	}
 
 	@Override
-	public void getSortedStreamProducer(final Predicate<K> filter, ResultCallback<StreamProducer<KeyValue<K, V>>> callback) {
+	public void getSortedOutput(final Predicate<K> filter, ResultCallback<StreamProducer<KeyValue<K, V>>> callback) {
 		assert eventloop.inEventloopThread();
 		mergeStreams(eventloop, ordering, reducer, peers, filter, callback);
 	}
 
 	// TODO: add tests and predicates from each peer, here???
 	@Override
-	public void getSortedStreamConsumer(final ResultCallback<StreamConsumer<KeyValue<K, V>>> callback) {
+	public void getSortedInput(final ResultCallback<StreamConsumer<KeyValue<K, V>>> callback) {
 		final List<AsyncCallable<StreamConsumer<KeyValue<K, V>>>> asyncCallables = createAsyncConsumers();
 		AsyncCallables.callAll(eventloop, asyncCallables).call(new ForwardingResultCallback<List<StreamConsumer<KeyValue<K, V>>>>(callback) {
 			@Override
@@ -60,7 +60,7 @@ public class StorageNodeMerger<K extends Comparable<K>, V> implements StorageNod
 			asyncCallables.add(new AsyncCallable<StreamConsumer<KeyValue<K, V>>>() {
 				@Override
 				public void call(ResultCallback<StreamConsumer<KeyValue<K, V>>> callback) {
-					peer.getSortedStreamConsumer(callback);
+					peer.getSortedInput(callback);
 				}
 			});
 		}

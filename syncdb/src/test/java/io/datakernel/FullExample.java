@@ -265,10 +265,10 @@
 //			asyncRunnables.add(new AsyncRunnable() {
 //				@Override
 //				public void run(final CompletionCallback callback) {
-//					node.producer.getSortedStreamProducer(node.predicate, new ForwardingResultCallback<StreamProducer<KeyValue<Key, V>>>(callback) {
+//					node.producer.getSortedOutput(node.predicate, new ForwardingResultCallback<StreamProducer<KeyValue<Key, V>>>(callback) {
 //						@Override
 //						protected void onResult(final StreamProducer<KeyValue<Key, V>> producer) {
-//							node.consumer.getSortedStreamConsumer(new ForwardingResultCallback<StreamConsumer<KeyValue<Key, V>>>(callback) {
+//							node.consumer.getSortedInput(new ForwardingResultCallback<StreamConsumer<KeyValue<Key, V>>>(callback) {
 //								@Override
 //								protected void onResult(StreamConsumer<KeyValue<Key, V>> consumer) {
 //									producer.streamTo(consumer);
@@ -331,7 +331,7 @@
 //		return new AsyncCallable<List<KeyValue<K, V>>>() {
 //			@Override
 //			public void call(final ResultCallback<List<KeyValue<K, V>>> callback) {
-//				hasSortedStreamProducer.getSortedStreamProducer(predicate, new ForwardingResultCallback<StreamProducer<KeyValue<K, V>>>(callback) {
+//				hasSortedStreamProducer.getSortedOutput(predicate, new ForwardingResultCallback<StreamProducer<KeyValue<K, V>>>(callback) {
 //					@Override
 //					protected void onResult(StreamProducer<KeyValue<K, V>> producer) {
 //						final StreamConsumers.ToList<KeyValue<K, V>> consumerToList = StreamConsumers.toList(eventloop);
