@@ -1,21 +1,18 @@
 package io.datakernel;
 
-import com.google.common.base.Function;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.collect.Sets;
 import com.google.common.io.Files;
 import io.datakernel.async.CompletionCallbackFuture;
 import io.datakernel.async.ForwardingResultCallback;
-import io.datakernel.async.ResultCallback;
 import io.datakernel.async.ResultCallbackFuture;
 import io.datakernel.bytebuf.ByteBuf;
 import io.datakernel.eventloop.Eventloop;
 import io.datakernel.serializer.BufferSerializer;
-import io.datakernel.storage.StorageNode;
 import io.datakernel.storage.StorageNode.KeyValue;
 import io.datakernel.storage.StorageNodeFile;
-import io.datakernel.storage.streams.StreamKeyFilter;
+import io.datakernel.storage.StorageNodeTreeMap;
 import io.datakernel.stream.StreamConsumer;
 import io.datakernel.stream.StreamConsumers;
 import io.datakernel.stream.StreamProducer;
@@ -24,15 +21,14 @@ import io.datakernel.stream.processor.StreamReducers;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Iterator;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import static io.datakernel.stream.StreamConsumers.listenableConsumer;
-import static io.datakernel.stream.StreamProducers.ofValue;
 import static java.util.Arrays.asList;
 
 public class FileExample {
@@ -58,6 +54,13 @@ public class FileExample {
 		return new KeyValue<Integer, Set<String>>(key, Sets.newTreeSet(asList(value)));
 	}
 
+	@SafeVarargs
+	private static TreeMap<Integer, Set<String>> treeMap(KeyValue<Integer, Set<String>>... keyValues) {
+		final TreeMap<Integer, Set<String>> map = new TreeMap<>();
+		for (KeyValue<Integer, Set<String>> keyValue : keyValues) map.put(keyValue.getKey(), keyValue.getValue());
+		return map;
+	}
+
 	private static String toString(Eventloop eventloop, StreamProducer<KeyValue<Integer, Set<String>>> producer) {
 		final StreamConsumers.ToList<KeyValue<Integer, Set<String>>> toList = StreamConsumers.toList(eventloop);
 		producer.streamTo(toList);
@@ -69,21 +72,20 @@ public class FileExample {
 		final Eventloop eventloop = Eventloop.create();
 		final ExecutorService executorService = Executors.newFixedThreadPool(4);
 
-		final StorageNode<Integer, Set<String>> storage = new StorageNodeIterator<>(eventloop, asList(
-				ofValue(eventloop, newKeyValue(1, "a")),
-				ofValue(eventloop, newKeyValue(2, "b")))
-				.iterator());
+		final Iterable<StorageNodeTreeMap<Integer, Set<String>>> storageNodes = asList(
+				new StorageNodeTreeMap<>(eventloop, treeMap(newKeyValue(1, "a")), null),
+				new StorageNodeTreeMap<>(eventloop, treeMap(newKeyValue(2, "b")), null));
 
 		final Path storagePath = Paths.get(Files.createTempDir().getAbsolutePath());
-		final StorageNodeFile<Integer, Set<String>, KeyValue<Integer, Set<String>>> fileStorage = new StorageNodeFile<>(eventloop,
-				storagePath, executorService, 100, KEY_VALUE_SERIALIZER, TestUnion.getInstance().inputToAccumulator());
+		final StorageNodeFile<Integer, Set<String>, Void> fileStorage = new StorageNodeFile<>(eventloop,
+				storagePath, executorService, 100, KEY_VALUE_SERIALIZER, StreamReducers.<Integer, KeyValue<Integer, Set<String>>>mergeSortReducer());
 
-		for (int i = 0; i < 2; i++) {
+		for (final StorageNodeTreeMap<Integer, Set<String>> storageNode : storageNodes) {
 			final CompletionCallbackFuture syncCallback = CompletionCallbackFuture.create();
 			fileStorage.getSortedInput(new ForwardingResultCallback<StreamConsumer<KeyValue<Integer, Set<String>>>>(syncCallback) {
 				@Override
 				protected void onResult(final StreamConsumer<KeyValue<Integer, Set<String>>> consumer) {
-					storage.getSortedOutput(ALWAYS_TRUE, new ForwardingResultCallback<StreamProducer<KeyValue<Integer, Set<String>>>>(syncCallback) {
+					storageNode.getSortedOutput(ALWAYS_TRUE, new ForwardingResultCallback<StreamProducer<KeyValue<Integer, Set<String>>>>(syncCallback) {
 						@Override
 						protected void onResult(StreamProducer<KeyValue<Integer, Set<String>>> producer) {
 							producer.streamTo(listenableConsumer(consumer, syncCallback));
@@ -105,55 +107,5 @@ public class FileExample {
 		}
 
 		executorService.shutdown();
-	}
-
-	private static class TestUnion extends StreamReducers.ReducerToAccumulator<Integer, KeyValue<Integer, Set<String>>, KeyValue<Integer, Set<String>>> {
-		private static final TestUnion INSTANCE = new TestUnion();
-
-		private TestUnion() {
-
-		}
-
-		static TestUnion getInstance() {
-			return INSTANCE;
-		}
-
-		@Override
-		public KeyValue<Integer, Set<String>> createAccumulator(Integer key) {
-			return new KeyValue<Integer, Set<String>>(key, new TreeSet<String>());
-		}
-
-		@Override
-		public KeyValue<Integer, Set<String>> accumulate(KeyValue<Integer, Set<String>> accumulator, KeyValue<Integer, Set<String>> value) {
-			accumulator.getValue().addAll(value.getValue());
-			return accumulator;
-		}
-	}
-
-	private static class StorageNodeIterator<K, V> implements StorageNode<K, V> {
-		private final Eventloop eventloop;
-		private final Iterator<StreamProducer<KeyValue<K, V>>> producers;
-
-		private StorageNodeIterator(Eventloop eventloop, Iterator<StreamProducer<KeyValue<K, V>>> producers) {
-			this.eventloop = eventloop;
-			this.producers = producers;
-		}
-
-		@Override
-		public void getSortedOutput(Predicate<K> predicate, ResultCallback<StreamProducer<KeyValue<K, V>>> callback) {
-			final StreamKeyFilter<K, KeyValue<K, V>> filter = new StreamKeyFilter<>(eventloop, predicate, new Function<KeyValue<K, V>, K>() {
-				@Override
-				public K apply(KeyValue<K, V> input) {
-					return input.getKey();
-				}
-			});
-			producers.next().streamTo(filter.getInput());
-			callback.setResult(filter.getOutput());
-		}
-
-		@Override
-		public void getSortedInput(ResultCallback<StreamConsumer<KeyValue<K, V>>> callback) {
-			throw new UnsupportedOperationException();
-		}
 	}
 }
