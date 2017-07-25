@@ -2,7 +2,7 @@ package io.datakernel.storage;
 
 import io.datakernel.async.CompletionCallback;
 
-public interface Synchronizer {
+public interface Consolidator {
 
-	void synchronize(CompletionCallback callback);
+	void consolidate(CompletionCallback callback);
 }
