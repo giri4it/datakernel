@@ -8,17 +8,17 @@ class RemoteCommands {
 	static Gson commandGSON = new GsonBuilder()
 			.registerTypeAdapter(RemoteCommand.class, GsonSubclassesAdapter.create()
 					.withSubclassField("commandType")
-					.withSubclass("GetSortedStream", GetSortedStream.class))
+					.withSubclass("GetSortedStream", GetSortedOutput.class))
 			.setPrettyPrinting()
 			.enableComplexMapKeySerialization()
 			.create();
 
 	static abstract class RemoteCommand {}
 
-	public static final class GetSortedStream extends RemoteCommand {
+	public static final class GetSortedOutput extends RemoteCommand {
 		private final String predicateString;
 
-		GetSortedStream(String predicateString) {
+		GetSortedOutput(String predicateString) {
 			this.predicateString = predicateString;
 		}
 
@@ -29,6 +29,14 @@ class RemoteCommands {
 		@Override
 		public String toString() {
 			return "GetSortedStream";
+		}
+	}
+
+	public static final class GetSortedInput extends RemoteCommand {
+
+		@Override
+		public String toString() {
+			return "GetSortedInput";
 		}
 	}
 }

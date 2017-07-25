@@ -1,6 +1,8 @@
 package io.datakernel;
 
 import com.google.common.base.Predicate;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Sets;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.TypeAdapter;
@@ -8,17 +10,21 @@ import com.google.gson.TypeAdapterFactory;
 import com.google.gson.reflect.TypeToken;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
+import io.datakernel.annotation.Nullable;
 import io.datakernel.async.AssertingCompletionCallback;
 import io.datakernel.async.ResultCallback;
 import io.datakernel.bytebuf.ByteBuf;
 import io.datakernel.eventloop.Eventloop;
+import io.datakernel.merger.Merger;
 import io.datakernel.serializer.BufferSerializer;
 import io.datakernel.storage.StorageNode.KeyValue;
 import io.datakernel.storage.StorageNodeTreeMap;
 import io.datakernel.storage.remote.StorageNodeRemoteClient;
 import io.datakernel.storage.remote.StorageNodeRemoteServer;
+import io.datakernel.stream.StreamConsumer;
 import io.datakernel.stream.StreamConsumers;
 import io.datakernel.stream.StreamProducer;
+import io.datakernel.stream.StreamProducers;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -28,6 +34,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 
 import static com.google.common.collect.Sets.newTreeSet;
+import static io.datakernel.stream.StreamConsumers.listenableConsumer;
 import static java.util.Collections.singletonList;
 
 public class RemoteExample {
@@ -103,7 +110,7 @@ public class RemoteExample {
 		treeMap.put(4, newTreeSet(singletonList("4")));
 		treeMap.put(5, newTreeSet(singletonList("5")));
 		treeMap.put(6, newTreeSet(singletonList("6")));
-		final StorageNodeTreeMap<Integer, Set<String>> treeStorage = new StorageNodeTreeMap<>(eventloop, treeMap, null);
+		final StorageNodeTreeMap<Integer, Set<String>> treeStorage = new StorageNodeTreeMap<>(eventloop, treeMap, createUnionMerger());
 
 		final StorageNodeRemoteServer<Integer, Set<String>> server = new StorageNodeRemoteServer<>(eventloop, treeStorage, gson, KEY_VALUE_SERIALIZER)
 				.withListenPort(PORT);
@@ -112,8 +119,49 @@ public class RemoteExample {
 
 		final InetSocketAddress address = new InetSocketAddress(PORT);
 		final StorageNodeRemoteClient<Integer, Set<String>> client = new StorageNodeRemoteClient<>(eventloop, address, gson, KEY_VALUE_SERIALIZER);
+		final EvenSortedStreamPredicate evenPredicate = new EvenSortedStreamPredicate(2);
 
-		client.getSortedOutput(new EvenSortedStreamPredicate(2), new ResultCallback<StreamProducer<KeyValue<Integer, Set<String>>>>() {
+		printValues(evenPredicate, eventloop, client);
+
+		eventloop.schedule(eventloop.currentTimeMillis() + 100, new Runnable() {
+			@Override
+			public void run() {
+				client.getSortedInput(new ResultCallback<StreamConsumer<KeyValue<Integer, Set<String>>>>() {
+					@Override
+					protected void onResult(StreamConsumer<KeyValue<Integer, Set<String>>> consumer) {
+						final KeyValue<Integer, Set<String>> value = new KeyValue<Integer, Set<String>>(8, Sets.newTreeSet(singletonList("8")));
+						StreamProducers.ofValue(eventloop, value).streamTo(listenableConsumer(consumer, new AssertingCompletionCallback() {
+							@Override
+							protected void onComplete() {
+								printValues(evenPredicate, eventloop, client);
+							}
+						}));
+					}
+
+					@Override
+					protected void onException(Exception e) {
+						System.out.println("client getSortedInput onException");
+						System.out.println(e.getMessage() == null ? e.getClass() : e.getMessage());
+					}
+				});
+			}
+		});
+
+		eventloop.run();
+	}
+
+	private static Merger<KeyValue<Integer, Set<String>>> createUnionMerger() {
+		return new Merger<KeyValue<Integer, Set<String>>>() {
+			@Override
+			public KeyValue<Integer, Set<String>> merge(KeyValue<Integer, Set<String>> arg1, @Nullable KeyValue<Integer, Set<String>> arg2) {
+				if (arg2 == null || arg2.getValue() == null) return arg1;
+				return new KeyValue<Integer, Set<String>>(arg1.getKey(), newTreeSet(Iterables.concat(arg1.getValue(), arg2.getValue())));
+			}
+		};
+	}
+
+	private static void printValues(Predicate<Integer> predicate, final Eventloop eventloop, StorageNodeRemoteClient<Integer, Set<String>> client) {
+		client.getSortedOutput(predicate, new ResultCallback<StreamProducer<KeyValue<Integer, Set<String>>>>() {
 			@Override
 			protected void onResult(StreamProducer<KeyValue<Integer, Set<String>>> result) {
 				final StreamConsumers.ToList<KeyValue<Integer, Set<String>>> toList = StreamConsumers.toList(eventloop);
@@ -132,7 +180,5 @@ public class RemoteExample {
 				System.out.println(e.getMessage() == null ? e.getClass() : e.getMessage());
 			}
 		});
-
-		eventloop.run();
 	}
 }

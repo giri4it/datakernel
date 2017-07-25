@@ -10,7 +10,8 @@ import io.datakernel.eventloop.Eventloop;
 import io.datakernel.net.SocketSettings;
 import io.datakernel.serializer.BufferSerializer;
 import io.datakernel.storage.StorageNode;
-import io.datakernel.storage.remote.RemoteCommands.GetSortedStream;
+import io.datakernel.storage.remote.RemoteCommands.GetSortedInput;
+import io.datakernel.storage.remote.RemoteCommands.GetSortedOutput;
 import io.datakernel.storage.remote.RemoteCommands.RemoteCommand;
 import io.datakernel.storage.remote.RemoteResponses.RemoteResponse;
 import io.datakernel.stream.StreamConsumer;
@@ -19,7 +20,7 @@ import io.datakernel.stream.net.Messaging.ReceiveMessageCallback;
 import io.datakernel.stream.net.MessagingSerializer;
 import io.datakernel.stream.net.MessagingWithBinaryStreaming;
 import io.datakernel.stream.processor.StreamBinaryDeserializer;
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
+import io.datakernel.stream.processor.StreamBinarySerializer;
 
 import javax.net.ssl.SSLContext;
 import java.net.InetSocketAddress;
@@ -84,8 +85,8 @@ public final class StorageNodeRemoteClient<K, V> implements StorageNode<K, V> {
 		connect(address, new ForwardingMessagingConnectCallback(callback) {
 			@Override
 			protected void onConnect(final MessagingWithBinaryStreaming<RemoteResponse, RemoteCommand> messaging) {
-				final GetSortedStream getSortedStream = new GetSortedStream(serializerPredicate(predicate));
-				getSortedStream(messaging, getSortedStream, new ResultCallback<StreamProducer<KeyValue<K, V>>>() {
+				final GetSortedOutput getSortedOutput = new GetSortedOutput(serializerPredicate(predicate));
+				getSortedOutput(messaging, getSortedOutput, new ResultCallback<StreamProducer<KeyValue<K, V>>>() {
 					@Override
 					protected void onResult(StreamProducer<KeyValue<K, V>> result) {
 						callback.setResult(result);
@@ -102,18 +103,77 @@ public final class StorageNodeRemoteClient<K, V> implements StorageNode<K, V> {
 	}
 
 	@Override
-	public void getSortedInput(ResultCallback<StreamConsumer<KeyValue<K, V>>> callback) {
-		// TODO
-		throw new NotImplementedException();
+	public void getSortedInput(final ResultCallback<StreamConsumer<KeyValue<K, V>>> callback) {
+		connect(address, new ForwardingMessagingConnectCallback(callback) {
+			@Override
+			protected void onConnect(final MessagingWithBinaryStreaming<RemoteResponse, RemoteCommand> messaging) {
+				final GetSortedInput command = new GetSortedInput();
+				getSortedInput(messaging, command, new ResultCallback<StreamConsumer<KeyValue<K, V>>>() {
+					@Override
+					protected void onResult(StreamConsumer<KeyValue<K, V>> consumer) {
+						callback.setResult(consumer);
+					}
+
+					@Override
+					protected void onException(Exception e) {
+						messaging.close();
+						callback.setException(e);
+					}
+				});
+			}
+		});
+	}
+
+	private void getSortedInput(final MessagingWithBinaryStreaming<RemoteResponse, RemoteCommand> messaging,
+	                            GetSortedInput command, final ResultCallback<StreamConsumer<KeyValue<K, V>>> callback) {
+
+		messaging.send(command, new ForwardingCompletionCallback(callback) {
+			@Override
+			protected void onComplete() {
+				messaging.receive(new ReceiveMessageCallback<RemoteResponse>() {
+					@Override
+					public void onReceive(RemoteResponse msg) {
+						final StreamBinarySerializer<KeyValue<K, V>> serializer = StreamBinarySerializer.create(eventloop, bufferSerializer);
+						if (msg instanceof RemoteResponses.OkResponse) {
+							messaging.sendBinaryStreamFrom(serializer.getOutput(), new CompletionCallback() {
+								@Override
+								protected void onComplete() {
+									messaging.close();
+								}
+
+								@Override
+								protected void onException(Exception e) {
+									messaging.close();
+								}
+							});
+							callback.setResult(serializer.getInput());
+						} else {
+							callback.setException(new RemoteException("Invalid message received: " + msg));
+						}
+					}
+
+					@Override
+					public void onReceiveEndOfStream() {
+						callback.setException(new RemoteException("onReceiveEndOfStream"));
+					}
+
+					@Override
+					public void onException(Exception e) {
+						callback.setException(e);
+					}
+				});
+			}
+		});
+
 	}
 
 	private String serializerPredicate(Predicate<K> predicate) {
 		return gson.toJson(predicate, new TypeToken<Predicate<K>>() {}.getRawType());
 	}
 
-	private void getSortedStream(final MessagingWithBinaryStreaming<RemoteResponse, RemoteCommand> messaging,
-	                             GetSortedStream getSortedStream, final ResultCallback<StreamProducer<KeyValue<K, V>>> callback) {
-		messaging.send(getSortedStream, new ForwardingCompletionCallback(callback) {
+	private void getSortedOutput(final MessagingWithBinaryStreaming<RemoteResponse, RemoteCommand> messaging,
+	                             GetSortedOutput getSortedOutput, final ResultCallback<StreamProducer<KeyValue<K, V>>> callback) {
+		messaging.send(getSortedOutput, new ForwardingCompletionCallback(callback) {
 			@Override
 			protected void onComplete() {
 				messaging.receive(new ReceiveMessageCallback<RemoteResponse>() {
