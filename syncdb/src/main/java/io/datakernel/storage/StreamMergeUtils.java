@@ -3,6 +3,7 @@ package io.datakernel.storage;
 import com.google.common.base.Function;
 import com.google.common.base.Predicate;
 import io.datakernel.async.*;
+import io.datakernel.balancer.Balancer;
 import io.datakernel.eventloop.Eventloop;
 import io.datakernel.storage.StorageNode.KeyValue;
 import io.datakernel.stream.AbstractStreamConsumer;
@@ -58,14 +59,14 @@ public class StreamMergeUtils {
 
 	// TODO: порефакторити, витягувати тільки один раз sortedInput для однакових key, а можливо і повністю переробити схему
 	// TODO: ми точно хочемо саме по ключу балансувати, чи зробити це абстрактно???
-	public static <K, V> void keyBalancer(Eventloop eventloop, final StreamProducer<KeyValue<K, V>> producer, final Balancer<K, V> balancer) {
-		producer.streamTo(new AbstractStreamConsumer<KeyValue<K, V>>(eventloop) {
+	public static <K, V> StreamConsumer<KeyValue<K, V>> keyBalancer(Eventloop eventloop, final StorageNode<K, V> node, final Balancer<K, V> balancer) {
+		return new AbstractStreamConsumer<KeyValue<K, V>>(eventloop) {
 			@Override
 			public StreamDataReceiver<KeyValue<K, V>> getDataReceiver() {
 				return new StreamDataReceiver<KeyValue<K, V>>() {
 					@Override
 					public void onData(final KeyValue<K, V> item) {
-						balancer.getPeers(producer, item.getKey(), new AssertingResultCallback<List<StreamConsumer<KeyValue<K, V>>>>() {
+						balancer.getPeers(node, item.getKey(), new AssertingResultCallback<List<StreamConsumer<KeyValue<K, V>>>>() {
 							@Override
 							protected void onResult(List<StreamConsumer<KeyValue<K, V>>> consumers) {
 								for (StreamConsumer<KeyValue<K, V>> consumer : consumers) {
@@ -76,6 +77,6 @@ public class StreamMergeUtils {
 					}
 				};
 			}
-		});
+		};
 	}
 }

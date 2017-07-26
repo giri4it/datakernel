@@ -47,10 +47,7 @@ public interface StorageNode<K, V> {
 
 		@Override
 		public String toString() {
-			return "KeyValue{" +
-					"key=" + key +
-					", value=" + value +
-					'}';
+			return key + ": " + value;
 		}
 	}
 
