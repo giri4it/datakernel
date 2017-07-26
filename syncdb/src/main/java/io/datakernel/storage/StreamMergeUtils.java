@@ -59,6 +59,8 @@ public class StreamMergeUtils {
 
 	// TODO: порефакторити, витягувати тільки один раз sortedInput для однакових key, а можливо і повністю переробити схему
 	// TODO: ми точно хочемо саме по ключу балансувати, чи зробити це абстрактно???
+
+	// TODO: розділити Balancer окремо на два інтерфейса KeyBalancer and NodeBalancer
 	public static <K, V> StreamConsumer<KeyValue<K, V>> keyBalancer(Eventloop eventloop, final StorageNode<K, V> node, final Balancer<K, V> balancer) {
 		return new AbstractStreamConsumer<KeyValue<K, V>>(eventloop) {
 			@Override
