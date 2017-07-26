@@ -25,8 +25,6 @@ import java.nio.file.Files;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
@@ -37,13 +35,6 @@ import static java.nio.file.StandardOpenOption.*;
 public class StorageNodeFile<K extends Comparable<K>, V, A> implements StorageNode<K, V>, Consolidator {
 	public static final String FILES_EXT = ".log";
 	public static final String STORAGE_FILES_TEMPLATE = "*" + FILES_EXT;
-	public static final Comparator<Path> FILE_COMPARATOR = new Comparator<Path>() {
-		@Override
-		public int compare(Path o1, Path o2) {
-			return Long.compare(filePathToTimestamp(o1), filePathToTimestamp(o2));
-		}
-	};
-
 
 	private static final OpenOption[] READ_OPTIONS = new OpenOption[]{CREATE, READ};
 	private static final OpenOption[] WRITE_OPTIONS = new OpenOption[]{CREATE, WRITE, TRUNCATE_EXISTING};
@@ -70,11 +61,6 @@ public class StorageNodeFile<K extends Comparable<K>, V, A> implements StorageNo
 		this.bufferSize = bufferSize;
 		this.bufferSerializer = bufferSerializer;
 		this.reducer = reducer;
-	}
-
-	private static long filePathToTimestamp(Path filePath) {
-		final String fileName = filePath.getFileName().toString();
-		return Long.valueOf(fileName.substring(0, fileName.indexOf('.')));
 	}
 
 	private List<AsyncCallable<AsyncFile>> createCallableAsyncFiles(DirectoryStream<Path> paths) {
@@ -139,36 +125,32 @@ public class StorageNodeFile<K extends Comparable<K>, V, A> implements StorageNo
 
 	@Override
 	public void consolidate(final CompletionCallback callback) {
-		getSortedOutput(Predicates.<K>alwaysTrue(), new ForwardingResultCallback<StreamProducer<KeyValue<K, V>>>(callback) {
-			@Override
-			protected void onResult(final StreamProducer<KeyValue<K, V>> producer) {
-				getSortedInput(new ForwardingResultCallback<StreamConsumer<KeyValue<K, V>>>(callback) {
-					@Override
-					protected void onResult(StreamConsumer<KeyValue<K, V>> consumer) {
-						producer.streamTo(listenableConsumer(consumer, new ForwardingCompletionCallback(callback) {
-							@Override
-							protected void onComplete() {
-								eventloop.runConcurrently(executor, new RunnableWithException() {
-									@Override
-									public void runWithException() throws Exception {
-										removeOldFiles();
-									}
-								}, callback);
-							}
-						}));
-					}
-				});
-			}
-		});
-	}
-
-	private void removeOldFiles() throws IOException {
 		try (DirectoryStream<Path> stream = Files.newDirectoryStream(storagePath, STORAGE_FILES_TEMPLATE)) {
-			final List<Path> filesSorted = newArrayList(stream);
-			final Path lastCreatedFile = Collections.max(filesSorted, FILE_COMPARATOR);
-			for (Path path : filesSorted) {
-				if (!path.equals(lastCreatedFile)) Files.delete(path);
-			}
+			final List<Path> files = newArrayList(stream);
+
+			getSortedOutput(Predicates.<K>alwaysTrue(), new ForwardingResultCallback<StreamProducer<KeyValue<K, V>>>(callback) {
+				@Override
+				protected void onResult(final StreamProducer<KeyValue<K, V>> producer) {
+					getSortedInput(new ForwardingResultCallback<StreamConsumer<KeyValue<K, V>>>(callback) {
+						@Override
+						protected void onResult(StreamConsumer<KeyValue<K, V>> consumer) {
+							producer.streamTo(listenableConsumer(consumer, new ForwardingCompletionCallback(callback) {
+								@Override
+								protected void onComplete() {
+									eventloop.runConcurrently(executor, new RunnableWithException() {
+										@Override
+										public void runWithException() throws Exception {
+											for (Path file : files) Files.delete(file);
+										}
+									}, callback);
+								}
+							}));
+						}
+					});
+				}
+			});
+		} catch (IOException e) {
+			callback.setException(e);
 		}
 	}
 }
