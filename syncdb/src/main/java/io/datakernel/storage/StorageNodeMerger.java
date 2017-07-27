@@ -32,10 +32,10 @@ public class StorageNodeMerger<K extends Comparable<K>, V> implements StorageNod
 
 	private final Reducer<K, KeyValue<K, V>, KeyValue<K, V>, ?> reducer;
 	private final List<? extends StorageNode<K, V>> peers;
-	private final PredicateFactory<K> predicates;
+	private final PredicateFactory<K, V> predicates;
 
 	public StorageNodeMerger(Eventloop eventloop, Reducer<K, KeyValue<K, V>, KeyValue<K, V>, ?> reducer,
-	                         PredicateFactory<K> predicates, List<? extends StorageNode<K, V>> peers) {
+	                         PredicateFactory<K, V> predicates, List<? extends StorageNode<K, V>> peers) {
 		this.eventloop = eventloop;
 		this.reducer = reducer;
 		this.predicates = predicates;

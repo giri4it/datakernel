@@ -2,13 +2,12 @@ package io.datakernel.storage;
 
 import com.google.common.base.Function;
 import com.google.common.base.Predicate;
-import io.datakernel.async.*;
-import io.datakernel.balancer.Balancer;
+import io.datakernel.async.AsyncCallable;
+import io.datakernel.async.AsyncCallables;
+import io.datakernel.async.ForwardingResultCallback;
+import io.datakernel.async.ResultCallback;
 import io.datakernel.eventloop.Eventloop;
 import io.datakernel.storage.StorageNode.KeyValue;
-import io.datakernel.stream.AbstractStreamConsumer;
-import io.datakernel.stream.StreamConsumer;
-import io.datakernel.stream.StreamDataReceiver;
 import io.datakernel.stream.StreamProducer;
 import io.datakernel.stream.processor.StreamReducer;
 import io.datakernel.stream.processor.StreamReducers;
@@ -55,30 +54,5 @@ public class StreamMergeUtils {
 				callback.setResult(streamReducer.getOutput());
 			}
 		});
-	}
-
-	// TODO: порефакторити, витягувати тільки один раз sortedInput для однакових key, а можливо і повністю переробити схему
-	// TODO: ми точно хочемо саме по ключу балансувати, чи зробити це абстрактно???
-
-	// TODO: розділити Balancer окремо на два інтерфейса KeyBalancer and NodeBalancer
-	public static <K, V> StreamConsumer<KeyValue<K, V>> keyBalancer(Eventloop eventloop, final StorageNode<K, V> node, final Balancer<K, V> balancer) {
-		return new AbstractStreamConsumer<KeyValue<K, V>>(eventloop) {
-			@Override
-			public StreamDataReceiver<KeyValue<K, V>> getDataReceiver() {
-				return new StreamDataReceiver<KeyValue<K, V>>() {
-					@Override
-					public void onData(final KeyValue<K, V> item) {
-						balancer.getPeers(node, item.getKey(), new AssertingResultCallback<List<StreamConsumer<KeyValue<K, V>>>>() {
-							@Override
-							protected void onResult(List<StreamConsumer<KeyValue<K, V>>> consumers) {
-								for (StreamConsumer<KeyValue<K, V>> consumer : consumers) {
-									consumer.getDataReceiver().onData(item);
-								}
-							}
-						});
-					}
-				};
-			}
-		};
 	}
 }

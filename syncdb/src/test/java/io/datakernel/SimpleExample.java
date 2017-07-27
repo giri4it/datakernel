@@ -36,9 +36,9 @@ public class SimpleExample {
 			TestUnion.getInstance().inputToOutput();
 	private static final Merger<KeyValue<Integer, Set<String>>> UNION = new MergerReducer<>(UNION_REDUCER);
 
-	private static final PredicateFactory<Integer> PREDICATES = new PredicateFactory<Integer>() {
+	private static final PredicateFactory<Integer, Set<String>> PREDICATES = new PredicateFactory<Integer, Set<String>>() {
 		@Override
-		public <K, V> Predicate<Integer> create(StorageNode<K, V> node) {
+		public Predicate<Integer> create(StorageNode<Integer, Set<String>> node) {
 			return Predicates.alwaysTrue();
 		}
 	};
