@@ -106,16 +106,16 @@ public class FullExample {
 	}
 
 	@SafeVarargs
-	private final void startServerNode(int nodeId, Merger<KeyValue<Integer, Set<String>>> merger, KeyValue<Integer, Set<String>>... keyValues) throws IOException {
+	private final void startServerNode(InetSocketAddress address, Merger<KeyValue<Integer, Set<String>>> merger, KeyValue<Integer, Set<String>>... keyValues) throws IOException {
 		final StorageNodeTreeMap<Integer, Set<String>> dataStorageTreeMap = new StorageNodeTreeMap<>(eventloop, map(keyValues), merger);
 		final StorageNodeRemoteServer<Integer, Set<String>> remoteServer = new StorageNodeRemoteServer<>(eventloop, dataStorageTreeMap, gson, bufferSerializer)
-				.withListenAddress(addresses.get(nodeId));
+				.withListenAddress(address);
 
 		remoteServer.listen();
 	}
 
-	private final StorageNode<Integer, Set<String>> createClient(int nodeId) {
-		return new StorageNodeRemoteClient<>(eventloop, addresses.get(nodeId), gson, bufferSerializer);
+	private final StorageNode<Integer, Set<String>> createRemoteClient(InetSocketAddress address) {
+		return new StorageNodeRemoteClient<>(eventloop, address, gson, bufferSerializer);
 	}
 
 	private static KeyValue<Integer, Set<String>> keyValue(int key, String... value) {
@@ -134,24 +134,70 @@ public class FullExample {
 	public void start() throws IOException {
 		final MergerReducer<Integer, Set<String>, Void> merger = new MergerReducer<>(StreamReducers.<Integer, KeyValue<Integer, Set<String>>>mergeSortReducer());
 
-		startServerNode(0, merger, keyValue(1, "01"), keyValue(2, "02"));
-		startServerNode(1, merger, keyValue(3, "11"), keyValue(4, "12"));
-		startServerNode(2, merger, keyValue(5, "21"), keyValue(6, "22"));
-		startServerNode(3, merger, keyValue(7, "31"), keyValue(8, "32"));
-		startServerNode(4, merger, keyValue(9, "41"), keyValue(10, "42"));
-		startServerNode(5, merger, keyValue(11, "51"), keyValue(12, "52"));
+		startServerNode(addresses.get(0), merger, keyValue(1, "a"), keyValue(2, "b"));
+		startServerNode(addresses.get(1), merger, keyValue(3, "c"), keyValue(4, "d"));
+		startServerNode(addresses.get(2), merger, keyValue(5, "e"), keyValue(6, "f"));
+		startServerNode(addresses.get(3), merger, keyValue(7, "g"), keyValue(8, "h"));
+		startServerNode(addresses.get(4), merger, keyValue(9, "i"), keyValue(10, "j"));
+		startServerNode(addresses.get(5), merger, keyValue(11, "k"), keyValue(12, "l"));
 
-		final StorageNode<Integer, Set<String>> c0 = createClient(0);
-		final StorageNode<Integer, Set<String>> c1 = createClient(1);
-		final StorageNode<Integer, Set<String>> c2 = createClient(2);
-		final StorageNode<Integer, Set<String>> c3 = createClient(3);
-		final StorageNode<Integer, Set<String>> c4 = createClient(4);
-		final StorageNode<Integer, Set<String>> c5 = createClient(5);
+		final StorageNode<Integer, Set<String>> c0 = createRemoteClient(addresses.get(0));
+		final StorageNode<Integer, Set<String>> c1 = createRemoteClient(addresses.get(1));
+		final StorageNode<Integer, Set<String>> c2 = createRemoteClient(addresses.get(2));
+		final StorageNode<Integer, Set<String>> c3 = createRemoteClient(addresses.get(3));
+		final StorageNode<Integer, Set<String>> c4 = createRemoteClient(addresses.get(4));
+		final StorageNode<Integer, Set<String>> c5 = createRemoteClient(addresses.get(5));
 
 		final List<StorageNode<Integer, Set<String>>> clients = Arrays.<StorageNode<Integer, Set<String>>>asList(c0, c1, c2, c3, c4, c5);
 
 		final int duplicates = 2;
-		final NodeBalancer<Integer, Set<String>> balancerByNodes = new NextNodesBalancer<>(eventloop, duplicates, clients, new PredicateFactory<Integer, Set<String>>() {
+		final NodeBalancer<Integer, Set<String>> balancerByNodes = new NextNodesBalancer<>(eventloop, duplicates, clients,
+				previousNodeKeysPredicate(clients, duplicates));
+
+		final ListenableCompletionCallback printCallback = ListenableCompletionCallback.create();
+		AsyncRunnables.runInSequence(eventloop, printStateTasks(eventloop, clients)).run(new AssertingCompletionCallback() {
+			@Override
+			protected void onComplete() {
+				System.out.println(Strings.repeat("-", 80));
+				printCallback.setComplete();
+			}
+		});
+
+		final ListenableCompletionCallback syncCallback = ListenableCompletionCallback.create();
+		printCallback.addListener(new AssertingCompletionCallback() {
+			@Override
+			protected void onComplete() {
+				System.out.println("Start sync");
+				AsyncRunnables.runInParallel(eventloop, streamToPeersTasks(clients, balancerByNodes)).run(new AssertingCompletionCallback() {
+					@Override
+					protected void onComplete() {
+						System.out.println("Finish sync");
+						System.out.println(Strings.repeat("-", 80));
+						syncCallback.setComplete();
+					}
+				});
+			}
+		});
+
+		syncCallback.addListener(new AssertingCompletionCallback() {
+			@Override
+			protected void onComplete() {
+				AsyncRunnables.runInSequence(eventloop, printStateTasks(eventloop, clients)).run(new AssertingCompletionCallback() {
+					@Override
+					protected void onComplete() {
+						System.out.println(Strings.repeat("-", 80));
+						eventloop.breakEventloop();
+
+					}
+				});
+			}
+		});
+
+		eventloop.run();
+	}
+
+	private PredicateFactory<Integer, Set<String>> previousNodeKeysPredicate(final List<StorageNode<Integer, Set<String>>> clients, final int duplicates) {
+		return new PredicateFactory<Integer, Set<String>>() {
 			@Override
 			public Predicate<Integer> create(StorageNode<Integer, Set<String>> node) {
 				final int nodeId = clients.indexOf(node);
@@ -162,64 +208,30 @@ public class FullExample {
 				}
 				return Predicates.or(predicates);
 			}
-		});
-
-		scheduleCycleDuplicate(balancerByNodes, clients);
-		scheduleCyclePrint(eventloop, clients);
-
-		eventloop.run();
+		};
 	}
 
-	private void scheduleCycleDuplicate(final NodeBalancer<Integer, Set<String>> balancerByNodes,
-	                                    final List<StorageNode<Integer, Set<String>>> nodes) {
-		eventloop.schedule(eventloop.currentTimeMillis() + 5000, new Runnable() {
-			@Override
-			public void run() {
-				System.out.println("start consolidation");
-				final List<AsyncRunnable> asyncRunnables = new ArrayList<>();
-				for (final StorageNode<Integer, Set<String>> node : nodes) {
-					asyncRunnables.add(new AsyncRunnable() {
+	private List<AsyncRunnable> streamToPeersTasks(List<StorageNode<Integer, Set<String>>> clients, final NodeBalancer<Integer, Set<String>> balancerByNodes) {
+		final List<AsyncRunnable> asyncRunnables = new ArrayList<>();
+		for (final StorageNode<Integer, Set<String>> node : clients) {
+			asyncRunnables.add(new AsyncRunnable() {
+				@Override
+				public void run(final CompletionCallback callback) {
+					getProducerTask(customAlwaysTruePredicate(), node).call(new AssertingResultCallback<StreamProducer<KeyValue<Integer, Set<String>>>>() {
 						@Override
-						public void run(final CompletionCallback callback) {
-							getProducerTask(customAlwaysTruePredicate(), node).call(new AssertingResultCallback<StreamProducer<KeyValue<Integer, Set<String>>>>() {
+						protected void onResult(final StreamProducer<KeyValue<Integer, Set<String>>> producer) {
+							balancerByNodes.getPeers(node, new AssertingResultCallback<StreamConsumer<KeyValue<Integer, Set<String>>>>() {
 								@Override
-								protected void onResult(final StreamProducer<KeyValue<Integer, Set<String>>> producer) {
-									balancerByNodes.getPeers(node, new AssertingResultCallback<StreamConsumer<KeyValue<Integer, Set<String>>>>() {
-										@Override
-										protected void onResult(StreamConsumer<KeyValue<Integer, Set<String>>> result) {
-											producer.streamTo(listenableConsumer(result, callback));
-										}
-									});
+								protected void onResult(StreamConsumer<KeyValue<Integer, Set<String>>> result) {
+									producer.streamTo(listenableConsumer(result, callback));
 								}
 							});
 						}
 					});
 				}
-
-				AsyncRunnables.runInParallel(eventloop, asyncRunnables).run(new AssertingCompletionCallback() {
-					@Override
-					protected void onComplete() {
-						System.out.println("finish consolidation");
-						scheduleCycleDuplicate(balancerByNodes, nodes);
-					}
-				});
-			}
-		});
-	}
-
-	private static <V> void scheduleCyclePrint(final Eventloop eventloop, final List<StorageNode<Integer, V>> nodes) {
-		eventloop.schedule(eventloop.currentTimeMillis() + 3000, new Runnable() {
-			@Override
-			public void run() {
-				AsyncRunnables.runInSequence(eventloop, printStateTasks(eventloop, nodes)).run(new AssertingCompletionCallback() {
-					@Override
-					protected void onComplete() {
-						System.out.println(Strings.repeat("-", 80));
-						scheduleCyclePrint(eventloop, nodes);
-					}
-				});
-			}
-		});
+			});
+		}
+		return asyncRunnables;
 	}
 
 	private static <V> List<AsyncRunnable> printStateTasks(final Eventloop eventloop, List<StorageNode<Integer, V>> nodes) {
@@ -230,7 +242,7 @@ public class FullExample {
 			asyncRunnables.add(new AsyncRunnable() {
 				@Override
 				public void run(final CompletionCallback callback) {
-					getStateTask(eventloop, customAlwaysTruePredicate(), node).call(new ForwardingResultCallback<List<KeyValue<Integer, V>>>(callback) {
+					getStateTask(eventloop, customAlwaysTruePredicate(), node).call(new AssertingResultCallback<List<KeyValue<Integer, V>>>() {
 						@Override
 						protected void onResult(List<KeyValue<Integer, V>> result) {
 							prettyPrintState(result, finalNodeId);
@@ -251,7 +263,15 @@ public class FullExample {
 			}
 		});
 		System.out.printf("storage %d:%n", nodeId);
-		System.out.println("\t" + result);
+
+		final Iterator<KeyValue<K, V>> iterator = result.iterator();
+		final KeyValue<K, V> first = iterator.next();
+		System.out.printf("\t[%2s: %s", first.getKey(), first.getValue());
+		while (iterator.hasNext()) {
+			final KeyValue<K, V> next = iterator.next();
+			System.out.printf(", %2s: %s", next.getKey(), next.getValue());
+		}
+		System.out.println("]");
 	}
 
 	private static <K, V> AsyncCallable<StreamProducer<KeyValue<K, V>>> getProducerTask(final Predicate<K> predicate, final StorageNode<K, V> node) {
