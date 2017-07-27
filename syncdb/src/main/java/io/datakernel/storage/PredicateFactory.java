@@ -1,7 +1,8 @@
 package io.datakernel.storage;
 
 import com.google.common.base.Predicate;
+import com.sun.istack.internal.Nullable;
 
 public interface PredicateFactory<K, V> {
-	Predicate<K> create(StorageNode<K, V> node);
+	@Nullable Predicate<K> create(StorageNode<K, V> node);
 }

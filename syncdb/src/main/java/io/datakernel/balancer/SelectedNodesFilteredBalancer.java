@@ -1,6 +1,7 @@
 package io.datakernel.balancer;
 
 import com.google.common.base.Function;
+import com.google.common.base.Predicate;
 import io.datakernel.async.AsyncCallable;
 import io.datakernel.async.AsyncCallables;
 import io.datakernel.async.ForwardingResultCallback;
@@ -17,12 +18,9 @@ import io.datakernel.stream.processor.StreamSplitter;
 import java.util.ArrayList;
 import java.util.List;
 
-import static com.google.common.collect.Iterables.*;
-
-public class NextNodesBalancer<K extends Comparable<K>, V> implements NodeBalancer<K, V> {
+public final class SelectedNodesFilteredBalancer<K extends Comparable<K>, V> implements NodeBalancer<K, V> {
 	private final Eventloop eventloop;
-	private final List<StorageNode<K, V>> peers;
-	private final int duplicates;
+	private final NodeSelector<K, V> nodeSelector;
 	private final PredicateFactory<K, V> predicates;
 	private final Function<KeyValue<K, V>, K> toKey = new Function<KeyValue<K, V>, K>() {
 		@Override
@@ -31,29 +29,30 @@ public class NextNodesBalancer<K extends Comparable<K>, V> implements NodeBalanc
 		}
 	};
 
-	public NextNodesBalancer(Eventloop eventloop, int duplicates, List<StorageNode<K, V>> peers,
-	                         PredicateFactory<K,V> predicates) {
+	public SelectedNodesFilteredBalancer(Eventloop eventloop, NodeSelector<K, V> nodeSelector, PredicateFactory<K, V> predicates) {
 		this.eventloop = eventloop;
-		this.peers = peers;
-		this.duplicates = duplicates;
+		this.nodeSelector = nodeSelector;
 		this.predicates = predicates;
 	}
 
 	@Override
 	public void getPeers(StorageNode<K, V> node, final ResultCallback<StreamConsumer<KeyValue<K, V>>> callback) {
-		final Iterable<StorageNode<K, V>> selectedPeers = limit(skip(concat(peers, peers), peers.indexOf(node) + 1), duplicates);
-
 		final List<AsyncCallable<StreamConsumer<KeyValue<K, V>>>> asyncCallables = new ArrayList<>();
-		for (final StorageNode<K, V> peer : selectedPeers) {
+		for (final StorageNode<K, V> peer : nodeSelector.selectNodes(node)) {
 			asyncCallables.add(new AsyncCallable<StreamConsumer<KeyValue<K, V>>>() {
 				@Override
 				public void call(final ResultCallback<StreamConsumer<KeyValue<K, V>>> callback) {
 					peer.getSortedInput(new ResultCallback<StreamConsumer<KeyValue<K, V>>>() {
 						@Override
 						protected void onResult(StreamConsumer<KeyValue<K, V>> result) {
-							final StreamKeyFilter<K, KeyValue<K, V>> filter = new StreamKeyFilter<>(eventloop, predicates.create(peer), toKey);
-							filter.getOutput().streamTo(result);
-							callback.setResult(filter.getInput());
+							final Predicate<K> predicate = predicates.create(peer);
+							if (predicate != null) {
+								final StreamKeyFilter<K, KeyValue<K, V>> filter = new StreamKeyFilter<>(eventloop, predicate, toKey);
+								filter.getOutput().streamTo(result);
+								callback.setResult(filter.getInput());
+							} else {
+								callback.setResult(result);
+							}
 						}
 
 						@Override
@@ -64,7 +63,6 @@ public class NextNodesBalancer<K extends Comparable<K>, V> implements NodeBalanc
 				}
 			});
 		}
-
 
 		AsyncCallables.callAll(eventloop, asyncCallables).call(new ForwardingResultCallback<List<StreamConsumer<KeyValue<K, V>>>>(callback) {
 			@Override

@@ -12,8 +12,9 @@ import com.google.gson.reflect.TypeToken;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
 import io.datakernel.async.*;
-import io.datakernel.balancer.NextNodesBalancer;
 import io.datakernel.balancer.NodeBalancer;
+import io.datakernel.balancer.NodeSelector;
+import io.datakernel.balancer.SelectedNodesFilteredBalancer;
 import io.datakernel.bytebuf.ByteBuf;
 import io.datakernel.eventloop.Eventloop;
 import io.datakernel.eventloop.FatalErrorHandlers;
@@ -35,6 +36,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.*;
 
+import static com.google.common.collect.Iterables.*;
 import static io.datakernel.stream.StreamConsumers.listenableConsumer;
 import static java.util.Arrays.asList;
 
@@ -151,8 +153,8 @@ public class FullExample {
 		final List<StorageNode<Integer, Set<String>>> clients = Arrays.<StorageNode<Integer, Set<String>>>asList(c0, c1, c2, c3, c4, c5);
 
 		final int duplicates = 2;
-		final NodeBalancer<Integer, Set<String>> balancerByNodes = new NextNodesBalancer<>(eventloop, duplicates, clients,
-				previousNodeKeysPredicate(clients, duplicates));
+		final NodeBalancer<Integer, Set<String>> balancerByNodes = new SelectedNodesFilteredBalancer<>(eventloop,
+				nextNodesSelector(duplicates, clients), previousNodeKeysPredicate(clients, duplicates));
 
 		final ListenableCompletionCallback printCallback = ListenableCompletionCallback.create();
 		AsyncRunnables.runInSequence(eventloop, printStateTasks(eventloop, clients)).run(new AssertingCompletionCallback() {
@@ -187,13 +189,21 @@ public class FullExample {
 					protected void onComplete() {
 						System.out.println(Strings.repeat("-", 80));
 						eventloop.breakEventloop();
-
 					}
 				});
 			}
 		});
 
 		eventloop.run();
+	}
+
+	private NodeSelector<Integer, Set<String>> nextNodesSelector(final int duplicates, final List<StorageNode<Integer, Set<String>>> clients) {
+		return new NodeSelector<Integer, Set<String>>() {
+			@Override
+			public Iterable<StorageNode<Integer, Set<String>>> selectNodes(StorageNode<Integer, Set<String>> initNode) {
+				return limit(skip(concat(clients, clients), clients.indexOf(initNode) + 1), duplicates);
+			}
+		};
 	}
 
 	private PredicateFactory<Integer, Set<String>> previousNodeKeysPredicate(final List<StorageNode<Integer, Set<String>>> clients, final int duplicates) {
