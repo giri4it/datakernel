@@ -37,41 +37,46 @@ public final class SelectedNodesFilteredBalancer<K extends Comparable<K>, V> imp
 
 	@Override
 	public void getPeers(StorageNode<K, V> node, final ResultCallback<StreamConsumer<KeyValue<K, V>>> callback) {
-		final List<AsyncCallable<StreamConsumer<KeyValue<K, V>>>> asyncCallables = new ArrayList<>();
-		for (final StorageNode<K, V> peer : nodeSelector.selectNodes(node)) {
-			asyncCallables.add(new AsyncCallable<StreamConsumer<KeyValue<K, V>>>() {
-				@Override
-				public void call(final ResultCallback<StreamConsumer<KeyValue<K, V>>> callback) {
-					peer.getSortedInput(new ResultCallback<StreamConsumer<KeyValue<K, V>>>() {
+		nodeSelector.selectNodes(node, new ForwardingResultCallback<Iterable<StorageNode<K, V>>>(callback) {
+			@Override
+			protected void onResult(Iterable<StorageNode<K, V>> peers) {
+				final List<AsyncCallable<StreamConsumer<KeyValue<K, V>>>> asyncCallables = new ArrayList<>();
+				for (final StorageNode<K, V> peer : peers) {
+					asyncCallables.add(new AsyncCallable<StreamConsumer<KeyValue<K, V>>>() {
 						@Override
-						protected void onResult(StreamConsumer<KeyValue<K, V>> result) {
-							final Predicate<K> predicate = predicates.create(peer);
-							if (predicate != null) {
-								final StreamKeyFilter<K, KeyValue<K, V>> filter = new StreamKeyFilter<>(eventloop, predicate, toKey);
-								filter.getOutput().streamTo(result);
-								callback.setResult(filter.getInput());
-							} else {
-								callback.setResult(result);
-							}
-						}
+						public void call(final ResultCallback<StreamConsumer<KeyValue<K, V>>> callback) {
+							peer.getSortedInput(new ResultCallback<StreamConsumer<KeyValue<K, V>>>() {
+								@Override
+								protected void onResult(StreamConsumer<KeyValue<K, V>> result) {
+									final Predicate<K> predicate = predicates.create(peer);
+									if (predicate != null) {
+										final StreamKeyFilter<K, KeyValue<K, V>> filter = new StreamKeyFilter<>(eventloop, predicate, toKey);
+										filter.getOutput().streamTo(result);
+										callback.setResult(filter.getInput());
+									} else {
+										callback.setResult(result);
+									}
+								}
 
-						@Override
-						protected void onException(Exception e) {
-							callback.setResult(StreamConsumers.<KeyValue<K, V>>idle(eventloop));
+								@Override
+								protected void onException(Exception e) {
+									callback.setResult(StreamConsumers.<KeyValue<K, V>>idle(eventloop));
+								}
+							});
 						}
 					});
 				}
-			});
-		}
 
-		AsyncCallables.callAll(eventloop, asyncCallables).call(new ForwardingResultCallback<List<StreamConsumer<KeyValue<K, V>>>>(callback) {
-			@Override
-			protected void onResult(List<StreamConsumer<KeyValue<K, V>>> result) {
-				final StreamSplitter<KeyValue<K, V>> splitter = StreamSplitter.create(eventloop);
-				for (StreamConsumer<KeyValue<K, V>> consumer : result) {
-					splitter.newOutput().streamTo(consumer);
-				}
-				callback.setResult(splitter.getInput());
+				AsyncCallables.callAll(eventloop, asyncCallables).call(new ForwardingResultCallback<List<StreamConsumer<KeyValue<K, V>>>>(callback) {
+					@Override
+					protected void onResult(List<StreamConsumer<KeyValue<K, V>>> result) {
+						final StreamSplitter<KeyValue<K, V>> splitter = StreamSplitter.create(eventloop);
+						for (StreamConsumer<KeyValue<K, V>> consumer : result) {
+							splitter.newOutput().streamTo(consumer);
+						}
+						callback.setResult(splitter.getInput());
+					}
+				});
 			}
 		});
 	}
