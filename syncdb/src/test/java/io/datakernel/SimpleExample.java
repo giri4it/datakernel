@@ -38,8 +38,8 @@ public class SimpleExample {
 
 	private static final PredicateFactory<Integer, Set<String>> PREDICATES = new PredicateFactory<Integer, Set<String>>() {
 		@Override
-		public Predicate<Integer> create(StorageNode<Integer, Set<String>> node) {
-			return Predicates.alwaysTrue();
+		public void create(StorageNode<Integer, Set<String>> node, ResultCallback<Predicate<Integer>> callback) {
+			callback.setResult(Predicates.<Integer>alwaysTrue());
 		}
 	};
 

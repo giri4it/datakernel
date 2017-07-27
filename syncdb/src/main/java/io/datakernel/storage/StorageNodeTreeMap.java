@@ -77,4 +77,10 @@ public final class StorageNodeTreeMap<K extends Comparable<K>, V> implements Sto
 		assert eventloop.inEventloopThread();
 		return values.size();
 	}
+
+	public V remove(K key) {
+		assert eventloop.inEventloopThread();
+		return values.remove(key);
+	}
+
 }

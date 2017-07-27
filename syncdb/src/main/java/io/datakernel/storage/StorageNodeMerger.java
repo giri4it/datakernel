@@ -72,11 +72,15 @@ public class StorageNodeMerger<K extends Comparable<K>, V> implements StorageNod
 				public void call(final ResultCallback<StreamConsumer<KeyValue<K, V>>> callback) {
 					peer.getSortedInput(new ForwardingResultCallback<StreamConsumer<KeyValue<K, V>>>(callback) {
 						@Override
-						protected void onResult(StreamConsumer<KeyValue<K, V>> consumer) {
-							final Predicate<K> predicate = predicates.create(peer);
-							final StreamKeyFilter<K, KeyValue<K, V>> filter = new StreamKeyFilter<>(eventloop, predicate, toKey);
-							filter.getOutput().streamTo(consumer);
-							callback.setResult(filter.getInput());
+						protected void onResult(final StreamConsumer<KeyValue<K, V>> consumer) {
+							predicates.create(peer, new ForwardingResultCallback<Predicate<K>>(callback) {
+								@Override
+								protected void onResult(Predicate<K> predicate) {
+									final StreamKeyFilter<K, KeyValue<K, V>> filter = new StreamKeyFilter<>(eventloop, predicate, toKey);
+									filter.getOutput().streamTo(consumer);
+									callback.setResult(filter.getInput());
+								}
+							});
 						}
 					});
 				}

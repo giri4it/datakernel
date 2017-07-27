@@ -14,7 +14,6 @@ import com.google.gson.stream.JsonWriter;
 import io.datakernel.async.*;
 import io.datakernel.balancer.NodeBalancer;
 import io.datakernel.balancer.NodeSelector;
-import io.datakernel.balancer.NodeSelectors;
 import io.datakernel.balancer.SelectedNodesFilteredBalancer;
 import io.datakernel.bytebuf.ByteBuf;
 import io.datakernel.eventloop.Eventloop;
@@ -39,6 +38,7 @@ import java.util.*;
 
 import static com.google.common.collect.Iterables.*;
 import static com.google.common.collect.Lists.newArrayList;
+import static io.datakernel.balancer.NodeSelectors.selectAliveNodes;
 import static io.datakernel.stream.StreamConsumers.listenableConsumer;
 import static java.util.Arrays.asList;
 
@@ -110,8 +110,15 @@ public class FullExample {
 	}
 
 	@SafeVarargs
-	private final StorageNodeRemoteServer<Integer, Set<String>> startServerNode(InetSocketAddress address, Merger<KeyValue<Integer, Set<String>>> merger, KeyValue<Integer, Set<String>>... keyValues) throws IOException {
-		final StorageNodeTreeMap<Integer, Set<String>> dataStorageTreeMap = new StorageNodeTreeMap<>(eventloop, map(keyValues), merger);
+	private final StorageNodeTreeMap<Integer, Set<String>> createTreeNode(Merger<KeyValue<Integer, Set<String>>> merger, final KeyValue<Integer, Set<String>>... values) {
+		return new StorageNodeTreeMap<>(eventloop, new TreeMap<Integer, Set<String>>() {{
+			for (KeyValue<Integer, Set<String>> keyValue : values) {
+				put(keyValue.getKey(), keyValue.getValue());
+			}
+		}}, merger);
+	}
+
+	private StorageNodeRemoteServer<Integer, Set<String>> startServerNode(InetSocketAddress address, StorageNodeTreeMap<Integer, Set<String>> dataStorageTreeMap) throws IOException {
 		final StorageNodeRemoteServer<Integer, Set<String>> remoteServer = new StorageNodeRemoteServer<>(eventloop, dataStorageTreeMap, gson, bufferSerializer)
 				.withListenAddress(address);
 
@@ -119,59 +126,85 @@ public class FullExample {
 		return remoteServer;
 	}
 
-	private final StorageNode<Integer, Set<String>> createRemoteClient(InetSocketAddress address) {
+	private StorageNodeRemoteClient<Integer, Set<String>> createRemoteClient(InetSocketAddress address) {
 		return new StorageNodeRemoteClient<>(eventloop, address, gson, bufferSerializer);
 	}
 
-	private static KeyValue<Integer, Set<String>> keyValue(int key, String... value) {
+	private KeyValue<Integer, Set<String>> keyValue(int key, String... value) {
 		return new KeyValue<Integer, Set<String>>(key, Sets.newTreeSet(asList(value)));
-	}
-
-	@SafeVarargs
-	private static TreeMap<Integer, Set<String>> map(final KeyValue<Integer, Set<String>>... keyValues) {
-		return new TreeMap<Integer, Set<String>>() {{
-			for (KeyValue<Integer, Set<String>> keyValue : keyValues) {
-				put(keyValue.getKey(), keyValue.getValue());
-			}
-		}};
 	}
 
 	public void start() throws IOException {
 		final MergerReducer<Integer, Set<String>, Void> merger = new MergerReducer<>(StreamReducers.<Integer, KeyValue<Integer, Set<String>>>mergeSortReducer());
 
-		final StorageNodeRemoteServer<Integer, Set<String>> s0 = startServerNode(addresses.get(0), merger, keyValue(1, "a"), keyValue(2, "b"));
-		final StorageNodeRemoteServer<Integer, Set<String>> s1 = startServerNode(addresses.get(1), merger, keyValue(3, "c"), keyValue(4, "d"));
-		final StorageNodeRemoteServer<Integer, Set<String>> s2 = startServerNode(addresses.get(2), merger, keyValue(5, "e"), keyValue(6, "f"));
-		final StorageNodeRemoteServer<Integer, Set<String>> s3 = startServerNode(addresses.get(3), merger, keyValue(7, "g"), keyValue(8, "h"));
-		final StorageNodeRemoteServer<Integer, Set<String>> s4 = startServerNode(addresses.get(4), merger, keyValue(9, "i"), keyValue(10, "j"));
-		final StorageNodeRemoteServer<Integer, Set<String>> s5 = startServerNode(addresses.get(5), merger, keyValue(11, "k"), keyValue(12, "l"));
+		final HashMap<Integer, List<Integer>> keys = new HashMap<>();
+		keys.put(0, newArrayList(1, 2));
+		keys.put(1, newArrayList(3, 4));
+		keys.put(2, newArrayList(5, 6));
+		keys.put(3, newArrayList(7, 8));
+		keys.put(4, newArrayList(9, 10));
+		keys.put(5, newArrayList(11, 12));
 
-		final StorageNode<Integer, Set<String>> c0 = createRemoteClient(addresses.get(0));
-		final StorageNode<Integer, Set<String>> c1 = createRemoteClient(addresses.get(1));
-		final StorageNode<Integer, Set<String>> c2 = createRemoteClient(addresses.get(2));
-		final StorageNode<Integer, Set<String>> c3 = createRemoteClient(addresses.get(3));
-		final StorageNode<Integer, Set<String>> c4 = createRemoteClient(addresses.get(4));
-		final StorageNode<Integer, Set<String>> c5 = createRemoteClient(addresses.get(5));
+		final StorageNodeTreeMap<Integer, Set<String>> t0 = createTreeNode(merger, keyValue(keys.get(0).get(0), "a"), keyValue(keys.get(0).get(1), "b"));
+		final StorageNodeTreeMap<Integer, Set<String>> t1 = createTreeNode(merger, keyValue(keys.get(1).get(0), "c"), keyValue(keys.get(1).get(1), "d"));
+		final StorageNodeTreeMap<Integer, Set<String>> t2 = createTreeNode(merger, keyValue(keys.get(2).get(0), "e"), keyValue(keys.get(2).get(1), "f"));
+		final StorageNodeTreeMap<Integer, Set<String>> t3 = createTreeNode(merger, keyValue(keys.get(3).get(0), "g"), keyValue(keys.get(3).get(1), "h"));
+		final StorageNodeTreeMap<Integer, Set<String>> t4 = createTreeNode(merger, keyValue(keys.get(4).get(0), "i"), keyValue(keys.get(4).get(1), "j"));
+		final StorageNodeTreeMap<Integer, Set<String>> t5 = createTreeNode(merger, keyValue(keys.get(5).get(0), "k"), keyValue(keys.get(5).get(1), "l"));
 
-		final List<StorageNode<Integer, Set<String>>> clients = Arrays.asList(c0, c1, c2, c3, c4, c5);
+		final List<StorageNodeTreeMap<Integer, Set<String>>> trees = Arrays.asList(t0, t1, t2, t3, t4, t5);
 
-		s3.close(breakEventloopCallback());
-		eventloop.run();
+		final StorageNodeRemoteServer<Integer, Set<String>> s0 = startServerNode(addresses.get(0), t0);
+		final StorageNodeRemoteServer<Integer, Set<String>> s1 = startServerNode(addresses.get(1), t1);
+		final StorageNodeRemoteServer<Integer, Set<String>> s2 = startServerNode(addresses.get(2), t2);
+		final StorageNodeRemoteServer<Integer, Set<String>> s3 = startServerNode(addresses.get(3), t3);
+		final StorageNodeRemoteServer<Integer, Set<String>> s4 = startServerNode(addresses.get(4), t4);
+		final StorageNodeRemoteServer<Integer, Set<String>> s5 = startServerNode(addresses.get(5), t5);
+
+		final StorageNodeRemoteClient<Integer, Set<String>> c0 = createRemoteClient(addresses.get(0));
+		final StorageNodeRemoteClient<Integer, Set<String>> c1 = createRemoteClient(addresses.get(1));
+		final StorageNodeRemoteClient<Integer, Set<String>> c2 = createRemoteClient(addresses.get(2));
+		final StorageNodeRemoteClient<Integer, Set<String>> c3 = createRemoteClient(addresses.get(3));
+		final StorageNodeRemoteClient<Integer, Set<String>> c4 = createRemoteClient(addresses.get(4));
+		final StorageNodeRemoteClient<Integer, Set<String>> c5 = createRemoteClient(addresses.get(5));
+
+		final List<StorageNodeRemoteClient<Integer, Set<String>>> clients = Arrays.asList(c0, c1, c2, c3, c4, c5);
 
 		final int duplicates = 2;
 		final NodeBalancer<Integer, Set<String>> balancerByNodes = new SelectedNodesFilteredBalancer<>(eventloop,
-				createAliveNodesSelector(clients, duplicates), previousNodeKeysPredicate(clients, duplicates));
+				createNextAliveNodesSelector(clients, duplicates), previousAliveNodeKeysPredicate(keys, clients, duplicates));
+		{
+			printStates(clients);
+			syncStates(clients, balancerByNodes);
+			printStates(clients);
+		}
 
-		AsyncRunnables.runInSequence(eventloop, printStateTasks(eventloop, clients)).run(new AssertingCompletionCallback() {
-			@Override
-			protected void onComplete() {
-				System.out.println(Strings.repeat("-", 80));
-				eventloop.breakEventloop();
+		{
+			removeNewElements(keys, trees);
+			printStates(clients);
+
+			s3.close(breakEventloopCallback());
+			eventloop.run();
+
+			syncStates(clients, balancerByNodes);
+			printStates(clients);
+		}
+	}
+
+	private void removeNewElements(HashMap<Integer, List<Integer>> keys, List<StorageNodeTreeMap<Integer, Set<String>>> trees) {
+		for (int i = 0; i < trees.size(); i++) {
+			final StorageNodeTreeMap<Integer, Set<String>> tree = trees.get(i);
+			for (Map.Entry<Integer, List<Integer>> entry : keys.entrySet()) {
+				if (entry.getKey() != i) {
+					for (Integer integer : entry.getValue()) {
+						tree.remove(integer);
+					}
+				}
 			}
-		});
+		}
+	}
 
-		eventloop.run();
-
+	private void syncStates(List<? extends StorageNode<Integer, Set<String>>> clients, NodeBalancer<Integer, Set<String>> balancerByNodes) {
 		System.out.println("Start sync");
 		AsyncRunnables.runInParallel(eventloop, streamToPeersTasks(clients, balancerByNodes)).run(new AssertingCompletionCallback() {
 			@Override
@@ -183,8 +216,10 @@ public class FullExample {
 		});
 
 		eventloop.run();
+	}
 
-		AsyncRunnables.runInSequence(eventloop, printStateTasks(eventloop, clients)).run(new AssertingCompletionCallback() {
+	private void printStates(List<? extends StorageNode<Integer, Set<String>>> clients) {
+		AsyncRunnables.runInSequence(eventloop, printStateTasks(clients)).run(new AssertingCompletionCallback() {
 			@Override
 			protected void onComplete() {
 				System.out.println(Strings.repeat("-", 80));
@@ -195,19 +230,15 @@ public class FullExample {
 		eventloop.run();
 	}
 
-	private NodeSelector<Integer, Set<String>> createAliveNodesSelector(final List<StorageNode<Integer, Set<String>>> clients, final int duplicates) {
+	private NodeSelector<Integer, Set<String>> createNextAliveNodesSelector(final List<? extends StorageNode<Integer, Set<String>>> clients, final int duplicates) {
 		return new NodeSelector<Integer, Set<String>>() {
 			@Override
-			public void selectNodes(final StorageNode<Integer, Set<String>> initNode, final ResultCallback<Iterable<StorageNode<Integer, Set<String>>>> callback) {
-				NodeSelectors.selectAliveNodes(eventloop, clients, new ForwardingResultCallback<Iterable<StorageNode<Integer, Set<String>>>>(callback) {
+			public void selectNodes(final StorageNode<Integer, Set<String>> initNode, final ResultCallback<List<StorageNode<Integer, Set<String>>>> callback) {
+				selectAliveNodes(eventloop, clients, new ForwardingResultCallback<List<StorageNode<Integer, Set<String>>>>(callback) {
 					@Override
-					protected void onResult(Iterable<StorageNode<Integer, Set<String>>> result) {
-						nextNodesSelector(duplicates, newArrayList(clients)).selectNodes(initNode, new ForwardingResultCallback<Iterable<StorageNode<Integer, Set<String>>>>(callback) {
-							@Override
-							protected void onResult(Iterable<StorageNode<Integer, Set<String>>> result) {
-								callback.setResult(result);
-							}
-						});
+					protected void onResult(List<StorageNode<Integer, Set<String>>> result) {
+						final ArrayList<StorageNode<Integer, Set<String>>> result1 = newArrayList(limit(skip(concat(result, result), result.indexOf(initNode) + 1), duplicates));
+						callback.setResult(result1);
 					}
 				});
 			}
@@ -228,31 +259,22 @@ public class FullExample {
 		};
 	}
 
-	private NodeSelector<Integer, Set<String>> nextNodesSelector(final int duplicates, final List<StorageNode<Integer, Set<String>>> clients) {
-		return new NodeSelector<Integer, Set<String>>() {
-			@Override
-			public void selectNodes(StorageNode<Integer, Set<String>> initNode, ResultCallback<Iterable<StorageNode<Integer, Set<String>>>> callback) {
-				callback.setResult(limit(skip(concat(clients, clients), clients.indexOf(initNode) + 1), duplicates));
-			}
-		};
-	}
-
-	private PredicateFactory<Integer, Set<String>> previousNodeKeysPredicate(final List<StorageNode<Integer, Set<String>>> clients, final int duplicates) {
+	private PredicateFactory<Integer, Set<String>> previousAliveNodeKeysPredicate(final HashMap<Integer, List<Integer>> map, final List<? extends StorageNode<Integer, Set<String>>> clients, final int duplicates) {
 		return new PredicateFactory<Integer, Set<String>>() {
 			@Override
-			public Predicate<Integer> create(StorageNode<Integer, Set<String>> node) {
-				final int nodeId = clients.indexOf(node);
-				final List<Predicate<Integer>> predicates = new ArrayList<>();
-				for (int i = 0; i < duplicates; i++) {
-					final int producerNodeId = (nodeId - 1 - i + clients.size()) % clients.size();
-					predicates.add(Predicates.in(asList(producerNodeId * 2 + 1, producerNodeId * 2 + 2)));
-				}
-				return Predicates.or(predicates);
+			public void create(final StorageNode<Integer, Set<String>> node, final ResultCallback<Predicate<Integer>> callback) {
+				selectAliveNodes(eventloop, clients, new ForwardingResultCallback<List<StorageNode<Integer, Set<String>>>>(callback) {
+					@Override
+					protected void onResult(List<StorageNode<Integer, Set<String>>> aliveNodes) {
+						callback.setResult(Predicates.in(map.get(aliveNodes.indexOf(node))));
+					}
+				});
+				callback.setResult(Predicates.<Integer>alwaysTrue());
 			}
 		};
 	}
 
-	private List<AsyncRunnable> streamToPeersTasks(List<StorageNode<Integer, Set<String>>> clients, final NodeBalancer<Integer, Set<String>> balancerByNodes) {
+	private List<AsyncRunnable> streamToPeersTasks(List<? extends StorageNode<Integer, Set<String>>> clients, final NodeBalancer<Integer, Set<String>> balancerByNodes) {
 		final List<AsyncRunnable> asyncRunnables = new ArrayList<>();
 		for (int i = 0; i < clients.size(); i++) {
 			final StorageNode<Integer, Set<String>> node = clients.get(i);
@@ -283,7 +305,7 @@ public class FullExample {
 		return asyncRunnables;
 	}
 
-	private static <V> List<AsyncRunnable> printStateTasks(final Eventloop eventloop, List<StorageNode<Integer, V>> nodes) {
+	private <V> List<AsyncRunnable> printStateTasks(List<? extends StorageNode<Integer, V>> nodes) {
 		final List<AsyncRunnable> asyncRunnables = new ArrayList<>();
 		for (int nodeId = 0; nodeId < nodes.size(); nodeId++) {
 			final StorageNode<Integer, V> node = nodes.get(nodeId);
@@ -291,7 +313,7 @@ public class FullExample {
 			asyncRunnables.add(new AsyncRunnable() {
 				@Override
 				public void run(final CompletionCallback callback) {
-					getStateTask(eventloop, customAlwaysTruePredicate(), node).call(new ResultCallback<List<KeyValue<Integer, V>>>() {
+					getStateTask(customAlwaysTruePredicate(), node).call(new ResultCallback<List<KeyValue<Integer, V>>>() {
 						@Override
 						protected void onResult(List<KeyValue<Integer, V>> result) {
 							prettyPrintState(result, finalNodeId);
@@ -310,7 +332,7 @@ public class FullExample {
 		return asyncRunnables;
 	}
 
-	private static <K extends Comparable<K>, V> void prettyPrintState(List<KeyValue<K, V>> result, final int nodeId) {
+	private <K extends Comparable<K>, V> void prettyPrintState(List<KeyValue<K, V>> result, final int nodeId) {
 		Collections.sort(result, new Comparator<KeyValue<K, V>>() {
 			@Override
 			public int compare(KeyValue<K, V> o1, KeyValue<K, V> o2) {
@@ -334,7 +356,7 @@ public class FullExample {
 		System.out.println("]");
 	}
 
-	private static <K, V> AsyncCallable<StreamProducer<KeyValue<K, V>>> getProducerTask(final Predicate<K> predicate, final StorageNode<K, V> node) {
+	private <K, V> AsyncCallable<StreamProducer<KeyValue<K, V>>> getProducerTask(final Predicate<K> predicate, final StorageNode<K, V> node) {
 		return new AsyncCallable<StreamProducer<KeyValue<K, V>>>() {
 			@Override
 			public void call(ResultCallback<StreamProducer<KeyValue<K, V>>> callback) {
@@ -343,9 +365,8 @@ public class FullExample {
 		};
 	}
 
-	private static <K, V> AsyncCallable<List<KeyValue<K, V>>> getStateTask(final Eventloop eventloop,
-	                                                                       final Predicate<K> predicate,
-	                                                                       final StorageNode<K, V> storageNode) {
+	private <K, V> AsyncCallable<List<KeyValue<K, V>>> getStateTask(final Predicate<K> predicate,
+	                                                                final StorageNode<K, V> storageNode) {
 		return new AsyncCallable<List<KeyValue<K, V>>>() {
 			@Override
 			public void call(final ResultCallback<List<KeyValue<K, V>>> callback) {

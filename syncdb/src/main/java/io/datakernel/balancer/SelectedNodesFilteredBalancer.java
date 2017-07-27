@@ -36,10 +36,10 @@ public final class SelectedNodesFilteredBalancer<K extends Comparable<K>, V> imp
 	}
 
 	@Override
-	public void getPeers(StorageNode<K, V> node, final ResultCallback<StreamConsumer<KeyValue<K, V>>> callback) {
-		nodeSelector.selectNodes(node, new ForwardingResultCallback<Iterable<StorageNode<K, V>>>(callback) {
+	public void getPeers(final StorageNode<K, V> node, final ResultCallback<StreamConsumer<KeyValue<K, V>>> callback) {
+		nodeSelector.selectNodes(node, new ForwardingResultCallback<List<StorageNode<K, V>>>(callback) {
 			@Override
-			protected void onResult(Iterable<StorageNode<K, V>> peers) {
+			protected void onResult(List<StorageNode<K, V>> peers) {
 				final List<AsyncCallable<StreamConsumer<KeyValue<K, V>>>> asyncCallables = new ArrayList<>();
 				for (final StorageNode<K, V> peer : peers) {
 					asyncCallables.add(new AsyncCallable<StreamConsumer<KeyValue<K, V>>>() {
@@ -47,15 +47,20 @@ public final class SelectedNodesFilteredBalancer<K extends Comparable<K>, V> imp
 						public void call(final ResultCallback<StreamConsumer<KeyValue<K, V>>> callback) {
 							peer.getSortedInput(new ResultCallback<StreamConsumer<KeyValue<K, V>>>() {
 								@Override
-								protected void onResult(StreamConsumer<KeyValue<K, V>> result) {
-									final Predicate<K> predicate = predicates.create(peer);
-									if (predicate != null) {
-										final StreamKeyFilter<K, KeyValue<K, V>> filter = new StreamKeyFilter<>(eventloop, predicate, toKey);
-										filter.getOutput().streamTo(result);
-										callback.setResult(filter.getInput());
-									} else {
-										callback.setResult(result);
-									}
+								protected void onResult(final StreamConsumer<KeyValue<K, V>> result) {
+									predicates.create(node, new ForwardingResultCallback<Predicate<K>>(callback) {
+										@Override
+										protected void onResult(Predicate<K> predicate) {
+											if (predicate != null) {
+												final StreamKeyFilter<K, KeyValue<K, V>> filter = new StreamKeyFilter<>(eventloop, predicate, toKey);
+												filter.getOutput().streamTo(result);
+												callback.setResult(filter.getInput());
+											} else {
+												callback.setResult(result);
+											}
+										}
+									});
+
 								}
 
 								@Override
