@@ -73,8 +73,12 @@ final class DnsQueryResult {
 		return ips;
 	}
 
-	public Integer getMinTtl() {
+	public Integer getMinTtlSeconds() {
 		return minTtl;
+	}
+
+	public Integer getMinTtlMillis() {
+		return minTtl * 1000;
 	}
 
 	public ResponseErrorCode getErrorCode() {

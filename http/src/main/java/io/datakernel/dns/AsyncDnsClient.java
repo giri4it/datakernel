@@ -93,9 +93,15 @@ public final class AsyncDnsClient implements IAsyncDnsClient, EventloopJmxMBean 
 		return new AsyncDnsClient(eventloop, datagramSocketSettings, timeout, timedOutExceptionTtl, dnsServerAddress, cache);
 	}
 
-	public AsyncDnsClient withTimedOutExceptionTtl(long timedOutExceptionTtl) {
-		DnsCache cache = DnsCache.create(eventloop, ONE_MINUTE_MILLIS, ONE_MINUTE_MILLIS, timedOutExceptionTtl);
-		return new AsyncDnsClient(eventloop, datagramSocketSettings, timeout, timedOutExceptionTtl, dnsServerAddress, cache);
+	/**
+	 * Creates a client which stores timeout exception for specified timeout
+	 *
+	 * @param timedOutExceptionTtlMillis time which this resolver will cache timeout exception
+	 * @return a client, waiting for response for specified timeout
+	 */
+	public AsyncDnsClient withTimedOutExceptionTtl(long timedOutExceptionTtlMillis) {
+		DnsCache cache = DnsCache.create(eventloop, ONE_MINUTE_MILLIS, ONE_MINUTE_MILLIS, timedOutExceptionTtlMillis);
+		return new AsyncDnsClient(eventloop, datagramSocketSettings, timeout, timedOutExceptionTtlMillis, dnsServerAddress, cache);
 	}
 
 	/**
@@ -125,9 +131,9 @@ public final class AsyncDnsClient implements IAsyncDnsClient, EventloopJmxMBean 
 		return withExpiration(errorCacheExpirationMillis, hardExpirationDeltaMillis, DEFAULT_TIMED_OUT_EXCEPTION_TTL_MILLIS);
 	}
 
-	public AsyncDnsClient withExpiration(long errorCacheExpirationMillis, long hardExpirationDeltaMillis, long timedOutExceptionTtl) {
-		DnsCache cache = DnsCache.create(eventloop, errorCacheExpirationMillis, hardExpirationDeltaMillis, timedOutExceptionTtl);
-		return new AsyncDnsClient(eventloop, datagramSocketSettings, timeout, timedOutExceptionTtl, dnsServerAddress, cache);
+	public AsyncDnsClient withExpiration(long errorCacheExpirationMillis, long hardExpirationDeltaMillis, long timedOutExceptionTtlMillis) {
+		DnsCache cache = DnsCache.create(eventloop, errorCacheExpirationMillis, hardExpirationDeltaMillis, timedOutExceptionTtlMillis);
+		return new AsyncDnsClient(eventloop, datagramSocketSettings, timeout, timedOutExceptionTtlMillis, dnsServerAddress, cache);
 	}
 	// endregion
 
@@ -365,18 +371,18 @@ public final class AsyncDnsClient implements IAsyncDnsClient, EventloopJmxMBean 
 	}
 
 	@JmxAttribute(description = "max time to live for cache entry (resolved ip address for domain)")
-	public long getMaxTtlSeconds() {
-		return cache.getMaxTtlSeconds();
+	public long getMaxTtlMillis() {
+		return cache.getMaxTtlMillis();
 	}
 
 	@JmxAttribute
-	public void setMaxTtlSeconds(long maxTtlSeconds) {
-		cache.setMaxTtlSeconds(maxTtlSeconds);
+	public void setMaxTtlMillis(long maxTtlMillis) {
+		cache.setMaxTtlMillis(maxTtlMillis);
 	}
 
 	@JmxAttribute
-	public long getTimedOutExceptionTtlSeconds() {
-		return cache.getTimedOutExceptionTtlSeconds();
+	public long getTimedOutExceptionTtlMillis() {
+		return cache.getTimedOutExceptionTtlMillis();
 	}
 
 	@JmxOperation

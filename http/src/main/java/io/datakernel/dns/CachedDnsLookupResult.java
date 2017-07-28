@@ -23,15 +23,15 @@ import java.net.InetAddress;
 final class CachedDnsLookupResult {
 	private final String domainName;
 	private final InetAddress[] ips;
-	private final long expirationSecond;
+	private final long expirationMillisecond;
 	private final ResponseErrorCode errorCode;
 	private final Short type;
 
-	private CachedDnsLookupResult(String domainName, InetAddress[] ips, Long expirationSecond,
+	private CachedDnsLookupResult(String domainName, InetAddress[] ips, Long expirationMillisecond,
 	                              ResponseErrorCode errorCode, Short type) {
 		this.domainName = domainName;
 		this.ips = ips;
-		this.expirationSecond = expirationSecond;
+		this.expirationMillisecond = expirationMillisecond;
 		this.errorCode = errorCode;
 		this.type = type;
 	}
@@ -39,24 +39,24 @@ final class CachedDnsLookupResult {
 	/**
 	 * Creates a new CachedDnsLookupResult from DnsQueryResult
 	 *
-	 * @param queryResult      result which was received from DNS server
-	 * @param expirationSecond time to live for this record
+	 * @param queryResult           result which was received from DNS server
+	 * @param expirationMillisecond time to live for this record
 	 * @return new CachedDnsLookupResult
 	 */
-	public static CachedDnsLookupResult fromQueryWithExpiration(DnsQueryResult queryResult, long expirationSecond) {
-		return new CachedDnsLookupResult(queryResult.getDomainName(), queryResult.getIps(), expirationSecond,
+	public static CachedDnsLookupResult fromQueryWithExpiration(DnsQueryResult queryResult, long expirationMillisecond) {
+		return new CachedDnsLookupResult(queryResult.getDomainName(), queryResult.getIps(), expirationMillisecond,
 				queryResult.getErrorCode(), queryResult.getType());
 	}
 
 	/**
 	 * Creates a new CachedDnsLookupResult from DnsException
 	 *
-	 * @param exception        exception which was received from DNS server
-	 * @param expirationSecond time to live for this record
+	 * @param exception             exception which was received from DNS server
+	 * @param expirationMillisecond time to live for this record
 	 * @return new CachedDnsLookupResult
 	 */
-	public static CachedDnsLookupResult fromExceptionWithExpiration(DnsException exception, long expirationSecond) {
-		return new CachedDnsLookupResult(exception.getDomainName(), null, expirationSecond, exception.getErrorCode(),
+	public static CachedDnsLookupResult fromExceptionWithExpiration(DnsException exception, long expirationMillisecond) {
+		return new CachedDnsLookupResult(exception.getDomainName(), null, expirationMillisecond, exception.getErrorCode(),
 				null);
 	}
 
@@ -80,8 +80,8 @@ final class CachedDnsLookupResult {
 		return errorCode == ResponseErrorCode.NO_ERROR;
 	}
 
-	public long getExpirationSecond() {
-		return expirationSecond;
+	public long getExpirationMillisecond() {
+		return expirationMillisecond;
 	}
 
 	public Short getType() {

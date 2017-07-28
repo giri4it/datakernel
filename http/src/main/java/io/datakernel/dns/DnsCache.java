@@ -36,14 +36,14 @@ final class DnsCache {
 
 	private final Map<String, CachedDnsLookupResult> cache = new ConcurrentHashMap<>();
 	private final Map<Long, Set<String>> expirations = new HashMap<>();
-	private long lastCleanupSecond;
+	private long lastCleanupMillisecond;
 
-	private final long errorCacheExpirationSeconds;
-	private final long hardExpirationDeltaSeconds;
+	private final long errorCacheExpirationMillis;
+	private final long hardExpirationDeltaMillis;
 	private final CurrentTimeProvider timeProvider;
 
-	private long maxTtlSeconds = Long.MAX_VALUE;
-	private final long timedOutExceptionTtlSeconds;
+	private long maxTtlMillis = Long.MAX_VALUE;
+	private final long timedOutExceptionTtlMillis;
 
 	/**
 	 * Enum with freshness cache's entry.
@@ -75,11 +75,11 @@ final class DnsCache {
 	 */
 	private DnsCache(CurrentTimeProvider timeProvider, long errorCacheExpirationMillis, long hardExpirationDeltaMillis,
 	                 long timedOutExceptionTtlMillis) {
-		this.errorCacheExpirationSeconds = errorCacheExpirationMillis / 1000;
-		this.hardExpirationDeltaSeconds = hardExpirationDeltaMillis / 1000;
+		this.errorCacheExpirationMillis = errorCacheExpirationMillis;
+		this.hardExpirationDeltaMillis = hardExpirationDeltaMillis;
 		this.timeProvider = timeProvider;
-		this.timedOutExceptionTtlSeconds = timedOutExceptionTtlMillis / 1000;
-		this.lastCleanupSecond = getCurrentSecond();
+		this.timedOutExceptionTtlMillis = timedOutExceptionTtlMillis;
+		this.lastCleanupMillisecond = timeProvider.currentTimeMillis();
 	}
 
 	public static DnsCache create(CurrentTimeProvider timeProvider, long errorCacheExpirationMillis,
@@ -160,13 +160,13 @@ final class DnsCache {
 	}
 
 	private DnsCacheEntryFreshness getResultFreshness(CachedDnsLookupResult result) {
-		long softExpirationSecond = result.getExpirationSecond();
-		long hardExpirationSecond = getHardExpirationSecond(softExpirationSecond);
-		long currentSecond = getCurrentSecond();
+		long softExpirationMillisecond = result.getExpirationMillisecond();
+		long hardExpirationMillisecond = getHardExpirationMillis(softExpirationMillisecond);
+		long currentMillisecond = timeProvider.currentTimeMillis();
 
-		if (currentSecond >= hardExpirationSecond)
+		if (currentMillisecond >= hardExpirationMillisecond)
 			return DnsCacheEntryFreshness.HARD_TTL_EXPIRED;
-		else if (currentSecond >= softExpirationSecond)
+		else if (currentMillisecond >= softExpirationMillisecond)
 			return DnsCacheEntryFreshness.SOFT_TTL_EXPIRED;
 		else
 			return DnsCacheEntryFreshness.FRESH;
@@ -178,16 +178,16 @@ final class DnsCache {
 	 * @param result result to add
 	 */
 	public void add(DnsQueryResult result) {
-		if (result.getMinTtl() == 0)
+		if (result.getMinTtlSeconds() == 0)
 			return;
-		long expirationSecond;
-		if (result.getMinTtl() > maxTtlSeconds)
-			expirationSecond = maxTtlSeconds + getCurrentSecond();
+		long expirationMillisecond;
+		if (result.getMinTtlMillis() > maxTtlMillis)
+			expirationMillisecond = maxTtlMillis + timeProvider.currentTimeMillis();
 		else
-			expirationSecond = result.getMinTtl() + getCurrentSecond();
+			expirationMillisecond = result.getMinTtlMillis() + timeProvider.currentTimeMillis();
 		String domainName = result.getDomainName();
-		cache.put(domainName, CachedDnsLookupResult.fromQueryWithExpiration(result, expirationSecond));
-		setExpiration(expirations, expirationSecond + hardExpirationDeltaSeconds, domainName);
+		cache.put(domainName, CachedDnsLookupResult.fromQueryWithExpiration(result, expirationMillisecond));
+		setExpiration(expirations, expirationMillisecond + hardExpirationDeltaMillis, domainName);
 		if (logger.isDebugEnabled())
 			logger.debug("Add result to cache for host: {}", domainName);
 	}
@@ -198,23 +198,23 @@ final class DnsCache {
 	 * @param exception exception to add
 	 */
 	public void add(DnsException exception) {
-		long expirationSecond = errorCacheExpirationSeconds + getCurrentSecond();
+		long expirationMillisecond = errorCacheExpirationMillis + timeProvider.currentTimeMillis();
 		if (exception.getErrorCode() == DnsMessage.ResponseErrorCode.TIMED_OUT) {
-			expirationSecond = timedOutExceptionTtlSeconds + getCurrentSecond();
+			expirationMillisecond = timedOutExceptionTtlMillis + timeProvider.currentTimeMillis();
 		}
 		String domainName = exception.getDomainName();
-		cache.put(domainName, CachedDnsLookupResult.fromExceptionWithExpiration(exception, expirationSecond));
-		setExpiration(expirations, expirationSecond + hardExpirationDeltaSeconds, domainName);
+		cache.put(domainName, CachedDnsLookupResult.fromExceptionWithExpiration(exception, expirationMillisecond));
+		setExpiration(expirations, expirationMillisecond + hardExpirationDeltaMillis, domainName);
 		if (logger.isDebugEnabled())
 			logger.debug("Add exception to cache for host: {}", domainName);
 	}
 
 	public void performCleanup() {
-		long callSecond = getCurrentSecond();
+		long callSecond = timeProvider.currentTimeMillis();
 
-		if (callSecond > lastCleanupSecond) {
-			clear(callSecond, lastCleanupSecond);
-			lastCleanupSecond = callSecond;
+		if (callSecond > lastCleanupMillisecond) {
+			clear(callSecond, lastCleanupMillisecond);
+			lastCleanupMillisecond = callSecond;
 		}
 	}
 
@@ -233,16 +233,16 @@ final class DnsCache {
 		}
 	}
 
-	public long getMaxTtlSeconds() {
-		return maxTtlSeconds;
+	public long getMaxTtlMillis() {
+		return maxTtlMillis;
 	}
 
-	public void setMaxTtlSeconds(long maxTtlSeconds) {
-		this.maxTtlSeconds = maxTtlSeconds;
+	public void setMaxTtlMillis(long maxTtlMillis) {
+		this.maxTtlMillis = maxTtlMillis;
 	}
 
-	public long getTimedOutExceptionTtlSeconds() {
-		return timedOutExceptionTtlSeconds;
+	public long getTimedOutExceptionTtlMillis() {
+		return timedOutExceptionTtlMillis;
 	}
 
 	public void clear() {
@@ -250,12 +250,8 @@ final class DnsCache {
 		expirations.clear();
 	}
 
-	private long getCurrentSecond() {
-		return timeProvider.currentTimeMillis() / 1000;
-	}
-
-	private long getHardExpirationSecond(long softExpirationSecond) {
-		return softExpirationSecond + hardExpirationDeltaSeconds;
+	private long getHardExpirationMillis(long softExpirationMillis) {
+		return softExpirationMillis + hardExpirationDeltaMillis;
 	}
 
 	public int getNumberOfCachedDomainNames() {
@@ -302,24 +298,24 @@ final class DnsCache {
 		StringBuilder sb = new StringBuilder();
 
 		if (!cache.isEmpty())
-			cacheEntries.add("domainName;ips;secondsToSoftExpiration;secondsToHardExpiration;status");
+			cacheEntries.add("domainName;ips;millisToSoftExpiration;millisToHardExpiration;status");
 
 		for (Map.Entry<String, CachedDnsLookupResult> detailedCacheEntry : cache.entrySet()) {
 			String domainName = detailedCacheEntry.getKey();
 			CachedDnsLookupResult dnsLookupResult = detailedCacheEntry.getValue();
 			InetAddress[] ips = dnsLookupResult.getIps();
-			long softExpirationSecond = dnsLookupResult.getExpirationSecond();
-			long hardExpirationSecond = getHardExpirationSecond(softExpirationSecond);
-			long currentSecond = getCurrentSecond();
-			long secondsToSoftExpiration = softExpirationSecond - currentSecond;
-			long secondsToHardExpiration = hardExpirationSecond - currentSecond;
+			long softExpirationMillis = dnsLookupResult.getExpirationMillisecond();
+			long hardExpirationMillis = getHardExpirationMillis(softExpirationMillis);
+			long currentTimeMillis = timeProvider.currentTimeMillis();
+			long millisToSoftExpiration = softExpirationMillis - currentTimeMillis;
+			long millisToHardExpiration = hardExpirationMillis - currentTimeMillis;
 			sb.append(domainName);
 			sb.append(";");
 			sb.append(Arrays.toString(ips));
 			sb.append(";");
-			sb.append(secondsToSoftExpiration <= 0 ? "expired" : secondsToSoftExpiration);
+			sb.append(millisToSoftExpiration <= 0 ? "expired" : millisToSoftExpiration);
 			sb.append(";");
-			sb.append(secondsToHardExpiration <= 0 ? "expired" : secondsToHardExpiration);
+			sb.append(millisToHardExpiration <= 0 ? "expired" : millisToHardExpiration);
 			sb.append(";");
 			sb.append(dnsLookupResult.getErrorCode());
 			cacheEntries.add(sb.toString());
