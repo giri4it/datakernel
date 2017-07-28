@@ -126,7 +126,7 @@ public class FullExample {
 		return remoteServer;
 	}
 
-	private StorageNodeRemoteClient<Integer, Set<String>> createRemoteClient(InetSocketAddress address) {
+	private StorageNodeRemoteClient<Integer, Set<String>> createRemoteClient(final InetSocketAddress address) {
 		return new StorageNodeRemoteClient<>(eventloop, address, gson, bufferSerializer);
 	}
 
@@ -142,66 +142,40 @@ public class FullExample {
 		keys.put(1, newArrayList(3, 4));
 		keys.put(2, newArrayList(5, 6));
 		keys.put(3, newArrayList(7, 8));
-		keys.put(4, newArrayList(9, 10));
-		keys.put(5, newArrayList(11, 12));
 
-		final StorageNodeTreeMap<Integer, Set<String>> t0 = createTreeNode(merger, keyValue(keys.get(0).get(0), "a"), keyValue(keys.get(0).get(1), "b"));
-		final StorageNodeTreeMap<Integer, Set<String>> t1 = createTreeNode(merger, keyValue(keys.get(1).get(0), "c"), keyValue(keys.get(1).get(1), "d"));
-		final StorageNodeTreeMap<Integer, Set<String>> t2 = createTreeNode(merger, keyValue(keys.get(2).get(0), "e"), keyValue(keys.get(2).get(1), "f"));
-		final StorageNodeTreeMap<Integer, Set<String>> t3 = createTreeNode(merger, keyValue(keys.get(3).get(0), "g"), keyValue(keys.get(3).get(1), "h"));
-		final StorageNodeTreeMap<Integer, Set<String>> t4 = createTreeNode(merger, keyValue(keys.get(4).get(0), "i"), keyValue(keys.get(4).get(1), "j"));
-		final StorageNodeTreeMap<Integer, Set<String>> t5 = createTreeNode(merger, keyValue(keys.get(5).get(0), "k"), keyValue(keys.get(5).get(1), "l"));
+		final List<StorageNodeTreeMap<Integer, Set<String>>> trees = Arrays.asList(
+				createTreeNode(merger, keyValue(keys.get(0).get(0), "a"), keyValue(keys.get(0).get(1), "b")),
+				createTreeNode(merger, keyValue(keys.get(1).get(0), "c"), keyValue(keys.get(1).get(1), "d")),
+				createTreeNode(merger, keyValue(keys.get(2).get(0), "e"), keyValue(keys.get(2).get(1), "f")),
+				createTreeNode(merger, keyValue(keys.get(3).get(0), "g"), keyValue(keys.get(3).get(1), "h")));
 
-		final List<StorageNodeTreeMap<Integer, Set<String>>> trees = Arrays.asList(t0, t1, t2, t3, t4, t5);
+		final List<StorageNodeRemoteServer<Integer, Set<String>>> servers = Arrays.asList(
+				startServerNode(addresses.get(0), trees.get(0)),
+				startServerNode(addresses.get(1), trees.get(1)),
+				startServerNode(addresses.get(2), trees.get(2)),
+				startServerNode(addresses.get(3), trees.get(3)));
 
-		final StorageNodeRemoteServer<Integer, Set<String>> s0 = startServerNode(addresses.get(0), t0);
-		final StorageNodeRemoteServer<Integer, Set<String>> s1 = startServerNode(addresses.get(1), t1);
-		final StorageNodeRemoteServer<Integer, Set<String>> s2 = startServerNode(addresses.get(2), t2);
-		final StorageNodeRemoteServer<Integer, Set<String>> s3 = startServerNode(addresses.get(3), t3);
-		final StorageNodeRemoteServer<Integer, Set<String>> s4 = startServerNode(addresses.get(4), t4);
-		final StorageNodeRemoteServer<Integer, Set<String>> s5 = startServerNode(addresses.get(5), t5);
-
-		final StorageNodeRemoteClient<Integer, Set<String>> c0 = createRemoteClient(addresses.get(0));
-		final StorageNodeRemoteClient<Integer, Set<String>> c1 = createRemoteClient(addresses.get(1));
-		final StorageNodeRemoteClient<Integer, Set<String>> c2 = createRemoteClient(addresses.get(2));
-		final StorageNodeRemoteClient<Integer, Set<String>> c3 = createRemoteClient(addresses.get(3));
-		final StorageNodeRemoteClient<Integer, Set<String>> c4 = createRemoteClient(addresses.get(4));
-		final StorageNodeRemoteClient<Integer, Set<String>> c5 = createRemoteClient(addresses.get(5));
-
-		final List<StorageNodeRemoteClient<Integer, Set<String>>> clients = Arrays.asList(c0, c1, c2, c3, c4, c5);
+		final List<StorageNodeRemoteClient<Integer, Set<String>>> clients = Arrays.asList(
+				createRemoteClient(addresses.get(0)),
+				createRemoteClient(addresses.get(1)),
+				createRemoteClient(addresses.get(2)),
+				createRemoteClient(addresses.get(3)));
 
 		final int duplicates = 2;
 		final NodeBalancer<Integer, Set<String>> balancerByNodes = new SelectedNodesFilteredBalancer<>(eventloop,
 				createNextAliveNodesSelector(clients, duplicates), previousAliveNodeKeysPredicate(keys, clients, duplicates));
-		{
-			printStates(clients);
-			syncStates(clients, balancerByNodes);
-			printStates(clients);
-		}
 
-		{
-			removeNewElements(keys, trees);
-			printStates(clients);
+		printStates(clients);
 
-			s3.close(breakEventloopCallback());
-			eventloop.run();
+		syncStates(clients, balancerByNodes);
+		printStates(clients);
 
-			syncStates(clients, balancerByNodes);
-			printStates(clients);
-		}
-	}
+		servers.get(1).close(breakEventloopCallback());
+		keys.get(2).addAll(keys.get(1));
+		eventloop.run();
 
-	private void removeNewElements(HashMap<Integer, List<Integer>> keys, List<StorageNodeTreeMap<Integer, Set<String>>> trees) {
-		for (int i = 0; i < trees.size(); i++) {
-			final StorageNodeTreeMap<Integer, Set<String>> tree = trees.get(i);
-			for (Map.Entry<Integer, List<Integer>> entry : keys.entrySet()) {
-				if (entry.getKey() != i) {
-					for (Integer integer : entry.getValue()) {
-						tree.remove(integer);
-					}
-				}
-			}
-		}
+		syncStates(clients, balancerByNodes);
+		printStates(clients);
 	}
 
 	private void syncStates(List<? extends StorageNode<Integer, Set<String>>> clients, NodeBalancer<Integer, Set<String>> balancerByNodes) {
@@ -237,8 +211,7 @@ public class FullExample {
 				selectAliveNodes(eventloop, clients, new ForwardingResultCallback<List<StorageNode<Integer, Set<String>>>>(callback) {
 					@Override
 					protected void onResult(List<StorageNode<Integer, Set<String>>> result) {
-						final ArrayList<StorageNode<Integer, Set<String>>> result1 = newArrayList(limit(skip(concat(result, result), result.indexOf(initNode) + 1), duplicates));
-						callback.setResult(result1);
+						callback.setResult(newArrayList(limit(skip(concat(result, result), result.indexOf(initNode) + 1), duplicates)));
 					}
 				});
 			}
@@ -263,13 +236,7 @@ public class FullExample {
 		return new PredicateFactory<Integer, Set<String>>() {
 			@Override
 			public void create(final StorageNode<Integer, Set<String>> node, final ResultCallback<Predicate<Integer>> callback) {
-				selectAliveNodes(eventloop, clients, new ForwardingResultCallback<List<StorageNode<Integer, Set<String>>>>(callback) {
-					@Override
-					protected void onResult(List<StorageNode<Integer, Set<String>>> aliveNodes) {
-						callback.setResult(Predicates.in(map.get(aliveNodes.indexOf(node))));
-					}
-				});
-				callback.setResult(Predicates.<Integer>alwaysTrue());
+				callback.setResult(Predicates.in(newArrayList(map.get(clients.indexOf(node)))));
 			}
 		};
 	}
