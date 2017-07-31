@@ -122,9 +122,6 @@ public final class ValueStats implements JmxRefreshableStats<ValueStats> {
 	// fields for aggregation
 	private int addedStats;
 
-	// formatting
-	private NumberFormatting formatting = NumberFormatting.DECIMAL_TWO_DIGITS;
-
 	// region builders
 	private ValueStats(double smoothingWindow) {
 		this.smoothingWindow = smoothingWindow;
@@ -154,11 +151,6 @@ public final class ValueStats implements JmxRefreshableStats<ValueStats> {
 
 	public ValueStats withHistogram(int[] levels) {
 		setHistogramLevels(levels);
-		return this;
-	}
-
-	public ValueStats withNumberFormatting(NumberFormatting formatting) {
-		this.formatting = formatting;
 		return this;
 	}
 
@@ -646,28 +638,14 @@ public final class ValueStats implements JmxRefreshableStats<ValueStats> {
 
 	@Override
 	public String toString() {
-		String rawTemplate = "{format1}±{format2} [{format1}...{format1}]  last: {format1}  values: %d @ {format2}/s";
-		String template;
-		switch (formatting) {
-			case AUTO:
-				template = rawTemplate.replace("{format1}", "%.2g").replace("{format2}", "%.3g");
-				break;
-			case SCIENTIFIC_NOTATION:
-				template = rawTemplate.replace("{format1}", "%.2e").replace("{format2}", "%.3e");
-				break;
-			case DECIMAL_TWO_DIGITS:
-				template = rawTemplate.replace("{format1}", "%.2f").replace("{format2}", "%.3f");
-				break;
-			default:
-				template = rawTemplate.replace("{format1}", "%.2f").replace("{format2}", "%.3f");
-		}
-		return String.format(template, getSmoothedAverage(), getSmoothedStandardDeviation(), getSmoothedMin(),
-				getSmoothedMax(), getLastValue(), getCount(), getSmoothedRate());
-	}
-
-	// region helper classes
-	public enum NumberFormatting {
-		AUTO, SCIENTIFIC_NOTATION, DECIMAL_TWO_DIGITS
+		int fractionDigits = (int) -Math.floor(log10(getSmoothedMax() - getSmoothedMin())) + 3;
+		String template = "{format}±{format} [{format}...{format}]  last: {format}  values: %d @ {format}/s";
+		String format = (fractionDigits > 0)
+				? ((fractionDigits < 16) ? "%." + fractionDigits + "f" : "%.16f")
+				: "%.0f";
+		return String.format(template.replace("{format}", format), getSmoothedAverage(), getSmoothedStandardDeviation(),
+				getSmoothedMin(), getSmoothedMax(), getLastValue(), getCount(),
+				getSmoothedRate());
 	}
 	// endregion
 }
