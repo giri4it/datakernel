@@ -291,6 +291,39 @@ public class ValueStatsTest {
 		assertEquals(expected, stats.getHistogram());
 	}
 
+	@Test
+	public void itShouldUseFourFractionalDigits() {
+		ValueStats stats = ValueStats.create(SMOOTHING_WINDOW);
+		stats.recordValue(0.1);
+		stats.recordValue(0.2);
+		stats.refresh(0);
+		assertEquals("0.1500±0.0500 [0.1000...0.2000]  last: 0.2000  values: 2 @ 0.0000/s", stats.toString());
+
+		stats.recordValue(0.35);
+		stats.recordValue(1);
+		stats.refresh(60000);
+
+		assertEquals("0.6750±0.3250 [0.3500...1.0000]  last: 0.3500  values: 2 @ 0.0000/s", stats.toString());
+	}
+
+	@Test
+	public void itShouldNotUseFractionalDigits() {
+		ValueStats stats = ValueStats.create(SMOOTHING_WINDOW);
+		stats.recordValue(1000);
+		stats.recordValue(2000);
+		stats.refresh(0);
+		assertEquals("1500±500 [1000...2000]  last: 0  values: 2 @ 0/s", stats.toString());
+	}
+
+	@Test
+	public void itShouldRestrictFractionDigitsCountTo16() {
+		ValueStats stats = ValueStats.create(SMOOTHING_WINDOW);
+		stats.recordValue(0.00000000000000654);
+		stats.recordValue(0.00000000000000653);
+		stats.refresh(0);
+		assertEquals("0.0000000000000065±0.0000000000000000 [0.0000000000000065...0.0000000000000065]  last: 0.0000000000000065  values: 2 @ 0.0000000000000000/s", stats.toString());
+	}
+
 	public static int uniformRandom(int min, int max) {
 		return min + (Math.abs(RANDOM.nextInt()) % (max - min + 1));
 	}
