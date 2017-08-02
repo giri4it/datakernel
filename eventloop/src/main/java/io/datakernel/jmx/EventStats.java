@@ -16,8 +16,7 @@
 
 package io.datakernel.jmx;
 
-import static java.lang.Math.exp;
-import static java.lang.Math.log;
+import static java.lang.Math.*;
 
 /**
  * Computes total amount of events and dynamic rate using exponential smoothing algorithm
@@ -182,6 +181,9 @@ public final class EventStats implements JmxRefreshableStats<EventStats> {
 
 	@Override
 	public String toString() {
-		return String.format("%d @ %.3f/s", getTotalCount(), getSmoothedRate());
+		int fractionDigits = (int) -Math.floor(log10(getSmoothedRate())) + 3;
+		String template = "%d @ {format}/s";
+		String format = (fractionDigits > 0) ? ((fractionDigits < 6) ? "%." + fractionDigits + "f" : "%e") : "%.0f";
+		return String.format(template.replace("{format}", format), getTotalCount(), getSmoothedRate());
 	}
 }

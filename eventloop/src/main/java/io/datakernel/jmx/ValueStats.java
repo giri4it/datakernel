@@ -640,12 +640,9 @@ public final class ValueStats implements JmxRefreshableStats<ValueStats> {
 	public String toString() {
 		int fractionDigits = (int) -Math.floor(log10(getSmoothedMax() - getSmoothedMin())) + 3;
 		String template = "{format}±{format} [{format}...{format}]  last: {format}  values: %d @ {format}/s";
-		String format = (fractionDigits > 0)
-				? ((fractionDigits < 16) ? "%." + fractionDigits + "f" : "%.16f")
-				: "%.0f";
+		String format = (fractionDigits > 0) ? ((fractionDigits < 7) ? "%." + fractionDigits + "f" : "%e") : "%.0f";
 		return String.format(template.replace("{format}", format), getSmoothedAverage(), getSmoothedStandardDeviation(),
-				getSmoothedMin(), getSmoothedMax(), getLastValue(), getCount(),
-				getSmoothedRate());
+				getSmoothedMin(), getSmoothedMax(), getLastValue(), getCount(), getSmoothedRate());
 	}
 	// endregion
 }

@@ -316,12 +316,48 @@ public class ValueStatsTest {
 	}
 
 	@Test
-	public void itShouldRestrictFractionDigitsCountTo16() {
+	public void itShouldUseScientificNotationWhenFractionDigitsCountGreaterThan7() {
 		ValueStats stats = ValueStats.create(SMOOTHING_WINDOW);
 		stats.recordValue(0.00000000000000654);
 		stats.recordValue(0.00000000000000653);
 		stats.refresh(0);
-		assertEquals("0.0000000000000065±0.0000000000000000 [0.0000000000000065...0.0000000000000065]  last: 0.0000000000000065  values: 2 @ 0.0000000000000000/s", stats.toString());
+		assertEquals("6.535000e-15±5.000000e-18 [6.530000e-15...6.540000e-15]  last: 6.530000e-15  values: 2 @ 0.000000e+00/s", stats.toString());
+	}
+
+	@Test
+	public void itShouldUseDecimalNotationWhenFractionDigitsCountLessOrEqualTo7() {
+		ValueStats stats = ValueStats.create(SMOOTHING_WINDOW);
+		stats.recordValue(0.654);
+		stats.recordValue(0.653);
+		stats.refresh(0);
+		assertEquals("0.653500±0.000500 [0.653000...0.654000]  last: 0.653000  values: 2 @ 0.000000/s", stats.toString());
+	}
+
+	@Test
+	public void itShouldPrintProperlyWhenSignsAreOpposite() {
+		ValueStats stats = ValueStats.create(SMOOTHING_WINDOW);
+		stats.recordValue(-10);
+		stats.recordValue(10);
+		stats.refresh(0);
+		assertEquals("0.00±10.00 [-10.00...10.00]  last: 0.00  values: 2 @ 0.00/s", stats.toString());
+	}
+
+	@Test
+	public void itShouldPrintProperlyWhenMinIsCloseToZeroFromRightAndMaxIsLarge() {
+		ValueStats stats = ValueStats.create(SMOOTHING_WINDOW);
+		stats.recordValue(0.0001);
+		stats.recordValue(100000);
+		stats.refresh(0);
+		assertEquals("50000±0 [0...100000]  last: 0  values: 2 @ 0/s", stats.toString());
+	}
+
+	@Test
+	public void itShouldPrintProperlyWhenMinIsCloseToZeroFromLeftAndMaxIsLarge() {
+		ValueStats stats = ValueStats.create(SMOOTHING_WINDOW);
+		stats.recordValue(-0.0001);
+		stats.recordValue(100000);
+		stats.refresh(0);
+		assertEquals("50000±0 [-0...100000]  last: -0  values: 2 @ 0/s", stats.toString());
 	}
 
 	public static int uniformRandom(int min, int max) {
