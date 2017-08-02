@@ -25,7 +25,6 @@ import java.nio.charset.Charset;
 import java.util.*;
 
 import static io.datakernel.bytebuf.ByteBufStrings.*;
-import static io.datakernel.http.GzipProcessorUtils.toGzip;
 import static io.datakernel.http.HttpHeaders.*;
 import static io.datakernel.http.HttpMethod.GET;
 import static io.datakernel.http.HttpMethod.POST;
@@ -418,7 +417,6 @@ public final class HttpRequest extends HttpMessage {
 	private final static int LONGEST_HTTP_METHOD_SIZE = 12;
 	private static final byte[] HTTP_1_1 = encodeAscii(" HTTP/1.1");
 	private static final int HTTP_1_1_SIZE = HTTP_1_1.length;
-	private static final byte[] GZIP_BYTES = encodeAscii("gzip");
 
 	public String getUrlParameter(String key) {
 		return urlParameters == null ? null : urlParameters.get(key);
@@ -456,13 +454,6 @@ public final class HttpRequest extends HttpMessage {
 	@Override
 	public ByteBuf toByteBuf() {
 		assert !recycled;
-		if (body != null || method != GET) {
-			if (useGzip && body != null && body.readRemaining() > 0) {
-				body = toGzip(body);
-				setHeader(asBytes(CONTENT_ENCODING, GZIP_BYTES));
-			}
-			setHeader(HttpHeaders.ofDecimal(HttpHeaders.CONTENT_LENGTH, body == null ? 0 : body.readRemaining()));
-		}
 		int estimatedSize = estimateSize(LONGEST_HTTP_METHOD_SIZE
 				+ 1 // SPACE
 				+ url.getPathAndQuery().length())

@@ -135,6 +135,12 @@ public final class AsyncHttpClient implements IAsyncHttpClient, EventloopService
 		void onHttpResponse(HttpClientConnection connection, HttpResponse response);
 
 		void onHttpError(HttpClientConnection connection, boolean keepAliveConnection, Exception e);
+
+		void onGzipHttpRequest();
+
+		void onGzipHttpResponse();
+
+		void onGzipCompression(int decompressedBytesCount, int compressedBytesCount);
 	}
 
 	public static class JmxInspector implements Inspector {
@@ -143,6 +149,9 @@ public final class AsyncHttpClient implements IAsyncHttpClient, EventloopService
 		protected final AsyncTcpSocketImpl.JmxInspector socketStats = new AsyncTcpSocketImpl.JmxInspector();
 		protected final AsyncTcpSocketImpl.JmxInspector socketStatsForSSL = new AsyncTcpSocketImpl.JmxInspector();
 		private final EventStats totalRequests = EventStats.create(SMOOTHING_WINDOW);
+		private final EventStats totalGzipRequests = EventStats.create(SMOOTHING_WINDOW);
+		private final EventStats totalGzipResponses = EventStats.create(SMOOTHING_WINDOW);
+		private final ValueStats gzipCompressionRate = ValueStats.create(SMOOTHING_WINDOW);
 		private final ExceptionStats resolveErrors = ExceptionStats.create();
 		private final EventStats connected = EventStats.create(SMOOTHING_WINDOW);
 		private final ExceptionStats connectErrors = ExceptionStats.create();
@@ -197,6 +206,21 @@ public final class AsyncHttpClient implements IAsyncHttpClient, EventloopService
 			}
 		}
 
+		@Override
+		public void onGzipHttpRequest() {
+			totalGzipRequests.recordEvent();
+		}
+
+		@Override
+		public void onGzipHttpResponse() {
+			totalGzipResponses.recordEvent();
+		}
+
+		@Override
+		public void onGzipCompression(int decompressedBytesCount, int compressedBytesCount) {
+			gzipCompressionRate.recordValue((double) decompressedBytesCount / compressedBytesCount);
+		}
+
 		@JmxAttribute
 		public AsyncTcpSocketImpl.JmxInspector getSocketStats() {
 			return socketStats;
@@ -236,6 +260,21 @@ public final class AsyncHttpClient implements IAsyncHttpClient, EventloopService
 		@JmxAttribute(reducer = JmxReducers.JmxReducerSum.class)
 		public long getTotalResponses() {
 			return responses;
+		}
+
+		@JmxAttribute(extraSubAttributes = "totalCount")
+		public EventStats getTotalGzipRequests() {
+			return totalGzipRequests;
+		}
+
+		@JmxAttribute(extraSubAttributes = "totalCount")
+		public EventStats getTotalGzipResponses() {
+			return totalGzipResponses;
+		}
+
+		@JmxAttribute(extraSubAttributes = "average")
+		public ValueStats getGzipCompressionRate() {
+			return gzipCompressionRate;
 		}
 	}
 

@@ -48,6 +48,7 @@ public abstract class AbstractHttpConnection implements AsyncTcpSocket.EventHand
 
 	private static final byte[] CONNECTION_KEEP_ALIVE = encodeAscii("keep-alive");
 	private static final byte[] TRANSFER_ENCODING_CHUNKED = encodeAscii("chunked");
+	protected static final byte[] GZIP_BYTES = encodeAscii("gzip");
 	protected static final int UNKNOWN_LENGTH = -1;
 
 	protected final Eventloop eventloop;

@@ -209,6 +209,11 @@ final class HttpServerConnection extends AbstractHttpConnection {
 	@Override
 	protected void onHeader(HttpHeader header, final ByteBuf value) throws ParseException {
 		super.onHeader(header, value);
+		if (inspector != null && header == HttpHeaders.CONTENT_ENCODING) {
+			if (equalsLowerCaseAscii(GZIP_BYTES, value.array(), value.readPosition(), value.readRemaining())) {
+				inspector.onGzipHttpRequest();
+			}
+		}
 		if (header == HttpHeaders.EXPECT) {
 			if (equalsLowerCaseAscii(EXPECT_100_CONTINUE, value.array(), value.readPosition(), value.readRemaining())) {
 				statusExpectContinue = true;
@@ -256,7 +261,15 @@ final class HttpServerConnection extends AbstractHttpConnection {
 				if (!isClosed()) {
 					if (httpResponse.useGzip && httpResponse.getBody() != null && httpResponse.getBody().readRemaining() > 0) {
 						httpResponse.setHeader(asBytes(CONTENT_ENCODING, CONTENT_ENCODING_GZIP));
-						httpResponse.setBody(toGzip(httpResponse.detachBody()));
+						ByteBuf body = httpResponse.detachBody();
+						int decompressedBytesCount = body.readRemaining();
+						ByteBuf compressedBody = toGzip(body);
+						int compressedBytesCount = compressedBody.readRemaining();
+						if (inspector != null) {
+							inspector.onGzipCompression(decompressedBytesCount, compressedBytesCount);
+							inspector.onGzipHttpResponse();
+						}
+						httpResponse.setBody(compressedBody);
 					}
 					pool.removeNode(HttpServerConnection.this);
 					(pool = server.poolWriting).addLastNode(HttpServerConnection.this);

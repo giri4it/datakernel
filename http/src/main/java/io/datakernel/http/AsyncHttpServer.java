@@ -43,9 +43,9 @@ import static io.datakernel.http.AbstractHttpConnection.*;
  * <p>
  * The creation of asynchronous http server implies few steps:
  * <ol>
- *     <li>Create an {@code eventloop} for a server</li>
- *     <li>Create a {@code servlet}, which will respond to received request</li>
- *     <li>Create a {@code server} with these instances</li>
+ * <li>Create an {@code eventloop} for a server</li>
+ * <li>Create a {@code servlet}, which will respond to received request</li>
+ * <li>Create a {@code server} with these instances</li>
  * </ol>
  * For example, consider an {@code AsyncHttpServer}:
  * <pre><code>final {@link Eventloop Eventloop} eventloop = Eventloop.create();
@@ -54,13 +54,13 @@ import static io.datakernel.http.AbstractHttpConnection.*;
  *     public void serve({@link HttpRequest HttpRequest} request, final {@link ResultCallback ResultCallback&lt;HttpResponse&gt;} callback) {
  *     	final HttpResponse response = HttpResponse.ok200().withBody(ByteBufStrings.encodeAscii("Hello, client!"));
  *     		eventloop.post(new Runnable() {
- *		   {@literal @}Override
+ *           {@literal @}Override
  *  		    public void run() {
  *  		    System.out.println("Request body: " + request.getBody().toString());
  *     			callback.setResult(response);
- *     		    }
- *  		});
- * 	}
+ *                }
+ *        });
+ *    }
  * };
  * AsyncHttpServer server = AsyncHttpServer.create(eventloop, servlet).withListenPort(40000);
  * server.listen();
@@ -119,6 +119,12 @@ public final class AsyncHttpServer extends AbstractServer<AsyncHttpServer> {
 		void onHttpResponse(HttpRequest request, HttpResponse httpResponse);
 
 		void onServletException(HttpRequest request, Exception e);
+
+		void onGzipHttpRequest();
+
+		void onGzipHttpResponse();
+
+		void onGzipCompression(int decompressedBytesCount, int compressedBytesCount);
 	}
 
 	public static class JmxInspector implements Inspector {
@@ -127,6 +133,9 @@ public final class AsyncHttpServer extends AbstractServer<AsyncHttpServer> {
 		private final EventStats totalRequests = EventStats.create(SMOOTHING_WINDOW);
 		private final EventStats totalResponses = EventStats.create(SMOOTHING_WINDOW);
 		private final EventStats httpTimeouts = EventStats.create(SMOOTHING_WINDOW);
+		private final EventStats totalGzipRequests = EventStats.create(SMOOTHING_WINDOW);
+		private final EventStats totalGzipResponses = EventStats.create(SMOOTHING_WINDOW);
+		private final ValueStats gzipCompressionRate = ValueStats.create(SMOOTHING_WINDOW);
 		private final ExceptionStats httpErrors = ExceptionStats.create();
 		private final ExceptionStats servletExceptions = ExceptionStats.create();
 
@@ -150,6 +159,21 @@ public final class AsyncHttpServer extends AbstractServer<AsyncHttpServer> {
 		}
 
 		@Override
+		public void onGzipHttpRequest() {
+			totalGzipRequests.recordEvent();
+		}
+
+		@Override
+		public void onGzipHttpResponse() {
+			totalGzipResponses.recordEvent();
+		}
+
+		@Override
+		public void onGzipCompression(int bytesCountBeforeCompression, int bytesCountAfterCompression) {
+			gzipCompressionRate.recordValue((double) bytesCountBeforeCompression / bytesCountAfterCompression);
+		}
+
+		@Override
 		public void onServletException(HttpRequest request, Exception e) {
 			servletExceptions.recordException(e, request.toString());
 		}
@@ -162,6 +186,21 @@ public final class AsyncHttpServer extends AbstractServer<AsyncHttpServer> {
 		@JmxAttribute(extraSubAttributes = "totalCount")
 		public EventStats getTotalResponses() {
 			return totalResponses;
+		}
+
+		@JmxAttribute(extraSubAttributes = "totalCount")
+		public EventStats getTotalGzipRequests() {
+			return totalGzipRequests;
+		}
+
+		@JmxAttribute(extraSubAttributes = "totalCount")
+		public EventStats getTotalGzipResponses() {
+			return totalGzipResponses;
+		}
+
+		@JmxAttribute(extraSubAttributes = "average")
+		public ValueStats getGzipCompressionRate() {
+			return gzipCompressionRate;
 		}
 
 		@JmxAttribute

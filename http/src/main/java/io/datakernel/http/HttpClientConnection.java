@@ -25,13 +25,14 @@ import io.datakernel.net.CloseWithoutNotifyException;
 
 import java.net.InetSocketAddress;
 
-import static io.datakernel.bytebuf.ByteBufStrings.SP;
-import static io.datakernel.bytebuf.ByteBufStrings.decodeDecimal;
-import static io.datakernel.http.HttpHeaders.CONNECTION;
+import static io.datakernel.bytebuf.ByteBufStrings.*;
+import static io.datakernel.http.GzipProcessorUtils.toGzip;
+import static io.datakernel.http.HttpHeaders.*;
+import static io.datakernel.http.HttpMethod.GET;
 
 @SuppressWarnings("ThrowableInstanceNeverThrown")
 final class HttpClientConnection extends AbstractHttpConnection {
-	private static final HttpHeaders.Value CONNECTION_KEEP_ALIVE = HttpHeaders.asBytes(CONNECTION, "keep-alive");
+	private static final HttpHeaders.Value CONNECTION_KEEP_ALIVE = asBytes(CONNECTION, "keep-alive");
 
 	private ResultCallback<HttpResponse> callback;
 	private HttpResponse response;
@@ -130,6 +131,11 @@ final class HttpClientConnection extends AbstractHttpConnection {
 	@Override
 	protected void onHeader(HttpHeader header, ByteBuf value) throws ParseException {
 		super.onHeader(header, value);
+		if (inspector != null && header == HttpHeaders.CONTENT_ENCODING) {
+			if (equalsLowerCaseAscii(GZIP_BYTES, value.array(), value.readPosition(), value.readRemaining())) {
+				inspector.onGzipHttpResponse();
+			}
+		}
 		response.addHeader(header, value);
 	}
 
@@ -194,7 +200,21 @@ final class HttpClientConnection extends AbstractHttpConnection {
 		(pool = client.poolWriting).addLastNode(this);
 		poolTimestamp = eventloop.currentTimeMillis();
 		request.addHeader(CONNECTION_KEEP_ALIVE);
-		asyncTcpSocket.write(request.toByteBuf());
+		if (request.body != null || request.getMethod() != GET) {
+			if (request.useGzip && request.body != null && request.body.readRemaining() > 0) {
+				int decompressedBytesCount = request.body.readRemaining();
+				request.body = toGzip(request.body);
+				int compressedBytesCount = request.body.readRemaining();
+				if (inspector != null) {
+					inspector.onGzipCompression(decompressedBytesCount, compressedBytesCount);
+					inspector.onGzipHttpRequest();
+				}
+				request.setHeader(asBytes(CONTENT_ENCODING, GZIP_BYTES));
+			}
+			request.setHeader(HttpHeaders.ofDecimal(HttpHeaders.CONTENT_LENGTH, request.body == null ? 0 : request.body.readRemaining()));
+		}
+		ByteBuf buf = request.toByteBuf();
+		asyncTcpSocket.write(buf);
 		request.recycleBufs();
 	}
 
