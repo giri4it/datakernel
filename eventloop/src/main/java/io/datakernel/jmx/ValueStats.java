@@ -411,7 +411,6 @@ public final class ValueStats implements JmxRefreshableStats<ValueStats> {
 		if (anotherStats.lastTimestampMillis > lastTimestampMillis) {
 			lastTimestampMillis = anotherStats.lastTimestampMillis;
 			lastValueInteger = anotherStats.lastValueInteger;
-			lastValueDouble = anotherStats.lastValueDouble;
 		}
 
 		if (addedStats == 0) {
