@@ -70,8 +70,6 @@ public class CubeIntegrationTest {
 				.withDimension("advertiser", FieldTypes.ofInt())
 				.withDimension("campaign", FieldTypes.ofInt())
 				.withDimension("banner", FieldTypes.ofInt())
-				.withRelation("campaign", "advertiser")
-				.withRelation("banner", "campaign")
 				.withMeasure("impressions", sum(ofLong()))
 				.withMeasure("clicks", sum(ofLong()))
 				.withMeasure("conversions", sum(ofLong()))

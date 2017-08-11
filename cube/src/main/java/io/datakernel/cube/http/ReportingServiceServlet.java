@@ -69,7 +69,7 @@ public final class ReportingServiceServlet implements AsyncServlet {
 				protected void onResult(QueryResult result) {
 					Stopwatch resultProcessingStopwatch = Stopwatch.createStarted();
 					String json = gson.toJson(result);
-					HttpResponse httpResponse = createResponse(json);
+					HttpResponse httpResponse = createSuccessfulResponse(json);
 					logger.info("Processed request {} ({}) [totalTime={}, jsonConstruction={}]", httpRequest,
 							cubeQuery, totalTimeStopwatch, resultProcessingStopwatch);
 					callback.setResult(httpResponse);
@@ -77,16 +77,24 @@ public final class ReportingServiceServlet implements AsyncServlet {
 			});
 		} catch (ParseException e) {
 			logger.error("Parse exception: " + httpRequest, e);
-			callback.setException(e);
+			callback.setResult(createErrorResponse(e.getMessage()));
 		} catch (QueryException e) {
 			logger.error("Query exception: " + httpRequest, e);
-			callback.setException(e);
+			callback.setResult(createErrorResponse(e.getMessage()));
 		}
 	}
 
-	private static HttpResponse createResponse(String body) {
+	private static HttpResponse createSuccessfulResponse(String body) {
 		HttpResponse response = HttpResponse.ok200();
 		response.setContentType(ContentType.of(MediaTypes.JSON, Charsets.UTF_8));
+		response.setBody(wrapUtf8(body));
+		response.addHeader(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "*");
+		return response;
+	}
+
+	private static HttpResponse createErrorResponse(String body) {
+		HttpResponse response = HttpResponse.ofCode(400);
+		response.setContentType(ContentType.of(MediaTypes.PLAIN_TEXT, Charsets.UTF_8));
 		response.setBody(wrapUtf8(body));
 		response.addHeader(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "*");
 		return response;

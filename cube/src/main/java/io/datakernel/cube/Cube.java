@@ -61,6 +61,7 @@ import static com.google.common.base.Predicates.not;
 import static com.google.common.collect.Iterables.*;
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.*;
+import static com.google.common.collect.Sets.difference;
 import static com.google.common.collect.Sets.newLinkedHashSet;
 import static com.google.common.primitives.Primitives.isWrapperType;
 import static io.datakernel.aggregation.AggregationUtils.*;
@@ -70,6 +71,7 @@ import static io.datakernel.codegen.ExpressionComparator.leftField;
 import static io.datakernel.codegen.ExpressionComparator.rightField;
 import static io.datakernel.codegen.Expressions.*;
 import static io.datakernel.cube.Utils.createResultClass;
+import static io.datakernel.cube.Utils.resolveAttributes;
 import static io.datakernel.jmx.ValueStats.SMOOTHING_WINDOW_10_MINUTES;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
@@ -93,7 +95,6 @@ public final class Cube implements ICube, EventloopJmxMBean {
 
 	private final Map<String, FieldType> fieldTypes = new LinkedHashMap<>();
 	private final Map<String, FieldType> dimensionTypes = new LinkedHashMap<>();
-	private final Map<String, Object> dimensionEmptyElements = new LinkedHashMap<>();
 	private final Map<String, Measure> measures = new LinkedHashMap<>();
 	private final Map<String, ComputedMeasure> computedMeasures = newLinkedHashMap();
 
@@ -113,8 +114,6 @@ public final class Cube implements ICube, EventloopJmxMBean {
 	private final List<AttributeResolverContainer> attributeResolvers = newArrayList();
 	private final Map<String, Class<?>> attributeTypes = new LinkedHashMap<>();
 	private final Map<String, AttributeResolverContainer> attributes = new LinkedHashMap<>();
-
-	private final Map<String, String> childParentRelations = new LinkedHashMap<>();
 
 	// settings
 	private int aggregationsChunkSize = Aggregation.DEFAULT_CHUNK_SIZE;
@@ -187,12 +186,10 @@ public final class Cube implements ICube, EventloopJmxMBean {
 		String attributeName = attribute.substring(pos + 1);
 		checkArgument(resolver.getAttributeTypes().containsKey(attributeName), "Resolver does not support %s", attribute);
 		checkArgument(!isWrapperType(resolver.getAttributeTypes().get(attributeName)), "Unsupported attribute type for %s", attribute);
-		List<String> dimensions = getAllParents(dimension);
-		checkArgument(dimensions.size() == resolver.getKeyTypes().length, "Parent dimensions: %s, key types: %s", dimensions, newArrayList(resolver.getKeyTypes()));
-		for (int i = 0; i < dimensions.size(); i++) {
-			String d = dimensions.get(i);
-			checkArgument(((Class<?>) dimensionTypes.get(d).getInternalDataType()).equals(resolver.getKeyTypes()[i]), "Dimension type mismatch for %s", d);
-		}
+		checkArgument(dimensionTypes.keySet().containsAll(resolver.getKeys()), "Cube doesn't contain all of resolver dimensions. " +
+						"Resolver dimensions: %s. Resolver dimensions, which are not stored in cube: %s", resolver.getKeys(),
+				difference(newLinkedHashSet(resolver.getKeys()), dimensionTypes.keySet()));
+		checkArgument(resolver.getKeys().contains(dimension), "Resolver key must contain dimension: %s", dimension);
 		AttributeResolverContainer resolverContainer = null;
 		for (AttributeResolverContainer r : attributeResolvers) {
 			if (r.resolver == resolver) {
@@ -201,7 +198,7 @@ public final class Cube implements ICube, EventloopJmxMBean {
 			}
 		}
 		if (resolverContainer == null) {
-			resolverContainer = new AttributeResolverContainer(dimensions, resolver);
+			resolverContainer = new AttributeResolverContainer(newArrayList(resolver.getKeys()), resolver);
 			attributeResolvers.add(resolverContainer);
 		}
 		resolverContainer.attributes.add(attribute);
@@ -228,14 +225,6 @@ public final class Cube implements ICube, EventloopJmxMBean {
 		checkState(aggregations.isEmpty());
 		dimensionTypes.put(dimensionId, type);
 		fieldTypes.put(dimensionId, type);
-		return this;
-	}
-
-	public Cube withDimension(String dimensionId, FieldType type, Object nullValue) {
-		checkState(aggregations.isEmpty());
-		dimensionTypes.put(dimensionId, type);
-		fieldTypes.put(dimensionId, type);
-		dimensionEmptyElements.put(dimensionId, nullValue);
 		return this;
 	}
 
@@ -269,16 +258,6 @@ public final class Cube implements ICube, EventloopJmxMBean {
 
 	public Cube withComputedMeasures(Map<String, ComputedMeasure> computedMeasures) {
 		this.computedMeasures.putAll(computedMeasures);
-		return this;
-	}
-
-	public Cube withRelation(String child, String parent) {
-		this.childParentRelations.put(child, parent);
-		return this;
-	}
-
-	public Cube withRelations(Map<String, String> childParentRelations) {
-		this.childParentRelations.putAll(childParentRelations);
 		return this;
 	}
 
@@ -851,18 +830,6 @@ public final class Cube implements ICube, EventloopJmxMBean {
 		});
 	}
 
-	private List<String> getAllParents(String dimension) {
-		ArrayList<String> chain = new ArrayList<>();
-		chain.add(dimension);
-		String child = dimension;
-		String parent;
-		while ((parent = childParentRelations.get(child)) != null) {
-			chain.add(0, parent);
-			child = parent;
-		}
-		return chain;
-	}
-
 	public Map<String, List<AggregationMetadata.ConsolidationDebugInfo>> getConsolidationDebugInfo() {
 		Map<String, List<AggregationMetadata.ConsolidationDebugInfo>> m = newHashMap();
 
@@ -993,22 +960,25 @@ public final class Cube implements ICube, EventloopJmxMBean {
 		}
 
 		void prepareDimensions() throws QueryException {
-			Set<String> fullySpecifiedDimensions = query.getWhere().getFullySpecifiedDimensions().keySet();
-			for (String attribute : query.getAttributes()) {
-				List<String> dimensions = newArrayList();
+			Set<String> queryAttributes = newLinkedHashSet(query.getAttributes());
+			Set<String> allQueryAttributes = newLinkedHashSet(concat(queryAttributes, queryPredicate.getFullySpecifiedDimensions().keySet()));
+			for (String attribute : queryAttributes) {
+				List<String> attributes = newArrayList();
 				if (dimensionTypes.containsKey(attribute)) {
-					dimensions = getAllParents(attribute);
-					dimensions.removeAll(fullySpecifiedDimensions);
-					queryDimensions.add(attribute);
-				} else if (attributes.containsKey(attribute)) {
-					AttributeResolverContainer resolverContainer = attributes.get(attribute);
-					for (String dimension : resolverContainer.dimensions) {
-						dimensions.addAll(getAllParents(dimension));
+					attributes.add(attribute);
+				} else if (Cube.this.attributes.containsKey(attribute)) {
+					AttributeResolverContainer resolverContainer = Cube.this.attributes.get(attribute);
+					List<String> resolverDimensions = resolverContainer.resolver.getKeys();
+					if (!allQueryAttributes.containsAll(resolverDimensions)) {
+						allQueryAttributes.retainAll(resolverDimensions);
+						throw new QueryException(String.format("Unable to resolve attribute %s. Required key dimensions " +
+										"for resolving: %s, but was: %s", attribute, resolverDimensions, allQueryAttributes));
 					}
+					attributes.addAll(resolverDimensions);
 				} else
 					throw new QueryException("Attribute not found: " + attribute);
-				queryDimensions.addAll(dimensions);
-				resultAttributes.addAll(dimensions);
+				queryDimensions.addAll(attributes);
+				resultAttributes.addAll(attributes);
 				resultAttributes.add(attribute);
 			}
 		}
@@ -1033,12 +1003,10 @@ public final class Cube implements ICube, EventloopJmxMBean {
 		RecordScheme createRecordScheme() {
 			RecordScheme recordScheme = RecordScheme.create();
 			for (String attribute : resultAttributes) {
-				recordScheme = recordScheme.withField(attribute,
-						getAttributeType(attribute));
+				recordScheme = recordScheme.withField(attribute, getAttributeType(attribute));
 			}
 			for (String measure : queryMeasures) {
-				recordScheme = recordScheme.withField(measure,
-						getMeasureType(measure));
+				recordScheme = recordScheme.withField(measure, getMeasureType(measure));
 			}
 			return recordScheme;
 		}
@@ -1159,9 +1127,8 @@ public final class Cube implements ICube, EventloopJmxMBean {
 					tasks.add(new AsyncRunnable() {
 						@Override
 						public void run(CompletionCallback callback) {
-							Utils.resolveAttributes(results, resolverContainer.resolver,
-									resolverContainer.dimensions, attributes,
-									(Class) resultClass, queryClassLoader, callback);
+							resolveAttributes(results, resolverContainer.resolver, resolverContainer.dimensions,
+									attributes, (Class) resultClass, queryClassLoader, callback);
 						}
 					});
 				}
@@ -1200,11 +1167,10 @@ public final class Cube implements ICube, EventloopJmxMBean {
 				resultRecords.add(record);
 			}
 
-			boolean noAggregations = compatibleAggregations.isEmpty();
 			if (ReportType.DATA == query.getReportType()) {
 				QueryResult result = QueryResult.createForData(recordScheme, resultRecords,
-						noAggregations ? Collections.<String>emptyList() : newArrayList(resultAttributes),
-						noAggregations ? Collections.<String>emptyList() : newArrayList(queryMeasures),
+						compatibleAggregations.isEmpty() ? Collections.<String>emptyList() : newArrayList(resultAttributes),
+						compatibleAggregations.isEmpty() ? Collections.<String>emptyList() : newArrayList(queryMeasures),
 						resultOrderings, filterAttributes);
 				callback.setResult(result);
 				return;
@@ -1213,12 +1179,12 @@ public final class Cube implements ICube, EventloopJmxMBean {
 			Record totalRecord = Record.create(recordScheme);
 			if (ReportType.DATA_WITH_TOTALS == query.getReportType()) {
 				recordFunction.copyMeasures(totals, totalRecord);
-				RecordScheme scheme = RecordScheme.create();
-				QueryResult result = QueryResult.createForDataWithTotals(noAggregations ? scheme : recordScheme, resultRecords,
-						noAggregations ? Record.create(scheme) : totalRecord,
-						totalCount, noAggregations ? Collections.<String>emptyList() : newArrayList(resultAttributes),
-						noAggregations ? Collections.<String>emptyList() : newArrayList(queryMeasures), resultOrderings,
-						filterAttributes);
+				RecordScheme scheme = compatibleAggregations.isEmpty() ? RecordScheme.create() : recordScheme;
+				QueryResult result = QueryResult.createForDataWithTotals(scheme, resultRecords,
+						compatibleAggregations.isEmpty() ? Record.create(scheme) : totalRecord, totalCount,
+						compatibleAggregations.isEmpty() ? Collections.<String>emptyList() : newArrayList(resultAttributes),
+						compatibleAggregations.isEmpty() ? Collections.<String>emptyList() : newArrayList(queryMeasures),
+						resultOrderings, filterAttributes);
 				callback.setResult(result);
 			}
 		}

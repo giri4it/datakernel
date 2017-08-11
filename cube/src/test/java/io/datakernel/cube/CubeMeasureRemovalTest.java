@@ -100,9 +100,7 @@ public class CubeMeasureRemovalTest {
 						.withMeasures("impressions", "clicks", "conversions", "revenue"))
 				.withAggregation(id("advertiser")
 						.withDimensions("advertiser")
-						.withMeasures("impressions", "clicks", "conversions", "revenue"))
-				.withRelation("campaign", "advertiser")
-				.withRelation("banner", "campaign");
+						.withMeasures("impressions", "clicks", "conversions", "revenue"));
 
 		LogManager<LogItem> logManager = getLogManager(LogItem.class, eventloop, executor, classLoader, logsDir);
 		LogToCubeRunner<LogItem> logToCubeRunner = LogToCubeRunner.create(eventloop, cube, logManager,
@@ -144,9 +142,7 @@ public class CubeMeasureRemovalTest {
 						.withMeasures("impressions", "clicks", "conversions")) // "revenue" measure is removed
 				.withAggregation(id("advertiser")
 						.withDimensions("advertiser")
-						.withMeasures("impressions", "clicks", "conversions", "revenue"))
-				.withRelation("campaign", "advertiser")
-				.withRelation("banner", "campaign");
+						.withMeasures("impressions", "clicks", "conversions", "revenue"));
 
 		logToCubeRunner = LogToCubeRunner.create(eventloop, cube, logManager,
 				LogItemSplitter.factory(), LOG_NAME, LOG_PARTITIONS, logToCubeMetadataStorage);

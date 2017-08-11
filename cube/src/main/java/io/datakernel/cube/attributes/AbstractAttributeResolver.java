@@ -8,7 +8,7 @@ import java.util.Map;
 
 public abstract class AbstractAttributeResolver<K, A> implements AttributeResolver {
 	@Override
-	public abstract Class<?>[] getKeyTypes();
+	public abstract List<String> getKeys();
 
 	protected abstract K toKey(Object[] keyArray);
 

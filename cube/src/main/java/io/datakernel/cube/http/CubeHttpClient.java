@@ -23,7 +23,6 @@ import io.datakernel.bytebuf.ByteBufStrings;
 import io.datakernel.cube.CubeQuery;
 import io.datakernel.cube.ICube;
 import io.datakernel.cube.QueryResult;
-import io.datakernel.eventloop.Eventloop;
 import io.datakernel.exception.ParseException;
 import io.datakernel.http.*;
 
@@ -35,26 +34,24 @@ import static com.google.common.collect.Maps.newLinkedHashMap;
 import static io.datakernel.cube.http.Utils.*;
 
 public final class CubeHttpClient implements ICube {
-	private final Eventloop eventloop;
 	private final String url;
 	private final IAsyncHttpClient httpClient;
 	private Gson gson;
 	private final Map<String, Type> attributeTypes = newLinkedHashMap();
 	private final Map<String, Type> measureTypes = newLinkedHashMap();
 
-	private CubeHttpClient(Eventloop eventloop, IAsyncHttpClient httpClient, String url) {
-		this.eventloop = eventloop;
+	private CubeHttpClient(IAsyncHttpClient httpClient, String url) {
 		this.url = url.replaceAll("/$", "");
 		this.httpClient = httpClient;
 		this.gson = createGsonBuilder(attributeTypes, measureTypes).create(); // TODO support of external GsonBuilder
 	}
 
-	public static CubeHttpClient create(Eventloop eventloop, AsyncHttpClient httpClient, String cubeServletUrl) {
-		return new CubeHttpClient(eventloop, httpClient, cubeServletUrl);
+	public static CubeHttpClient create(AsyncHttpClient httpClient, String cubeServletUrl) {
+		return new CubeHttpClient(httpClient, cubeServletUrl);
 	}
 
-	public static CubeHttpClient create(Eventloop eventloop, AsyncHttpClient httpClient, URI cubeServletUrl) {
-		return create(eventloop, httpClient, cubeServletUrl.toString());
+	public static CubeHttpClient create(AsyncHttpClient httpClient, URI cubeServletUrl) {
+		return create(httpClient, cubeServletUrl.toString());
 	}
 
 	public CubeHttpClient withAttribute(String attribute, Type type) {

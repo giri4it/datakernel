@@ -140,8 +140,8 @@ public class ReportingTest {
 
 	private static class AdvertiserResolver extends AbstractAttributeResolver<Integer, String> {
 		@Override
-		public Class<?>[] getKeyTypes() {
-			return new Class[]{int.class};
+		public List<String> getKeys() {
+			return singletonList("advertiser");
 		}
 
 		@Override
@@ -309,9 +309,6 @@ public class ReportingTest {
 				.withClassLoaderCache(CubeClassLoaderCache.create(classLoader, 5))
 				.withDimensions(DIMENSIONS_CUBE)
 				.withMeasures(MEASURES)
-				.withRelation("campaign", "advertiser")
-				.withRelation("banner", "campaign")
-				.withRelation("site", "affiliate")
 				.withAttribute("advertiser.name", new AdvertiserResolver())
 				.withComputedMeasure("ctr", percent(measure("clicks"), measure("impressions")))
 				.withComputedMeasure("uniqueUserPercent", percent(div(measure("uniqueUserIdsCount"), measure("eventCount"))))
@@ -374,7 +371,7 @@ public class ReportingTest {
 
 		httpClient = AsyncHttpClient.create(eventloop)
 				.withNoKeepAlive();
-		cubeHttpClient = CubeHttpClient.create(eventloop, httpClient, "http://127.0.0.1:" + serverPort)
+		cubeHttpClient = CubeHttpClient.create(httpClient, "http://127.0.0.1:" + serverPort)
 				.withAttribute("date", LocalDate.class)
 				.withAttribute("advertiser", int.class)
 				.withAttribute("campaign", int.class)
@@ -561,7 +558,7 @@ public class ReportingTest {
 	@Test
 	public void testQueryWithNullAttributeAndBetweenPredicate() {
 		CubeQuery query = CubeQuery.create()
-				.withAttributes("advertiser.name")
+				.withAttributes("advertiser", "advertiser.name")
 				.withMeasures("impressions")
 				.withWhere(and(notEq("advertiser", EXCLUDE_ADVERTISER), notEq("campaign", EXCLUDE_CAMPAIGN), notEq("banner", EXCLUDE_BANNER)))
 				.withHaving(or(between("advertiser.name", "a", "z"), eq("advertiser.name", null)))
@@ -596,7 +593,7 @@ public class ReportingTest {
 	@Test
 	public void testSearchAndFieldsParameter() throws Exception {
 		CubeQuery query = CubeQuery.create()
-				.withAttributes("advertiser.name")
+				.withAttributes("advertiser", "advertiser.name")
 				.withMeasures("clicks")
 				.withWhere(and(not(eq("advertiser", EXCLUDE_ADVERTISER)), notEq("campaign", EXCLUDE_CAMPAIGN), notEq("banner", EXCLUDE_BANNER)))
 				.withHaving(or(regexp("advertiser.name", ".*s.*"), eq("advertiser.name", null)))

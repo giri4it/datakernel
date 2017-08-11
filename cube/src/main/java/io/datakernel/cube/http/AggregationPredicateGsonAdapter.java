@@ -60,7 +60,6 @@ final class AggregationPredicateGsonAdapter extends TypeAdapter<AggregationPredi
 	public static final String GT_SIGN = ">";
 	public static final String LE_SIGN = "<=";
 	public static final String LT_SIGN = "<";
-	public static final String IN_SIGN = "IN";
 	private final Map<String, TypeAdapter<?>> attributeAdapters;
 
 	private AggregationPredicateGsonAdapter(Map<String, TypeAdapter<?>> attributeAdapters) {
@@ -246,9 +245,6 @@ final class AggregationPredicateGsonAdapter extends TypeAdapter<AggregationPredi
 					break;
 				case LT_SIGN:
 					comparisonPredicate = lt(field, (Comparable) value);
-					break;
-				case IN_SIGN:
-					comparisonPredicate = in(field, (Set) value);
 					break;
 				default:
 					throw new IllegalArgumentException();
