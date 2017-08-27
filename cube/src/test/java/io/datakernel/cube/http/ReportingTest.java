@@ -392,7 +392,8 @@ public class ReportingTest {
 				.withMeasure("maxRevenue", double.class)
 				.withMeasure("ctr", double.class)
 				.withMeasure("uniqueUserIdsCount", int.class)
-				.withMeasure("uniqueUserPercent", double.class);
+				.withMeasure("uniqueUserPercent", double.class)
+				.withMeasure("errorsPercent", double.class);
 	}
 
 	@Test
@@ -594,6 +595,21 @@ public class ReportingTest {
 	}
 
 	@Test
+	public void testRecordsWithFullySpecifiedAttributes() throws Exception {
+		CubeQuery query = CubeQuery.create()
+				.withAttributes("date", "advertiser.name")
+				.withMeasures("impressions")
+				.withWhere(and(eq("advertiser", 1), notEq("campaign", EXCLUDE_CAMPAIGN), notEq("banner", EXCLUDE_BANNER)));
+
+		final QueryResult queryResult = getQueryResult(query);
+
+		assertEquals(3, queryResult.getRecords().size());
+		assertEquals("first", queryResult.getRecords().get(0).get("advertiser.name"));
+		assertEquals("first", queryResult.getRecords().get(1).get("advertiser.name"));
+		assertEquals("first", queryResult.getRecords().get(2).get("advertiser.name"));
+	}
+
+	@Test
 	public void testSearchAndFieldsParameter() throws Exception {
 		CubeQuery query = CubeQuery.create()
 				.withAttributes("advertiser.name")
@@ -606,12 +622,10 @@ public class ReportingTest {
 
 		List<Record> records = queryResult.getRecords();
 		assertEquals(2, records.size());
-		assertEquals(asList("advertiser", "advertiser.name", "clicks"), records.get(0).getScheme().getFields());
-		assertEquals(asList("advertiser", "advertiser.name"), queryResult.getAttributes());
+		assertEquals(asList("advertiser.name", "clicks"), records.get(0).getScheme().getFields());
+		assertEquals(asList("advertiser.name"), queryResult.getAttributes());
 		assertEquals(asList("clicks"), queryResult.getMeasures());
-		assertEquals(1, (int) records.get(0).get("advertiser"));
 		assertEquals("first", records.get(0).get("advertiser.name"));
-		assertEquals(2, (int) records.get(1).get("advertiser"));
 		assertEquals(null, records.get(1).get("advertiser.name"));
 	}
 
@@ -679,7 +693,7 @@ public class ReportingTest {
 
 		final QueryResult metadata = getQueryResult(onlyMetaQuery);
 
-		assertEquals(7, metadata.getRecordScheme().getFields().size());
+		assertEquals(6, metadata.getRecordScheme().getFields().size());
 		assertEquals(0, metadata.getTotalCount());
 		assertTrue(metadata.getRecords().isEmpty());
 		assertTrue(metadata.getFilterAttributes().isEmpty());
@@ -715,7 +729,7 @@ public class ReportingTest {
 				.withReportType(ReportType.METADATA);
 
 		final QueryResult metadata = getQueryResult(queryAffectingNonCompatibleAggregations);
-		assertTrue(metadata.getMeasures().isEmpty());
+		assertEquals(0, metadata.getMeasures().size());
 	}
 
 	@Test

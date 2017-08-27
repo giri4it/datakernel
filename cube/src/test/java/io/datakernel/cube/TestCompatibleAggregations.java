@@ -241,7 +241,7 @@ public class TestCompatibleAggregations {
 		final AggregationPredicate whereQueryPredicate = alwaysTrue();
 
 		List<Cube.AggregationContainer> actualAggregations = cube.getCompatibleAggregationsForQuery(
-				asList("date"), newArrayList(MEASURES.keySet()), whereQueryPredicate);
+				asList("date"), MEASURES.keySet(), whereQueryPredicate);
 
 		Aggregation expected = cube.getAggregation(DAILY_AGGREGATION.getId());
 
@@ -257,7 +257,7 @@ public class TestCompatibleAggregations {
 				not(eq("banner", EXCLUDE_BANNER)));
 
 		List<Cube.AggregationContainer> actualAggregations = cube.getCompatibleAggregationsForQuery(
-				asList("advertiser", "campaign", "banner"), newArrayList(MEASURES.keySet()), whereQueryPredicate);
+				asList("advertiser", "campaign", "banner"), MEASURES.keySet(), whereQueryPredicate);
 
 		Aggregation expected = cube.getAggregation(ADVERTISERS_AGGREGATION.getId());
 
@@ -270,7 +270,7 @@ public class TestCompatibleAggregations {
 		final AggregationPredicate whereQueryPredicate = and(not(eq("affiliate", EXCLUDE_AFFILIATE)), not(eq("site", EXCLUDE_SITE)));
 
 		List<Cube.AggregationContainer> actualAggregations = cube.getCompatibleAggregationsForQuery(
-				asList("affiliate", "site"), newArrayList(MEASURES.keySet()), whereQueryPredicate);
+				asList("affiliate", "site"), MEASURES.keySet(), whereQueryPredicate);
 
 		Aggregation expected = cube.getAggregation(AFFILIATES_AGGREGATION.getId());
 
@@ -287,7 +287,7 @@ public class TestCompatibleAggregations {
 
 		List<Cube.AggregationContainer> actualAggregations =
 				cubeWithDetailedAggregation.getCompatibleAggregationsForQuery(
-						asList("affiliate", "site", "placement"), newArrayList(MEASURES.keySet()), whereQueryPredicate);
+						asList("affiliate", "site", "placement"), MEASURES.keySet(), whereQueryPredicate);
 
 		Aggregation expected = cubeWithDetailedAggregation.getAggregation(DETAILED_AFFILIATES_AGGREGATION.getId());
 
@@ -301,7 +301,7 @@ public class TestCompatibleAggregations {
 
 		List<Cube.AggregationContainer> actualAggregations =
 				cubeWithDetailedAggregation.getCompatibleAggregationsForQuery(
-						asList("affiliate", "site", "placement"), newArrayList(MEASURES.keySet()), whereQueryPredicate);
+						asList("affiliate", "site", "placement"), MEASURES.keySet(), whereQueryPredicate);
 
 		Aggregation expected = cubeWithDetailedAggregation.getAggregation(DETAILED_AFFILIATES_AGGREGATION.getId());
 
@@ -315,7 +315,7 @@ public class TestCompatibleAggregations {
 
 		List<Cube.AggregationContainer> actualAggregations =
 				cubeWithDetailedAggregation.getCompatibleAggregationsForQuery(
-						asList("date"), newArrayList(MEASURES.keySet()), whereQueryPredicate);
+						asList("date"), MEASURES.keySet(), whereQueryPredicate);
 
 		Aggregation expected = cubeWithDetailedAggregation.getAggregation(DAILY_AGGREGATION.getId());
 		Aggregation expected2 = cubeWithDetailedAggregation.getAggregation(LIMITED_DATES_AGGREGATION.getId());
@@ -333,7 +333,7 @@ public class TestCompatibleAggregations {
 
 		List<Cube.AggregationContainer> actualAggregations =
 				cubeWithDetailedAggregation.getCompatibleAggregationsForQuery(
-						asList("date"), newArrayList(MEASURES.keySet()), whereQueryPredicate);
+						asList("date"), MEASURES.keySet(), whereQueryPredicate);
 
 		Aggregation expected = cubeWithDetailedAggregation.getAggregation(ADVERTISERS_AGGREGATION.getId());
 
@@ -347,7 +347,7 @@ public class TestCompatibleAggregations {
 
 		List<Cube.AggregationContainer> actualAggregations =
 				cubeWithDetailedAggregation.getCompatibleAggregationsForQuery(
-						asList("date"), newArrayList(MEASURES.keySet()), whereQueryPredicate);
+						asList("date"), MEASURES.keySet(), whereQueryPredicate);
 
 		Aggregation expected = cubeWithDetailedAggregation.getAggregation(DAILY_AGGREGATION.getId());
 		Aggregation expected2 = cubeWithDetailedAggregation.getAggregation(LIMITED_DATES_AGGREGATION.getId());
