@@ -288,4 +288,43 @@ public final class StreamConsumers {
 		return toListSuspend(eventloop, new ArrayList<T>());
 	}
 
+	public static <T> StreamConsumerListenable<T> listenableConsumer(StreamConsumer<T> consumer) {
+		return new StreamConsumerListenable<>(consumer);
+	}
+
+	public static final class StreamConsumerListenable<T> extends StreamConsumerDecorator<T> {
+		private final SettableStage<Void> stage = SettableStage.create();
+
+		public StreamConsumerListenable(StreamConsumer<T> streamConsumer) {
+			super(streamConsumer);
+		}
+
+		public SettableStage<Void> getStage() {
+			return stage;
+		}
+
+		@Override
+		public void streamFrom(StreamProducer<T> upstreamProducer) {
+			super.streamFrom(new StreamProducerDecorator<T>(upstreamProducer) {
+				@Override
+				public void onConsumerError(Exception e) {
+					super.onConsumerError(e);
+					stage.setError(e);
+				}
+			});
+		}
+
+		@Override
+		public void onProducerEndOfStream() {
+			super.onProducerEndOfStream();
+			stage.setResult(null);
+		}
+
+		@Override
+		public void onProducerError(Exception e) {
+			super.onProducerError(e);
+			stage.setError(e);
+		}
+	}
+
 }

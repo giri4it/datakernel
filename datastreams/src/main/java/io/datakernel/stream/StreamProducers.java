@@ -24,9 +24,11 @@ import org.slf4j.LoggerFactory;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.CompletionStage;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static io.datakernel.async.AsyncIterators.asyncIteratorOfIterator;
+import static io.datakernel.stream.StreamConsumers.listenableConsumer;
 
 public final class StreamProducers {
 	private StreamProducers() {
@@ -426,6 +428,29 @@ public final class StreamProducers {
 					inputConsumer.resume();
 				}
 			}
+		}
+	}
+
+	public static <T> StreamProducerListenable<T> listenableProducer(StreamProducer<T> producer) {
+		return new StreamProducerListenable<>(producer);
+	}
+
+	public static final class StreamProducerListenable<T> extends StreamProducerDecorator<T> {
+		private SettableStage<Void> stage = SettableStage.create();
+
+		public StreamProducerListenable(StreamProducer<T> producer) {
+			super(producer);
+		}
+
+		@Override
+		public void streamTo(StreamConsumer<T> downstreamConsumer) {
+			final StreamConsumers.StreamConsumerListenable<T> listenableConsumer = listenableConsumer(downstreamConsumer);
+			super.streamTo(listenableConsumer);
+			listenableConsumer.getStage().whenComplete(AsyncCallbacks.forwardTo(stage));
+		}
+
+		public CompletionStage<Void> getStage() {
+			return stage;
 		}
 	}
 }
