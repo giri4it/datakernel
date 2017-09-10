@@ -30,7 +30,7 @@ public class AsyncFunctions {
 				eventloop.schedule(timestamp, () -> {
 					if (!state.done) {
 						state.done = true;
-						stage.setError(TIMEOUT_EXCEPTION);
+						stage.setException(TIMEOUT_EXCEPTION);
 					}
 				});
 			}
@@ -68,11 +68,11 @@ public class AsyncFunctions {
 						if (throwable == null) {
 							next(o, iterator, stage);
 						} else {
-							stage.setError(throwable);
+							stage.setException(throwable);
 						}
 					});
 				} else {
-					stage.setResult((O) item);
+					stage.set((O) item);
 				}
 			}
 		};

@@ -336,7 +336,7 @@ public class ReportingTest {
 		StreamProducers.OfIterator<LogItem> producer = new StreamProducers.OfIterator<>(eventloop,
 				concat(logItemsForAdvertisersAggregations, logItemsForAffiliatesAggregation).iterator());
 
-		producer.streamTo(logManager.consumer("partitionA"));
+		producer.streamTo(logManager.consumerStream("partitionA"));
 		eventloop.run();
 
 		future = logOTProcessor.processLog().toCompletableFuture();

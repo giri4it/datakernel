@@ -22,7 +22,7 @@ public class AsyncRunnables {
 			final SettableStage<Void> stage = SettableStage.create();
 			final CompletionStage<Void> stageRun = runnable.run();
 			final ScheduledRunnable scheduledRunnable = eventloop.schedule(timestamp, () -> {
-				stage.setError(RUNNABLE_TIMEOUT_EXCEPTION);
+				stage.setException(RUNNABLE_TIMEOUT_EXCEPTION);
 				Stages.tryCancel(stageRun);
 			});
 
@@ -58,11 +58,11 @@ public class AsyncRunnables {
 							if (eventloop.getMicroTick() != microTick) next(iterator, stage);
 							else eventloop.post(() -> next(iterator, stage));
 						} else {
-							stage.setError(throwable);
+							stage.setException(throwable);
 						}
 					});
 				} else {
-					stage.setResult(null);
+					stage.set(null);
 				}
 			}
 		};
@@ -93,12 +93,12 @@ public class AsyncRunnables {
 				runnable.run().whenComplete((aVoid, throwable) -> {
 					if (throwable == null) {
 						if (--state.pending == 0) {
-							stage.setResult(null);
+							stage.set(null);
 						}
 					} else {
 						if (state.pending > 0) {
 							state.pending = 0;
-							stage.setError(throwable);
+							stage.setException(throwable);
 						}
 					}
 				});
