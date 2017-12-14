@@ -16,34 +16,26 @@
 
 package io.datakernel.service;
 
-import com.google.common.collect.LinkedHashMultimap;
-import com.google.common.collect.Multimap;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.SettableFuture;
 import io.datakernel.annotation.Nullable;
 import io.datakernel.util.Stopwatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
-import static com.google.common.base.Strings.repeat;
-import static com.google.common.base.Throwables.getRootCause;
-import static com.google.common.collect.Iterables.concat;
-import static com.google.common.collect.Sets.difference;
-import static com.google.common.collect.Sets.union;
 import static io.datakernel.util.Preconditions.checkArgument;
 import static io.datakernel.util.Preconditions.checkState;
 import static java.util.Arrays.asList;
-import static java.util.Collections.singleton;
+import static java.util.Collections.emptyList;
 import static java.util.concurrent.Executors.newSingleThreadExecutor;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.stream.Collectors.toSet;
 
 /**
  * Stores the dependency graph of services. Primarily used by
@@ -59,7 +51,7 @@ public class ServiceGraph {
 	 * adding to this SetMultimap element <N1,N2>. This collection consist of
 	 * nodes in which there are edges and their keys - previous nodes.
 	 */
-	private final Multimap<Object, Object> forwards = LinkedHashMultimap.create();
+	private final Map<Object, List<Object>> forwards = new HashMap<>();
 
 	/**
 	 * This set used to represent edges between vertices. If N1 and N2 - nodes
@@ -67,7 +59,7 @@ public class ServiceGraph {
 	 * adding to this SetMultimap element <N2,N1>. This collection consist of
 	 * nodes in which there are edges and their keys - previous nodes.
 	 */
-	private final Multimap<Object, Object> backwards = LinkedHashMultimap.create();
+	private final Map<Object, List<Object>> backwards = new HashMap<>();
 
 	private final Set<Object> runningNodes = new HashSet<>();
 
@@ -78,6 +70,12 @@ public class ServiceGraph {
 
 	public static ServiceGraph create() {
 		return new ServiceGraph();
+	}
+
+	private static Throwable getRootCause(Throwable throwable) {
+		Throwable cause;
+		while ((cause = throwable.getCause()) != null) throwable = cause;
+		return throwable;
 	}
 
 	public ServiceGraph add(Object key, Service service, Object... dependencies) {
@@ -92,8 +90,8 @@ public class ServiceGraph {
 	public ServiceGraph add(Object key, Iterable<Object> dependencies) {
 		for (Object dependency : dependencies) {
 			checkArgument(!(dependency instanceof Service), "Dependency %s must be a key, not a service", dependency);
-			forwards.put(key, dependency);
-			backwards.put(dependency, key);
+			forwards.computeIfAbsent(key, o -> new ArrayList<>()).add(dependency);
+			backwards.computeIfAbsent(dependency, o -> new ArrayList<>()).add(key);
 		}
 		return this;
 	}
@@ -101,15 +99,16 @@ public class ServiceGraph {
 	public ServiceGraph add(Object key, Object first, Object... rest) {
 		if (first instanceof Iterable)
 			return add(key, (Iterable) first);
-		add(key, concat(singleton(first), asList(rest)));
+
+		add(key, Stream.concat(Stream.of(first), Arrays.stream(rest))::iterator);
 		return this;
 	}
 
-	private ListenableFuture<LongestPath> processNode(final Object node, final boolean start,
-	                                                  Map<Object, ListenableFuture<LongestPath>> futures, final Executor executor) {
-		List<ListenableFuture<LongestPath>> dependencyFutures = new ArrayList<>();
-		for (Object dependencyNode : (start ? forwards : backwards).get(node)) {
-			ListenableFuture<LongestPath> dependencyFuture = processNode(dependencyNode, start, futures, executor);
+	private CompletableFuture<LongestPath> processNode(final Object node, final boolean start,
+	                                                   Map<Object, CompletableFuture<LongestPath>> futures, final Executor executor) {
+		List<CompletableFuture<LongestPath>> dependencyFutures = new ArrayList<>();
+		for (Object dependencyNode : (start ? forwards : backwards).getOrDefault(node, emptyList())) {
+			CompletableFuture<LongestPath> dependencyFuture = processNode(dependencyNode, start, futures, executor);
 			dependencyFutures.add(dependencyFuture);
 		}
 
@@ -117,96 +116,80 @@ public class ServiceGraph {
 			return futures.get(node);
 		}
 
-		final SettableFuture<LongestPath> future = SettableFuture.create();
+		final CompletableFuture<LongestPath> future = new CompletableFuture<>();
 		futures.put(node, future);
 
-		final ListenableFuture<LongestPath> dependenciesFuture = combineDependenciesFutures(dependencyFutures, executor);
-
-		dependenciesFuture.addListener(new Runnable() {
-			@Override
-			public void run() {
-				try {
-					final LongestPath longestPath = dependenciesFuture.get();
-
-					Service service = services.get(node);
-					if (service == null) {
-						logger.debug("...skipping no-service node: " + nodeToString(node));
-						future.set(longestPath);
-						return;
-					}
-
-					if (!start && !runningNodes.contains(node)) {
-						logger.debug("...skipping not running node: " + nodeToString(node));
-						future.set(longestPath);
-						return;
-					}
-
-					final Stopwatch sw = Stopwatch.createStarted();
-					final ListenableFuture<?> serviceFuture = (start ? service.start() : service.stop());
-					logger.info((start ? "Starting" : "Stopping") + " node: " + nodeToString(node));
-					serviceFuture.addListener(new Runnable() {
-						@Override
-						public void run() {
-							try {
-								serviceFuture.get();
-
-								if (start) {
-									runningNodes.add(node);
-								} else {
-									runningNodes.remove(node);
-								}
-
-								long elapsed = sw.elapsed(MILLISECONDS);
-								logger.info((start ? "Started" : "Stopped") + " " + nodeToString(node) + (elapsed >= 1L ? (" in " + sw) : ""));
-								future.set(new LongestPath(elapsed + (longestPath != null ? longestPath.totalTime : 0),
-										elapsed, node, longestPath));
-							} catch (InterruptedException | ExecutionException e) {
-								logger.error("error: " + nodeToString(node), e);
-								future.setException(getRootCause(e));
-							}
-						}
-					}, executor);
-				} catch (InterruptedException | ExecutionException e) {
-					future.setException(getRootCause(e));
+		combineDependenciesFutures(dependencyFutures, executor).whenCompleteAsync((longestPath, combineThrowable) -> {
+			if (combineThrowable == null) {
+				Service service = services.get(node);
+				if (service == null) {
+					logger.debug("...skipping no-service node: " + nodeToString(node));
+					future.complete(longestPath);
+					return;
 				}
+
+				if (!start && !runningNodes.contains(node)) {
+					logger.debug("...skipping not running node: " + nodeToString(node));
+					future.complete(longestPath);
+					return;
+				}
+
+				final Stopwatch sw = Stopwatch.createStarted();
+				final CompletableFuture<Void> serviceFuture = (start ? service.start() : service.stop());
+				logger.info((start ? "Starting" : "Stopping") + " node: " + nodeToString(node));
+				serviceFuture.whenCompleteAsync((o, throwable) -> {
+					if (throwable == null) {
+						if (start) {
+							runningNodes.add(node);
+						} else {
+							runningNodes.remove(node);
+						}
+
+						long elapsed = sw.elapsed(MILLISECONDS);
+						logger.info((start ? "Started" : "Stopped") + " " + nodeToString(node) + (elapsed >= 1L ? (" in " + sw) : ""));
+						future.complete(new LongestPath(elapsed + (longestPath != null ? longestPath.totalTime : 0),
+								elapsed, node, longestPath));
+					} else {
+						logger.error("error: " + nodeToString(node), throwable);
+						future.completeExceptionally(getRootCause(throwable));
+					}
+				}, executor);
+			} else {
+				future.completeExceptionally(getRootCause(combineThrowable));
 			}
 		}, executor);
 
 		return future;
 	}
 
-	private ListenableFuture<LongestPath> combineDependenciesFutures(List<ListenableFuture<LongestPath>> futures, Executor executor) {
+	private CompletableFuture<LongestPath> combineDependenciesFutures(List<CompletableFuture<LongestPath>> futures, Executor executor) {
 		if (futures.size() == 0) {
-			return Futures.immediateFuture(null);
+			return CompletableFuture.completedFuture(null);
 		}
 		if (futures.size() == 1) {
 			return futures.get(0);
 		}
 
-		final SettableFuture<LongestPath> settableFuture = SettableFuture.create();
+		final CompletableFuture<LongestPath> settableFuture = new CompletableFuture<>();
 		final AtomicInteger atomicInteger = new AtomicInteger(futures.size());
 		final AtomicReference<LongestPath> bestPath = new AtomicReference<>();
 		final AtomicReference<Throwable> exception = new AtomicReference<>();
-		for (final ListenableFuture<LongestPath> future : futures) {
-			future.addListener(new Runnable() {
-				@Override
-				public void run() {
-					try {
-						LongestPath path = future.get();
-						if (bestPath.get() == null || (path != null && path.totalTime > bestPath.get().totalTime)) {
-							bestPath.set(path);
-						}
-					} catch (InterruptedException | ExecutionException e) {
-						if (exception.get() == null) {
-							exception.set(getRootCause(e));
-						}
+		for (final CompletableFuture<LongestPath> future : futures) {
+			future.whenCompleteAsync((path, throwable) -> {
+				if (throwable == null) {
+					if (bestPath.get() == null || (path != null && path.totalTime > bestPath.get().totalTime)) {
+						bestPath.set(path);
 					}
-					if (atomicInteger.decrementAndGet() == 0) {
-						if (exception.get() != null) {
-							settableFuture.setException(exception.get());
-						} else {
-							settableFuture.set(bestPath.get());
-						}
+				} else {
+					if (exception.get() == null) {
+						exception.set(getRootCause(throwable));
+					}
+				}
+				if (atomicInteger.decrementAndGet() == 0) {
+					if (exception.get() != null) {
+						settableFuture.completeExceptionally(exception.get());
+					} else {
+						settableFuture.complete(bestPath.get());
 					}
 				}
 			}, executor);
@@ -217,7 +200,7 @@ public class ServiceGraph {
 	/**
 	 * Stops services from the service graph
 	 */
-	synchronized public ListenableFuture<?> startFuture() {
+	synchronized public CompletableFuture<?> startFuture() {
 		List<Object> circularDependencies = findCircularDependencies();
 		checkState(circularDependencies == null, "Circular dependencies found: %s", circularDependencies);
 		Set<Object> rootNodes = difference(union(services.keySet(), forwards.keySet()), backwards.keySet());
@@ -226,47 +209,53 @@ public class ServiceGraph {
 		return actionInThread(true, rootNodes);
 	}
 
+
+	private static <T> Set<T> union(Set<T> a, Set<T> b) {
+		Set<T> set = new HashSet<>(a);
+		set.addAll(b);
+		return set;
+	}
+
+	private static <T> Set<T> difference(Set<T> a, Set<T> b) {
+		Set<T> set = new HashSet<>(a);
+		set.removeAll(b);
+		return set;
+	}
+
 	/**
 	 * Stops services from the service graph
 	 */
-	synchronized public ListenableFuture<?> stopFuture() {
+	synchronized public CompletableFuture<?> stopFuture() {
 		Set<Object> leafNodes = difference(union(services.keySet(), backwards.keySet()), forwards.keySet());
 		logger.info("Stopping services");
 		logger.debug("Leaf nodes: {}", leafNodes);
 		return actionInThread(false, leafNodes);
 	}
 
-	private ListenableFuture<?> actionInThread(final boolean start, final Collection<Object> rootNodes) {
-		final SettableFuture<?> resultFuture = SettableFuture.create();
+	private CompletableFuture<?> actionInThread(final boolean start, final Collection<Object> rootNodes) {
+		final CompletableFuture<?> resultFuture = new CompletableFuture<>();
 		final ExecutorService executor = newSingleThreadExecutor();
-		executor.execute(new Runnable() {
-			@Override
-			public void run() {
-				Map<Object, ListenableFuture<LongestPath>> futures = new HashMap<>();
-				List<ListenableFuture<LongestPath>> rootFutures = new ArrayList<>();
-				for (Object rootNode : rootNodes) {
-					rootFutures.add(processNode(rootNode, start, futures, executor));
-				}
-				final ListenableFuture<LongestPath> rootFuture = combineDependenciesFutures(rootFutures, executor);
-				rootFuture.addListener(new Runnable() {
-					@Override
-					public void run() {
-						try {
-							LongestPath longestPath = rootFuture.get();
-							StringBuilder sb = new StringBuilder();
-							printLongestPath(sb, longestPath);
-							if (sb.length() != 0)
-								sb.deleteCharAt(sb.length() - 1);
-							logger.info("Longest path:\n" + sb);
-							resultFuture.set(null);
-							executor.shutdown();
-						} catch (InterruptedException | ExecutionException e) {
-							resultFuture.setException(getRootCause(e));
-							executor.shutdown();
-						}
-					}
-				}, executor);
+		executor.execute(() -> {
+			Map<Object, CompletableFuture<LongestPath>> futures = new HashMap<>();
+			List<CompletableFuture<LongestPath>> rootFutures = new ArrayList<>();
+			for (Object rootNode : rootNodes) {
+				rootFutures.add(processNode(rootNode, start, futures, executor));
 			}
+			final CompletableFuture<LongestPath> rootFuture = combineDependenciesFutures(rootFutures, executor);
+			rootFuture.whenCompleteAsync((longestPath, throwable) -> {
+				if (throwable == null) {
+					StringBuilder sb = new StringBuilder();
+					printLongestPath(sb, longestPath);
+					if (sb.length() != 0)
+						sb.deleteCharAt(sb.length() - 1);
+					logger.info("Longest path:\n" + sb);
+					resultFuture.complete(null);
+					executor.shutdown();
+				} else {
+					resultFuture.completeExceptionally(getRootCause(throwable));
+					executor.shutdown();
+				}
+			}, executor);
 		});
 		return resultFuture;
 	}
@@ -295,7 +284,7 @@ public class ServiceGraph {
 				if (!visited.contains(node)) {
 					visited.add(node);
 					sb.append(repeat("\t", path.size() - 1) + "" + nodeToString(node) + "\n");
-					path.add(forwards.get(node).iterator());
+					path.add(forwards.getOrDefault(node, emptyList()).iterator());
 				} else {
 					sb.append(repeat("\t", path.size() - 1) + "" + nodeToString(node) + " *︎" + "\n");
 				}
@@ -308,26 +297,38 @@ public class ServiceGraph {
 		return sb.toString();
 	}
 
+	private static String repeat(String str, int count) {
+		final StringBuilder sb = new StringBuilder();
+		for (int i = 0; i < count; i++) sb.append(str);
+		return sb.toString();
+	}
+
+	private static void removeValue(Map<Object, List<Object>> map, Object key, Object value) {
+		final List<Object> objects = map.get(key);
+		objects.remove(value);
+		if (objects.isEmpty()) map.remove(key);
+	}
+
 	private void removeIntermediate(Object vertex) {
-		for (Object backward : backwards.get(vertex)) {
-			forwards.get(backward).remove(vertex);
-			for (Object forward : forwards.get(vertex)) {
+		for (Object backward : backwards.getOrDefault(vertex, emptyList())) {
+			removeValue(forwards, backward, vertex);
+			for (Object forward : forwards.getOrDefault(vertex, emptyList())) {
 				if (!forward.equals(backward)) {
-					forwards.get(backward).add(forward);
+					forwards.computeIfAbsent(backward, o -> new ArrayList<>()).add(forward);
 				}
 			}
 		}
-		for (Object forward : forwards.get(vertex)) {
-			backwards.get(forward).remove(vertex);
-			for (Object backward : backwards.get(vertex)) {
+		for (Object forward : forwards.getOrDefault(vertex, emptyList())) {
+			removeValue(backwards, forward, vertex);
+			for (Object backward : backwards.getOrDefault(vertex, emptyList())) {
 				if (!forward.equals(backward)) {
-					backwards.get(forward).add(backward);
+					backwards.computeIfAbsent(forward, o -> new ArrayList<>()).add(backward);
 				}
 			}
 		}
 
-		forwards.removeAll(vertex);
-		backwards.removeAll(vertex);
+		forwards.remove(vertex);
+		backwards.remove(vertex);
 	}
 
 	/**
@@ -335,7 +336,7 @@ public class ServiceGraph {
 	 */
 	public void removeIntermediateNodes() {
 		List<Object> toRemove = new ArrayList<>();
-		for (Object v : union(forwards.keySet(), backwards.keySet())) {
+		for (Object v : Stream.of(forwards.keySet(), backwards.keySet()).collect(toSet())) {
 			if (!services.containsKey(v)) {
 				toRemove.add(v);
 			}
@@ -351,7 +352,7 @@ public class ServiceGraph {
 		List<Object> path = new ArrayList<>();
 		next:
 		while (true) {
-			for (Object node : path.isEmpty() ? services.keySet() : forwards.get(path.get(path.size() - 1))) {
+			for (Object node : path.isEmpty() ? services.keySet() : forwards.getOrDefault(path.get(path.size() - 1), emptyList())) {
 				int loopIndex = path.indexOf(node);
 				if (loopIndex != -1) {
 					logger.warn("Circular dependencies found: " + nodesToString(path.subList(loopIndex, path.size())));

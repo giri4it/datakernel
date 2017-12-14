@@ -22,7 +22,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.*;
 
-import static com.google.common.base.Strings.nullToEmpty;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.nio.file.StandardOpenOption.*;
 
@@ -186,6 +185,10 @@ final class EffectiveConfig implements Config {
 		}
 
 		return sb.toString();
+	}
+
+	private static String nullToEmpty(String str) {
+		return str == null ? "" : str;
 	}
 
 	private static void writeProperty(StringBuilder sb, String key, String value) {

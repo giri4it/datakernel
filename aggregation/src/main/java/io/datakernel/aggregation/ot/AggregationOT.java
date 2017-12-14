@@ -5,7 +5,9 @@ import io.datakernel.ot.OTSystemImpl;
 import io.datakernel.ot.TransformResult;
 import io.datakernel.ot.TransformResult.ConflictResolution;
 
-import static com.google.common.collect.Sets.intersection;
+import java.util.HashSet;
+import java.util.Set;
+
 import static io.datakernel.util.Preconditions.check;
 import static java.util.Collections.singletonList;
 
@@ -26,4 +28,13 @@ public class AggregationOT {
 				.withEmptyPredicate(AggregationDiff.class, AggregationDiff::isEmpty)
 				.withSquashFunction(AggregationDiff.class, AggregationDiff.class, AggregationDiff::squash);
 	}
+
+	private static <T> Set<T> intersection(Set<T> a, Set<T> b) {
+		Set<T> set = new HashSet<>();
+		for (T x : a) {
+			if (b.contains(x)) set.add(x);
+		}
+		return set;
+	}
+
 }
