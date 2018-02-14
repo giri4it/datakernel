@@ -39,7 +39,7 @@ import static java.util.Collections.emptySet;
  */
 public interface StreamConsumer<T> {
 	/**
-	 * Sets wired producer. It will sent data to this consumer
+	 * Sets wired producer. It will send data to this consumer
 	 *
 	 * @param producer stream producer for setting
 	 */
