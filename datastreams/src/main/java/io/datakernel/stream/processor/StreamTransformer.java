@@ -17,12 +17,13 @@
 package io.datakernel.stream.processor;
 
 import io.datakernel.stream.*;
+import io.datakernel.stream.StreamVisitor.StreamVisitable;
 
 import java.util.function.Function;
 
 import static io.datakernel.stream.DataStreams.bind;
 
-public interface StreamTransformer<I, O> extends HasInput<I>, HasOutput<O>, StreamModifier<I, O> {
+public interface StreamTransformer<I, O> extends HasInput<I>, HasOutput<O>, StreamModifier<I, O>, StreamVisitable {
 
 	static <X> StreamTransformer<X, X> idenity() {
 		return StreamFunction.create(Function.identity());
@@ -72,4 +73,8 @@ public interface StreamTransformer<I, O> extends HasInput<I>, HasOutput<O>, Stre
 		return getOutput();
 	}
 
+	@Override
+	default void accept(StreamVisitor visitor) {
+		visitor.visitTransformer(this);
+	}
 }

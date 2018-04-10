@@ -16,11 +16,13 @@
 
 package io.datakernel.stream;
 
+import io.datakernel.stream.processor.StreamTransformerManyToOne;
+
 /**
  * Represents {@link AbstractStreamProducer} with few {@link AbstractStreamConsumer}.
  *
  * @param <O> type of sending items
  */
 @SuppressWarnings("unchecked")
-public abstract class AbstractStreamTransformer_N_1<O> implements HasOutput<O>, HasInputs {
+public abstract class AbstractStreamTransformer_N_1<O> implements StreamTransformerManyToOne<O> {
 }

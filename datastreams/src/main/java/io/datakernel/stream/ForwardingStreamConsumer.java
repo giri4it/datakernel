@@ -21,24 +21,34 @@ import io.datakernel.async.Stage;
 import java.util.Set;
 
 public abstract class ForwardingStreamConsumer<T> implements StreamConsumer<T> {
-	private StreamConsumer<T> consumer;
+	private StreamConsumer<T> peer;
 
-	public ForwardingStreamConsumer(StreamConsumer<T> consumer) {
-		this.consumer = consumer;
+	public ForwardingStreamConsumer(StreamConsumer<T> peer) {
+		this.peer = peer;
+	}
+
+	public StreamConsumer<T> getPeer() {
+		return peer;
 	}
 
 	@Override
 	public void setProducer(StreamProducer<T> producer) {
-		consumer.setProducer(producer);
+		peer.setProducer(producer);
 	}
 
 	@Override
 	public Stage<Void> getEndOfStream() {
-		return consumer.getEndOfStream();
+		return peer.getEndOfStream();
 	}
 
 	@Override
 	public Set<StreamCapability> getCapabilities() {
-		return consumer.getCapabilities();
+		return peer.getCapabilities();
+	}
+
+	@Override
+	public void accept(StreamVisitor visitor) {
+		visitor.visitForwarding(peer, this);
+		StreamConsumer.super.accept(visitor);
 	}
 }

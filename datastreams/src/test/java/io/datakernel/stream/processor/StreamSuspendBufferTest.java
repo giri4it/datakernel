@@ -60,7 +60,7 @@ public class StreamSuspendBufferTest {
 
 			@Override
 			public void suspend() {
-				suspend.accept(counter++, producer);
+				suspend.accept(counter++, peer);
 			}
 		};
 	}

@@ -19,6 +19,7 @@ package io.datakernel.stream;
 import io.datakernel.async.SettableStage;
 import io.datakernel.async.Stage;
 import io.datakernel.async.Stages;
+import io.datakernel.stream.StreamVisitor.StreamVisitable;
 import io.datakernel.stream.processor.StreamLateBinder;
 
 import java.util.EnumSet;
@@ -45,7 +46,8 @@ import static java.util.Collections.emptySet;
  *
  * @param <T> type of output data
  */
-public interface StreamProducer<T> {
+public interface StreamProducer<T> extends StreamVisitable {
+
 	/**
 	 * Changes consumer for this producer, removes itself from previous consumer and removes
 	 * previous producer for new consumer. Begins to stream to consumer.
@@ -67,6 +69,11 @@ public interface StreamProducer<T> {
 	Stage<Void> getEndOfStream();
 
 	Set<StreamCapability> getCapabilities();
+
+	@Override
+	default void accept(StreamVisitor visitor) {
+		visitor.visitProducer(this);
+	}
 
 	@SuppressWarnings("unchecked")
 	default StreamCompletion streamTo(StreamConsumer<T> consumer) {
@@ -295,6 +302,17 @@ public interface StreamProducer<T> {
 				return StreamProducer.this.getCapabilities().contains(LATE_BINDING) ?
 						EnumSet.of(LATE_BINDING) : emptySet();
 			}
+
+			@Override
+			public void accept(StreamVisitor visitor) {
+				StreamProducerWithResult.super.accept(visitor);
+				visitor.visitForwarding(StreamProducer.this, this);
+			}
+
+			@Override
+			public String toString() {
+				return "StreamProducerWithResult@" + Integer.toHexString(hashCode());
+			}
 		};
 	}
 
@@ -331,6 +349,17 @@ public interface StreamProducer<T> {
 			public Set<StreamCapability> getCapabilities() {
 				return StreamProducer.this.getCapabilities().contains(LATE_BINDING) ?
 						EnumSet.of(LATE_BINDING) : emptySet();
+			}
+
+			@Override
+			public void accept(StreamVisitor visitor) {
+				StreamProducerWithResult.super.accept(visitor);
+				visitor.visitForwarding(StreamProducer.this, this);
+			}
+
+			@Override
+			public String toString() {
+				return "StreamProducerWithResult@" + Integer.toHexString(hashCode());
 			}
 		};
 	}

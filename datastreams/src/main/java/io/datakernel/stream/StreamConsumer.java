@@ -18,16 +18,15 @@ package io.datakernel.stream;
 
 import io.datakernel.async.SettableStage;
 import io.datakernel.async.Stage;
+import io.datakernel.stream.StreamVisitor.StreamVisitable;
 import io.datakernel.stream.processor.StreamLateBinder;
 
-import java.util.EnumSet;
 import java.util.Set;
 import java.util.function.Consumer;
 
 import static io.datakernel.stream.DataStreams.bind;
 import static io.datakernel.stream.StreamCapability.LATE_BINDING;
 import static io.datakernel.util.Preconditions.checkArgument;
-import static java.util.Collections.emptySet;
 
 /**
  * It represents an object which can asynchronous receive streams of data.
@@ -37,7 +36,7 @@ import static java.util.Collections.emptySet;
  *
  * @param <T> type of input data
  */
-public interface StreamConsumer<T> {
+public interface StreamConsumer<T> extends StreamVisitable {
 	/**
 	 * Sets wired producer. It will sent data to this consumer
 	 *
@@ -48,6 +47,11 @@ public interface StreamConsumer<T> {
 	Stage<Void> getEndOfStream();
 
 	Set<StreamCapability> getCapabilities();
+
+	@Override
+	default void accept(StreamVisitor visitor) {
+		visitor.visitConsumer(this);
+	}
 
 	default <R> StreamConsumer<R> with(StreamConsumerModifier<T, R> modifier) {
 		StreamConsumer<T> consumer = this;
@@ -79,17 +83,16 @@ public interface StreamConsumer<T> {
 			"Alternatively, use .withLateBinding() modifier";
 
 	static <T> StreamConsumer<T> ofStage(Stage<StreamConsumer<T>> consumerStage) {
-		StreamLateBinder<T> lateBounder = StreamLateBinder.create();
+		StreamLateBinder<T> binder = StreamLateBinder.create();
 		consumerStage.whenComplete((consumer, throwable) -> {
 			if (throwable == null) {
-				checkArgument(consumer.getCapabilities().contains(LATE_BINDING),
-						LATE_BINDING_ERROR_MESSAGE, consumer);
-				bind(lateBounder.getOutput(), consumer);
+				checkArgument(consumer.getCapabilities().contains(LATE_BINDING), LATE_BINDING_ERROR_MESSAGE, consumer);
+				bind(binder.getOutput(), consumer);
 			} else {
-				bind(lateBounder.getOutput(), closingWithError(throwable));
+				bind(binder.getOutput(), closingWithError(throwable));
 			}
 		});
-		return lateBounder.getInput();
+		return binder.getInput();
 	}
 
 	default <X> StreamConsumerWithResult<T, X> withResult(Stage<X> result) {
@@ -120,8 +123,18 @@ public interface StreamConsumer<T> {
 
 			@Override
 			public Set<StreamCapability> getCapabilities() {
-				return StreamConsumer.this.getCapabilities().contains(LATE_BINDING) ?
-						EnumSet.of(LATE_BINDING) : emptySet();
+				return StreamConsumer.this.getCapabilities();
+			}
+
+			@Override
+			public void accept(StreamVisitor visitor) {
+				StreamConsumerWithResult.super.accept(visitor);
+				visitor.visitForwarding(StreamConsumer.this, this);
+			}
+
+			@Override
+			public String toString() {
+				return "StreamConsumerWithResult@" + Integer.toHexString(hashCode());
 			}
 		};
 	}
@@ -147,10 +160,19 @@ public interface StreamConsumer<T> {
 
 			@Override
 			public Set<StreamCapability> getCapabilities() {
-				return StreamConsumer.this.getCapabilities().contains(LATE_BINDING) ?
-						EnumSet.of(LATE_BINDING) : emptySet();
+				return StreamConsumer.this.getCapabilities();
+			}
+
+			@Override
+			public void accept(StreamVisitor visitor) {
+				StreamConsumerWithResult.super.accept(visitor);
+				visitor.visitForwarding(StreamConsumer.this, this);
+			}
+
+			@Override
+			public String toString() {
+				return "StreamConsumerWithResult@" + Integer.toHexString(hashCode());
 			}
 		};
 	}
-
 }
