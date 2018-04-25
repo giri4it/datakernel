@@ -44,8 +44,8 @@ final class HttpClientConnection extends AbstractHttpConnection {
 	private Exception closeError;
 
 	HttpClientConnection(Eventloop eventloop, InetSocketAddress remoteAddress,
-	                     AsyncTcpSocket asyncTcpSocket, AsyncHttpClient client, char[] headerChars,
-	                     int maxHttpMessageSize) {
+						 AsyncTcpSocket asyncTcpSocket, AsyncHttpClient client, char[] headerChars,
+						 int maxHttpMessageSize) {
 		super(eventloop, asyncTcpSocket, headerChars, maxHttpMessageSize);
 		this.remoteAddress = remoteAddress;
 		this.client = client;
@@ -197,6 +197,7 @@ final class HttpClientConnection extends AbstractHttpConnection {
 	 * After closing this connection it removes it from its connections cache and recycles
 	 * Http response.
 	 */
+	@Override
 	protected void onClosed() {
 		assert callback == null;
 		if (pool == client.poolKeepAlive) {
@@ -227,7 +228,7 @@ final class HttpClientConnection extends AbstractHttpConnection {
 	@Override
 	public String toString() {
 		return "HttpClientConnection{" +
-				"callback=" + callback +
+				"hasCallback=" + (callback != null) +
 				", response=" + response +
 				", httpClient=" + client +
 				", keepAlive=" + (pool == client.poolKeepAlive) +

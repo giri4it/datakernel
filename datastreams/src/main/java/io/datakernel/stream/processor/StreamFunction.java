@@ -18,11 +18,16 @@ package io.datakernel.stream.processor;
 
 import io.datakernel.stream.*;
 
+import java.util.EnumSet;
+import java.util.Set;
 import java.util.function.Function;
 
+import static io.datakernel.stream.StreamCapability.PRODUCE_CALL_FORWARDER;
+import static io.datakernel.stream.StreamCapability.SUSPEND_CALL_FORWARDER;
+
 /**
- * Provides you apply function before sending data to the destination. It is a {@link StreamFunction}
- * which receives specified type and streams set of function's result  to the destination .
+ * This transformer maps items one by one with given function.
+ * It is a simplified and optimized version of {@link StreamMap}
  *
  * @param <I> type of input data
  * @param <O> type of output data
@@ -42,6 +47,7 @@ public final class StreamFunction<I, O> implements StreamTransformer<I, O> {
 	public static <I, O> StreamFunction<I, O> create(Function<I, O> function) {
 		return new StreamFunction<>(function);
 	}
+	// endregion
 
 	@Override
 	public StreamConsumer<I> getInput() {
@@ -52,9 +58,9 @@ public final class StreamFunction<I, O> implements StreamTransformer<I, O> {
 	public StreamProducer<O> getOutput() {
 		return output;
 	}
-	// endregion
 
-	protected final class Input extends AbstractStreamConsumer<I> {
+	private final class Input extends AbstractStreamConsumer<I> {
+
 		@Override
 		protected void onEndOfStream() {
 			output.sendEndOfStream();
@@ -64,9 +70,14 @@ public final class StreamFunction<I, O> implements StreamTransformer<I, O> {
 		protected void onError(Throwable t) {
 			output.closeWithError(t);
 		}
+
+		@Override
+		public Set<StreamCapability> getCapabilities() {
+			return EnumSet.of(PRODUCE_CALL_FORWARDER, SUSPEND_CALL_FORWARDER);
+		}
 	}
 
-	protected final class Output extends AbstractStreamProducer<O> {
+	private final class Output extends AbstractStreamProducer<O> {
 		@Override
 		protected void onSuspended() {
 			input.getProducer().suspend();
@@ -84,6 +95,11 @@ public final class StreamFunction<I, O> implements StreamTransformer<I, O> {
 					function == Function.identity() ?
 							(StreamDataReceiver<I>) dataReceiver :
 							item -> dataReceiver.onData(function.apply(item)));
+		}
+
+		@Override
+		public Set<StreamCapability> getCapabilities() {
+			return EnumSet.of(PRODUCE_CALL_FORWARDER, SUSPEND_CALL_FORWARDER);
 		}
 	}
 }

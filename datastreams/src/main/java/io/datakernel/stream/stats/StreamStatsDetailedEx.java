@@ -20,7 +20,7 @@ public final class StreamStatsDetailedEx<T> extends StreamStatsBasic<T> {
 	private final EventStats totalSize = EventStats.create(DEFAULT_DETAILED_SMOOTHING_WINDOW);
 
 	@SuppressWarnings("unchecked")
-	StreamStatsDetailedEx(StreamStatsSizeCounter<?> sizeCounter) {
+	StreamStatsDetailedEx(@Nullable StreamStatsSizeCounter<?> sizeCounter) {
 		this.sizeCounter = (StreamStatsSizeCounter<Object>) sizeCounter;
 	}
 
@@ -67,16 +67,19 @@ public final class StreamStatsDetailedEx<T> extends StreamStatsBasic<T> {
 		return count;
 	}
 
+	@Nullable
 	@JmxAttribute
 	public ValueStats getItemSize() {
 		return sizeCounter != null ? itemSize : null;
 	}
 
+	@Nullable
 	@JmxAttribute
 	public EventStats getTotalSize() {
 		return sizeCounter != null ? totalSize : null;
 	}
 
+	@Nullable
 	@JmxAttribute(reducer = JmxReducers.JmxReducerSum.class)
 	public Long getTotalSizeAvg() {
 		return sizeCounter != null && super.getStarted().getTotalCount() != 0 ?

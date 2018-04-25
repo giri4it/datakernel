@@ -16,6 +16,7 @@
 
 package io.datakernel.http;
 
+import io.datakernel.annotation.Nullable;
 import io.datakernel.async.Callback;
 import io.datakernel.bytebuf.ByteBuf;
 import io.datakernel.eventloop.AsyncTcpSocket;
@@ -77,8 +78,8 @@ final class HttpServerConnection extends AbstractHttpConnection {
 	 * @param servlet       servlet for handling requests
 	 */
 	HttpServerConnection(Eventloop eventloop, InetAddress remoteAddress, AsyncTcpSocket asyncTcpSocket,
-	                     AsyncHttpServer server, AsyncServlet servlet,
-	                     char[] headerChars, int maxHttpMessageSize) {
+						 AsyncHttpServer server, AsyncServlet servlet,
+						 char[] headerChars, int maxHttpMessageSize) {
 		super(eventloop, asyncTcpSocket, headerChars, maxHttpMessageSize);
 		this.server = server;
 		this.servlet = servlet;
@@ -108,6 +109,7 @@ final class HttpServerConnection extends AbstractHttpConnection {
 		onClosed();
 	}
 
+	@Nullable
 	private static HttpMethod getHttpMethodFromMap(ByteBuf line) {
 		int hashCode = 1;
 		for (int i = line.readPosition(); i != line.writePosition(); i++) {
@@ -130,6 +132,7 @@ final class HttpServerConnection extends AbstractHttpConnection {
 		return null;
 	}
 
+	@Nullable
 	private static HttpMethod getHttpMethod(ByteBuf line) {
 		if (line.readPosition() == 0) {
 			if (line.readRemaining() >= 4 && line.at(0) == 'G' && line.at(1) == 'E' && line.at(2) == 'T' && line.at(3) == SP) {

@@ -16,6 +16,7 @@
 
 package io.datakernel.stream.processor;
 
+import io.datakernel.annotation.Nullable;
 import io.datakernel.bytebuf.ByteBuf;
 import io.datakernel.bytebuf.ByteBufPool;
 import io.datakernel.jmx.ValueStats;
@@ -49,6 +50,7 @@ public final class StreamLZ4Compressor implements StreamTransformer<ByteBuf, Byt
 
 	private static final int MIN_BLOCK_SIZE = 64;
 
+	@Nullable
 	private final LZ4Compressor compressor;
 
 	private Input input;
@@ -84,10 +86,11 @@ public final class StreamLZ4Compressor implements StreamTransformer<ByteBuf, Byt
 	}
 
 	private final class Output extends AbstractStreamProducer<ByteBuf> implements StreamDataReceiver<ByteBuf> {
+		@Nullable
 		private final LZ4Compressor compressor;
 		private final StreamingXXHash32 checksum = XXHashFactory.fastestInstance().newStreamingHash32(DEFAULT_SEED);
 
-		private Output(LZ4Compressor compressor) {
+		private Output(@Nullable LZ4Compressor compressor) {
 			this.compressor = compressor;
 		}
 
@@ -128,7 +131,7 @@ public final class StreamLZ4Compressor implements StreamTransformer<ByteBuf, Byt
 	}
 
 	// region creators
-	private StreamLZ4Compressor(LZ4Compressor compressor) {
+	private StreamLZ4Compressor(@Nullable LZ4Compressor compressor) {
 		this.compressor = compressor;
 		rebuild();
 	}
@@ -157,6 +160,7 @@ public final class StreamLZ4Compressor implements StreamTransformer<ByteBuf, Byt
 	public static StreamLZ4Compressor create(int compressionLevel) {
 		return compressionLevel == 0 ? fastCompressor() : highCompressor(compressionLevel);
 	}
+	// endregion
 
 	@Override
 	public StreamConsumer<ByteBuf> getInput() {
@@ -167,8 +171,6 @@ public final class StreamLZ4Compressor implements StreamTransformer<ByteBuf, Byt
 	public StreamProducer<ByteBuf> getOutput() {
 		return output;
 	}
-
-	// endregion
 
 	private static int compressionLevel(int blockSize) {
 		int compressionLevel = 32 - Integer.numberOfLeadingZeros(blockSize - 1); // ceil of log2
@@ -186,7 +188,7 @@ public final class StreamLZ4Compressor implements StreamTransformer<ByteBuf, Byt
 		buf[off] = (byte) (i >>> 24);
 	}
 
-	private static ByteBuf compressBlock(LZ4Compressor compressor, StreamingXXHash32 checksum, byte[] bytes, int off, int len) {
+	private static ByteBuf compressBlock(@Nullable LZ4Compressor compressor, StreamingXXHash32 checksum, byte[] bytes, int off, int len) {
 		assert len != 0;
 
 		int compressionLevel = compressionLevel(len < MIN_BLOCK_SIZE ? MIN_BLOCK_SIZE : len);

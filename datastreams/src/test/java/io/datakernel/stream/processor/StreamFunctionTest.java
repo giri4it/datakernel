@@ -16,15 +16,17 @@
 
 package io.datakernel.stream.processor;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
 import io.datakernel.eventloop.Eventloop;
 import io.datakernel.exception.ExpectedException;
 import io.datakernel.stream.StreamConsumerToList;
 import io.datakernel.stream.StreamProducer;
 import org.junit.Test;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Function;
 
 import static io.datakernel.eventloop.FatalErrorHandlers.rethrowOnAnyError;
 import static io.datakernel.stream.StreamConsumers.decorator;
@@ -35,9 +37,12 @@ import static io.datakernel.stream.StreamStatus.END_OF_STREAM;
 import static io.datakernel.stream.TestUtils.assertStatus;
 import static java.util.Arrays.asList;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 public class StreamFunctionTest {
+	static {
+		Logger logger = (Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
+		logger.setLevel(Level.TRACE);
+	}
 
 	@Test
 	public void testFunction() {
@@ -108,12 +113,4 @@ public class StreamFunctionTest {
 		assertStatus(CLOSED_WITH_ERROR, streamFunction.getInput());
 		assertStatus(CLOSED_WITH_ERROR, streamFunction.getOutput());
 	}
-
-	@Test
-	public void testIdentity() {
-		Function<String, String> function1 = Function.<String>identity();
-		Function<Integer, Integer> function2 = Function.<Integer>identity();
-		assertTrue((Function) function1 == (Function) function2);
-	}
-
 }

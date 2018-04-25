@@ -16,6 +16,7 @@
 
 package io.datakernel.http;
 
+import io.datakernel.annotation.Nullable;
 import io.datakernel.bytebuf.ByteBuf;
 import io.datakernel.bytebuf.ByteBufQueue;
 import io.datakernel.bytebuf.ByteBufStrings;
@@ -339,7 +340,7 @@ public abstract class AbstractHttpConnection implements AsyncTcpSocket.EventHand
 	}
 
 	@Override
-	public final void onRead(ByteBuf buf) {
+	public final void onRead(@Nullable ByteBuf buf) {
 		assert eventloop.inEventloopThread();
 		assert !isClosed();
 		if (buf != null) readQueue.add(buf);

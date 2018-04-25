@@ -19,8 +19,9 @@ package io.datakernel.stream;
 import io.datakernel.async.SettableStage;
 import io.datakernel.async.Stage;
 import io.datakernel.stream.processor.StreamLateBinder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.util.EnumSet;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -30,7 +31,7 @@ import static io.datakernel.util.Preconditions.checkArgument;
 import static java.util.Collections.emptySet;
 
 /**
- * It represents an object which can asynchronous receive streams of data.
+ * It represents an object which can asynchronously receive streams of data.
  * Implementors of this interface are strongly encouraged to extend one of the abstract classes
  * in this package which implement this interface and make the threading and state management
  * easier.
@@ -38,16 +39,11 @@ import static java.util.Collections.emptySet;
  * @param <T> type of input data
  */
 public interface StreamConsumer<T> {
-	/**
-	 * Sets wired producer. It will sent data to this consumer
-	 *
-	 * @param producer stream producer for setting
-	 */
+	Logger logger = LoggerFactory.getLogger("datastreams");
+
 	void setProducer(StreamProducer<T> producer);
 
 	Stage<Void> getEndOfStream();
-
-	Set<StreamCapability> getCapabilities();
 
 	default <R> StreamConsumer<R> with(StreamConsumerModifier<T, R> modifier) {
 		StreamConsumer<T> consumer = this;
@@ -60,6 +56,10 @@ public interface StreamConsumer<T> {
 
 	static <T> StreamConsumer<T> idle() {
 		return new StreamConsumers.IdleImpl<>();
+	}
+
+	static <T> StreamConsumer<T> closing() {
+		return new StreamConsumers.ClosingImpl<>();
 	}
 
 	static <T> StreamConsumer<T> closingWithError(Throwable exception) {
@@ -82,8 +82,8 @@ public interface StreamConsumer<T> {
 		StreamLateBinder<T> lateBounder = StreamLateBinder.create();
 		consumerStage.whenComplete((consumer, throwable) -> {
 			if (throwable == null) {
-				checkArgument(consumer.getCapabilities().contains(LATE_BINDING),
-						LATE_BINDING_ERROR_MESSAGE, consumer);
+				assert consumer != null;
+				checkArgument(consumer.getCapabilities().contains(LATE_BINDING), LATE_BINDING_ERROR_MESSAGE, consumer);
 				bind(lateBounder.getOutput(), consumer);
 			} else {
 				bind(lateBounder.getOutput(), closingWithError(throwable));
@@ -120,8 +120,12 @@ public interface StreamConsumer<T> {
 
 			@Override
 			public Set<StreamCapability> getCapabilities() {
-				return StreamConsumer.this.getCapabilities().contains(LATE_BINDING) ?
-						EnumSet.of(LATE_BINDING) : emptySet();
+				return StreamConsumer.this.getCapabilities();
+			}
+
+			@Override
+			public String toString() {
+				return StreamConsumer.this.toString();
 			}
 		};
 	}
@@ -147,9 +151,25 @@ public interface StreamConsumer<T> {
 
 			@Override
 			public Set<StreamCapability> getCapabilities() {
-				return StreamConsumer.this.getCapabilities().contains(LATE_BINDING) ?
-						EnumSet.of(LATE_BINDING) : emptySet();
+				return StreamConsumer.this.getCapabilities();
+			}
+
+			@Override
+			public String toString() {
+				return StreamConsumer.this.toString();
 			}
 		};
+	}
+
+	default Set<StreamCapability> getCapabilities() {
+		return emptySet();
+	}
+
+	default StreamLogger getStreamLogger() {
+		return StreamLogger.noop(this);
+	}
+
+	default void setStreamLogger(StreamLogger streamLogger) {
+		logger.error(this + " object does not support stream logging, but setStreamLogger was called");
 	}
 }

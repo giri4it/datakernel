@@ -45,6 +45,11 @@ public class StreamStatsForwarder<T> implements StreamTransformer<T, T> {
 		protected void onError(Throwable t) {
 			output.closeWithError(t);
 		}
+
+		@Override
+		public String toString() {
+			return output.getConsumer().toString(); // FIXME fix this
+		}
 	}
 
 	private class Output extends AbstractStreamProducer<T> {
@@ -66,6 +71,10 @@ public class StreamStatsForwarder<T> implements StreamTransformer<T, T> {
 			stats.onError(t);
 			input.closeWithError(t);
 		}
-	}
 
+		@Override
+		public String toString() {
+			return input.getProducer().toString();
+		}
+	}
 }

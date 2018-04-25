@@ -23,8 +23,15 @@ import java.util.Set;
 public abstract class ForwardingStreamProducer<T> implements StreamProducer<T> {
 	protected final StreamProducer<T> producer;
 
-	public ForwardingStreamProducer(StreamProducer<T> producer) {
+	private StreamLogger streamLogger;
+
+	public ForwardingStreamProducer(StreamProducer<T> producer, String tag) {
 		this.producer = producer;
+		streamLogger = producer.getStreamLogger().createChild(this, tag + "->" + producer.getStreamLogger().getTag());
+	}
+
+	public ForwardingStreamProducer(StreamProducer<T> producer) {
+		this(producer, "forwarded");
 	}
 
 	@Override
@@ -50,5 +57,20 @@ public abstract class ForwardingStreamProducer<T> implements StreamProducer<T> {
 	@Override
 	public Set<StreamCapability> getCapabilities() {
 		return producer.getCapabilities();
+	}
+
+	@Override
+	public StreamLogger getStreamLogger() {
+		return streamLogger;
+	}
+
+	@Override
+	public void setStreamLogger(StreamLogger streamLogger) {
+		this.streamLogger = streamLogger;
+	}
+
+	@Override
+	public String toString() {
+		return streamLogger.getTag();
 	}
 }

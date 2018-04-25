@@ -22,6 +22,8 @@ import io.datakernel.exception.ParseException;
 import io.datakernel.exception.TruncatedDataException;
 import io.datakernel.serializer.BufferSerializer;
 import io.datakernel.stream.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static io.datakernel.stream.StreamStatus.END_OF_STREAM;
 import static java.lang.String.format;
@@ -32,7 +34,9 @@ import static java.lang.String.format;
  *
  * @param <T> original type of data
  */
-public final class StreamBinaryDeserializer<T> implements StreamTransformer<ByteBuf, T> {
+public final class StreamBinaryDeserializer<T> implements HasLogging, StreamTransformer<ByteBuf, T> {
+	private static final Logger logger = LoggerFactory.getLogger(StreamBinaryDeserializer.class);
+
 	public static final ParseException HEADER_SIZE_EXCEPTION = new ParseException("Header size is too large");
 	public static final ParseException DESERIALIZED_SIZE_EXCEPTION = new ParseException("Deserialized size != parsed data size");
 
@@ -46,6 +50,7 @@ public final class StreamBinaryDeserializer<T> implements StreamTransformer<Byte
 		this.valueSerializer = valueSerializer;
 		this.input = new Input();
 		this.output = new Output(valueSerializer);
+		setLogger(StreamLogger.of(logger, this));
 	}
 
 	/**
@@ -56,6 +61,7 @@ public final class StreamBinaryDeserializer<T> implements StreamTransformer<Byte
 	public static <T> StreamBinaryDeserializer<T> create(BufferSerializer<T> valueSerializer) {
 		return new StreamBinaryDeserializer<>(valueSerializer);
 	}
+	// endregion
 
 	@Override
 	public StreamConsumer<ByteBuf> getInput() {
@@ -67,9 +73,8 @@ public final class StreamBinaryDeserializer<T> implements StreamTransformer<Byte
 		return output;
 	}
 
-	// endregion
-
 	private final class Input extends AbstractStreamConsumer<ByteBuf> {
+
 		@Override
 		protected void onEndOfStream() {
 			output.produce();
@@ -190,5 +195,4 @@ public final class StreamBinaryDeserializer<T> implements StreamTransformer<Byte
 		}
 		return (headerSize << 24) + dataSize;
 	}
-
 }

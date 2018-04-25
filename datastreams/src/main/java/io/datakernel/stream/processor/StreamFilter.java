@@ -41,16 +41,6 @@ public final class StreamFilter<T> implements StreamTransformer<T, T> {
 		this.output = new Output();
 	}
 
-	@Override
-	public StreamConsumer<T> getInput() {
-		return input;
-	}
-
-	@Override
-	public StreamProducer<T> getOutput() {
-		return output;
-	}
-
 	/**
 	 * Creates a new instance of this class
 	 *
@@ -61,7 +51,18 @@ public final class StreamFilter<T> implements StreamTransformer<T, T> {
 	}
 	// endregion
 
+	@Override
+	public StreamConsumer<T> getInput() {
+		return input;
+	}
+
+	@Override
+	public StreamProducer<T> getOutput() {
+		return output;
+	}
+
 	protected final class Input extends AbstractStreamConsumer<T> {
+
 		@Override
 		protected void onEndOfStream() {
 			output.sendEndOfStream();
@@ -71,10 +72,10 @@ public final class StreamFilter<T> implements StreamTransformer<T, T> {
 		protected void onError(Throwable t) {
 			output.closeWithError(t);
 		}
-
 	}
 
 	protected final class Output extends AbstractStreamProducer<T> {
+
 		@Override
 		protected void onSuspended() {
 			input.getProducer().suspend();

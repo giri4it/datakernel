@@ -16,6 +16,7 @@
 
 package io.datakernel.stream.processor;
 
+import io.datakernel.annotation.Nullable;
 import io.datakernel.stream.*;
 
 import java.util.*;
@@ -42,6 +43,7 @@ public abstract class AbstractStreamReducer<K, O, A> implements HasOutput<O>, Ha
 
 	private int bufferSize = DEFAULT_BUFFER_SIZE;
 
+	@Nullable
 	private Input<?> lastInput;
 	private K key = null;
 	private A accumulator;
@@ -101,7 +103,7 @@ public abstract class AbstractStreamReducer<K, O, A> implements HasOutput<O>, Ha
 		private final StreamReducers.Reducer<K, I, O, A> reducer;
 
 		private Input(int index,
-		              PriorityQueue<Input> priorityQueue, Function<I, K> keyFunction, StreamReducers.Reducer<K, I, O, A> reducer, int bufferSize) {
+					  PriorityQueue<Input> priorityQueue, Function<I, K> keyFunction, StreamReducers.Reducer<K, I, O, A> reducer, int bufferSize) {
 			this.index = index;
 			this.priorityQueue = priorityQueue;
 			this.keyFunction = keyFunction;
@@ -127,7 +129,6 @@ public abstract class AbstractStreamReducer<K, O, A> implements HasOutput<O>, Ha
 		 */
 		@Override
 		public void onData(I item) {
-			//noinspection AssertWithSideEffects
 			if (headItem == null) {
 				headItem = item;
 				headKey = keyFunction.apply(headItem);
@@ -158,6 +159,7 @@ public abstract class AbstractStreamReducer<K, O, A> implements HasOutput<O>, Ha
 	}
 
 	private final class Output extends AbstractStreamProducer<O> {
+
 		@Override
 		protected void onError(Throwable t) {
 			inputs.forEach(input -> input.closeWithError(t));

@@ -106,17 +106,17 @@ public final class StreamFileWriter extends AbstractStreamConsumer<ByteBuf> impl
 		}
 		int length = buf.readRemaining();
 		asyncFile.write(buf)
-			.whenComplete(($, e) -> {
-				if (e != null) {
-					closeWithError(e);
-					return;
-				}
-				bufferedBytes -= length;
-				if (bufs.size() <= maxBuffers || bufferedBytes <= 0) {
-					getProducer().produce(this);
-				}
-				process();
-			});
+				.whenComplete(($, e) -> {
+					if (e != null) {
+						closeWithError(e);
+						return;
+					}
+					bufferedBytes -= length;
+					if (bufs.size() <= maxBuffers || bufferedBytes <= 0) {
+						getProducer().produce(this);
+					}
+					process();
+				});
 	}
 
 	private void step() {
@@ -146,16 +146,16 @@ public final class StreamFileWriter extends AbstractStreamConsumer<ByteBuf> impl
 		}
 		bufs.clear();
 		(forceOnClose ?
-			asyncFile.forceAndClose(forceMetadata) :
-			asyncFile.close())
-			.whenComplete(flushStage::trySet)
-			.whenComplete(($, e) -> {
-				if (e == null) {
-					logger.trace(this + ": closed file");
-				} else {
-					logger.error(this + ": failed to close file", e);
-				}
-			});
+				asyncFile.forceAndClose(forceMetadata) :
+				asyncFile.close())
+				.whenComplete(flushStage::trySet)
+				.whenComplete(($, e) -> {
+					if (e == null) {
+						logger.trace(this + ": closed file");
+					} else {
+						logger.error(this + ": failed to close file", e);
+					}
+				});
 	}
 
 	@Override
@@ -177,8 +177,8 @@ public final class StreamFileWriter extends AbstractStreamConsumer<ByteBuf> impl
 	@Override
 	public String toString() {
 		return "StreamFileWriter{" +
-			"asyncFile=" + asyncFile +
-			(writing ? ", writing" : "") +
-			'}';
+				"asyncFile=" + asyncFile +
+				(writing ? ", writing" : "") +
+				'}';
 	}
 }

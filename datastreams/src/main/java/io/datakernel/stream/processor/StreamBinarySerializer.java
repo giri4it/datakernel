@@ -39,7 +39,7 @@ import static java.lang.Math.max;
  */
 @SuppressWarnings({"rawtypes", "unchecked"})
 public final class StreamBinarySerializer<T> implements StreamTransformer<T, ByteBuf> {
-	private final Logger logger = LoggerFactory.getLogger(this.getClass());
+	private static final Logger logger = LoggerFactory.getLogger(StreamBinarySerializer.class);
 	private static final ArrayIndexOutOfBoundsException OUT_OF_BOUNDS_EXCEPTION = new ArrayIndexOutOfBoundsException();
 	public static final MemSize DEFAULT_INITIAL_BUFFER_SIZE = MemSize.kilobytes(16);
 
@@ -105,6 +105,7 @@ public final class StreamBinarySerializer<T> implements StreamTransformer<T, Byt
 		rebuild();
 		return this;
 	}
+	// endregion
 
 	@Override
 	public StreamConsumer<T> getInput() {
@@ -116,9 +117,8 @@ public final class StreamBinarySerializer<T> implements StreamTransformer<T, Byt
 		return output;
 	}
 
-	// endregion
-
 	private final class Input extends AbstractStreamConsumer<T> {
+
 		@Override
 		protected void onEndOfStream() {
 			output.flushAndClose();
@@ -179,7 +179,9 @@ public final class StreamBinarySerializer<T> implements StreamTransformer<T, Byt
 
 		private void flush() {
 			if (outputBuf.canRead()) {
-				getLastDataReceiver().onData(outputBuf);
+				StreamDataReceiver<ByteBuf> receiver = getLastDataReceiver();
+				assert receiver != null;
+				receiver.onData(outputBuf);
 				estimatedMessageSize -= estimatedMessageSize >>> 8;
 			} else {
 				outputBuf.recycle();

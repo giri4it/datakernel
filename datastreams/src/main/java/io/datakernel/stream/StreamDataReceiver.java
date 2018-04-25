@@ -22,6 +22,14 @@ package io.datakernel.stream;
  * @param <T> type of received item
  */
 public interface StreamDataReceiver<T> {
+
+	StreamDataReceiver<?> NOOP = $ -> {};
+
+	@SuppressWarnings("unchecked")
+	static <T> StreamDataReceiver<T> noop() {
+		return (StreamDataReceiver<T>) NOOP;
+	}
+
 	/**
 	 * Method which calling after each receiving result
 	 *

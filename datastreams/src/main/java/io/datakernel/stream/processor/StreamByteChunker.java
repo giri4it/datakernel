@@ -51,6 +51,7 @@ public final class StreamByteChunker implements StreamTransformer<ByteBuf, ByteB
 	}
 
 	protected final class Input extends AbstractStreamConsumer<ByteBuf> {
+
 		@Override
 		protected void onEndOfStream() {
 			output.tryFlushAndClose();

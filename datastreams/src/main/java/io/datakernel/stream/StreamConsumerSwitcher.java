@@ -16,6 +16,7 @@
 
 package io.datakernel.stream;
 
+import io.datakernel.annotation.Nullable;
 import io.datakernel.async.SettableStage;
 import io.datakernel.async.Stage;
 import io.datakernel.eventloop.Eventloop;
@@ -24,12 +25,12 @@ import java.util.ArrayList;
 import java.util.Set;
 
 import static io.datakernel.stream.DataStreams.bind;
-import static io.datakernel.stream.StreamStatus.CLOSED_WITH_ERROR;
-import static io.datakernel.stream.StreamStatus.END_OF_STREAM;
 import static java.util.Collections.emptySet;
 
 public final class StreamConsumerSwitcher<T> extends AbstractStreamConsumer<T> implements StreamDataReceiver<T> {
+
 	private InternalProducer currentInternalProducer;
+	private int switches = 0;
 
 	private StreamConsumerSwitcher() {
 	}
@@ -65,35 +66,46 @@ public final class StreamConsumerSwitcher<T> extends AbstractStreamConsumer<T> i
 	}
 
 	public void switchTo(StreamConsumer<T> newConsumer) {
-		if (getStatus() == CLOSED_WITH_ERROR) {
-			if (currentInternalProducer != null) {
-				currentInternalProducer.sendError(getException());
-			}
-			currentInternalProducer = new InternalProducer(eventloop, StreamConsumer.idle());
-			bind(StreamProducer.closingWithError(getException()), newConsumer);
-		} else if (getStatus() == END_OF_STREAM) {
-			if (currentInternalProducer != null) {
-				currentInternalProducer.sendEndOfStream();
-			}
-			currentInternalProducer = new InternalProducer(eventloop, StreamConsumer.idle());
-			bind(StreamProducer.of(), newConsumer);
-		} else {
-			if (currentInternalProducer != null) {
-				currentInternalProducer.sendEndOfStream();
-			}
-			currentInternalProducer = new InternalProducer(eventloop, newConsumer);
-			bind(currentInternalProducer, newConsumer);
+		switches++;
+		switch (getStatus()) {
+			case OPEN:
+				if (currentInternalProducer != null) {
+					currentInternalProducer.sendEndOfStream();
+				}
+				currentInternalProducer = new InternalProducer(eventloop, newConsumer);
+				bind(currentInternalProducer, newConsumer);
+				break;
+			case END_OF_STREAM:
+				if (currentInternalProducer != null) {
+					currentInternalProducer.sendEndOfStream();
+				}
+				currentInternalProducer = new InternalProducer(eventloop, StreamConsumer.idle());
+				bind(StreamProducer.closing(), newConsumer);
+				break;
+			case CLOSED_WITH_ERROR:
+				assert getException() != null;
+				if (currentInternalProducer != null) {
+					currentInternalProducer.sendError(getException());
+				}
+				currentInternalProducer = new InternalProducer(eventloop, StreamConsumer.idle());
+				bind(StreamProducer.closingWithError(getException()), newConsumer);
+				break;
 		}
+		logger.trace("{} switched to {}", this, newConsumer);
 	}
 
 	private class InternalProducer implements StreamProducer<T> {
 		private final Eventloop eventloop;
 		private final StreamConsumer<T> consumer;
 		private final SettableStage<Void> endOfStream = SettableStage.create();
+
+		private StreamLogger streamLogger = StreamConsumerSwitcher.this.streamLogger.createChild(this, "-internal-producer[" + switches + "]");
 		private StreamDataReceiver<T> lastDataReceiver;
 		private boolean suspended;
-		private ArrayList<T> pendingItems;
 		private boolean pendingEndOfStream;
+
+		@Nullable
+		private ArrayList<T> pendingItems;
 
 		public InternalProducer(Eventloop eventloop, StreamConsumer<T> consumer) {
 			this.eventloop = eventloop;
@@ -103,8 +115,9 @@ public final class StreamConsumerSwitcher<T> extends AbstractStreamConsumer<T> i
 		@Override
 		public void setConsumer(StreamConsumer<T> consumer) {
 			assert consumer == this.consumer;
+			streamLogger.logOpen();
 			consumer.getEndOfStream()
-//					.thenRun(this::onEndOfStream)
+					.thenRun(streamLogger::logClose)
 					.whenException(this::closeWithError);
 		}
 
@@ -112,6 +125,8 @@ public final class StreamConsumerSwitcher<T> extends AbstractStreamConsumer<T> i
 		public void produce(StreamDataReceiver<T> dataReceiver) {
 			lastDataReceiver = dataReceiver;
 			suspended = false;
+
+			streamLogger.logProduceRequest();
 
 			if (pendingItems != null) {
 				eventloop.post(() -> {
@@ -138,7 +153,7 @@ public final class StreamConsumerSwitcher<T> extends AbstractStreamConsumer<T> i
 				});
 			} else {
 				if (currentInternalProducer == this) {
-					StreamProducer<T> producer = getProducer();
+					StreamProducer<T> producer = getProducerOrNull();
 					if (producer != null) {
 						producer.produce(StreamConsumerSwitcher.this);
 					}
@@ -149,12 +164,14 @@ public final class StreamConsumerSwitcher<T> extends AbstractStreamConsumer<T> i
 		@Override
 		public void suspend() {
 			suspended = true;
+			streamLogger.logSuspendRequest();
 			if (currentInternalProducer == this) {
 				getProducer().suspend();
 			}
 		}
 
 		public void closeWithError(Throwable t) {
+			streamLogger.logCloseWithError(t);
 			StreamConsumerSwitcher.this.closeWithError(t);
 		}
 
@@ -166,6 +183,21 @@ public final class StreamConsumerSwitcher<T> extends AbstractStreamConsumer<T> i
 		@Override
 		public Set<StreamCapability> getCapabilities() {
 			return getProducer().getCapabilities();
+		}
+
+		@Override
+		public StreamLogger getStreamLogger() {
+			return streamLogger;
+		}
+
+		@Override
+		public void setStreamLogger(StreamLogger streamLogger) {
+			this.streamLogger = streamLogger;
+		}
+
+		@Override
+		public String toString() {
+			return streamLogger.getTag();
 		}
 
 		public void onData(T item) {
@@ -181,7 +213,7 @@ public final class StreamConsumerSwitcher<T> extends AbstractStreamConsumer<T> i
 		}
 
 		public void sendError(Throwable exception) {
-			lastDataReceiver = item -> {};
+			lastDataReceiver = StreamDataReceiver.noop();
 			endOfStream.trySetException(exception);
 		}
 

@@ -1,5 +1,7 @@
 package io.datakernel.stream;
 
+import io.datakernel.annotation.Nullable;
+
 import java.util.Iterator;
 
 import static io.datakernel.stream.DataStreams.bind;
@@ -12,7 +14,11 @@ import static io.datakernel.stream.DataStreams.bind;
  */
 class StreamProducerConcat<T> extends AbstractStreamProducer<T> {
 	private final Iterator<StreamProducer<T>> iterator;
+
+	@Nullable
 	private StreamProducer<T> producer;
+
+	@Nullable
 	private InternalConsumer internalConsumer;
 
 	StreamProducerConcat(Iterator<StreamProducer<T>> iterator) {
@@ -26,7 +32,10 @@ class StreamProducerConcat<T> extends AbstractStreamProducer<T> {
 				producer = null;
 				internalConsumer = null;
 				if (isReceiverReady()) {
-					onProduce(getCurrentDataReceiver());
+					logger.trace("{} switching to next producer", this);
+					StreamDataReceiver<T> dataReceiver = getCurrentDataReceiver();
+					assert dataReceiver != null;
+					onProduce(dataReceiver);
 				}
 			});
 		}
@@ -39,13 +48,13 @@ class StreamProducerConcat<T> extends AbstractStreamProducer<T> {
 
 	@Override
 	protected void onProduce(StreamDataReceiver<T> dataReceiver) {
-		assert dataReceiver != null;
 		if (producer == null) {
 			if (!iterator.hasNext()) {
 				eventloop.post(this::sendEndOfStream);
 				return;
 			}
 			producer = iterator.next();
+			assert producer != null;
 			internalConsumer = new InternalConsumer();
 			bind(producer, internalConsumer);
 		}
@@ -73,5 +82,4 @@ class StreamProducerConcat<T> extends AbstractStreamProducer<T> {
 	protected void cleanup() {
 		producer = null;
 	}
-
 }

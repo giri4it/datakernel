@@ -26,26 +26,26 @@ import io.datakernel.stream.StreamProducer;
  * which organized by binary protocol. It is created with socketChannel and sides exchange ByteBufs.
  */
 public final class SocketStreamingConnection implements AsyncTcpSocket.EventHandler, SocketStreaming {
-	private final AsyncTcpSocket asyncTcpSocket;
+	private final AsyncTcpSocket socket;
 
 	private final SocketStreamProducer socketReader;
 	private final SocketStreamConsumer socketWriter;
 
 	// region creators
-	private SocketStreamingConnection(AsyncTcpSocket asyncTcpSocket) {
-		this.asyncTcpSocket = asyncTcpSocket;
-		this.socketWriter = SocketStreamConsumer.create(asyncTcpSocket);
+	private SocketStreamingConnection(AsyncTcpSocket socket) {
+		this.socket = socket;
+		this.socketWriter = SocketStreamConsumer.create(socket);
 		this.socketWriter.getSentStage().whenComplete(($, throwable) -> {
 			if (throwable != null) {
 				SocketStreamingConnection.this.socketReader.closeWithError(throwable);
-				asyncTcpSocket.close();
+				socket.close();
 			}
 		});
-		this.socketReader = SocketStreamProducer.create(asyncTcpSocket);
+		this.socketReader = SocketStreamProducer.create(socket);
 		this.socketReader.getEndOfStream().whenComplete(($, throwable) -> {
 			if (throwable != null) {
 				socketWriter.closeWithError(throwable);
-				asyncTcpSocket.close();
+				socket.close();
 			}
 		});
 	}
@@ -98,7 +98,7 @@ public final class SocketStreamingConnection implements AsyncTcpSocket.EventHand
 
 	private void closeIfDone() {
 		if (socketReader.isClosed() && socketWriter.isClosed()) {
-			asyncTcpSocket.close();
+			socket.close();
 		}
 	}
 
@@ -110,6 +110,6 @@ public final class SocketStreamingConnection implements AsyncTcpSocket.EventHand
 
 	@Override
 	public String toString() {
-		return "{asyncTcpSocket=" + asyncTcpSocket + '}';
+		return "{socket=" + socket + '}';
 	}
 }

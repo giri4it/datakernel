@@ -33,7 +33,6 @@ import static io.datakernel.util.Preconditions.checkNotNull;
  * @param <I> type of input data
  */
 public final class StreamReducerSimple<K, I, O, A> extends AbstractStreamReducer<K, O, A> {
-
 	private final Function<I, K> keyFunction;
 	private final StreamReducers.Reducer<K, I, O, A> reducer;
 
@@ -51,8 +50,8 @@ public final class StreamReducerSimple<K, I, O, A> extends AbstractStreamReducer
 	 * @param keyFunction   function for counting key
 	 */
 	public static <K, I, O, A> StreamReducerSimple<K, I, O, A> create(Function<I, K> keyFunction,
-	                                                                  Comparator<K> keyComparator,
-	                                                                  StreamReducers.Reducer<K, I, O, A> reducer) {
+																	  Comparator<K> keyComparator,
+																	  StreamReducers.Reducer<K, I, O, A> reducer) {
 		return new StreamReducerSimple<>(keyFunction, keyComparator, reducer);
 	}
 
@@ -68,5 +67,4 @@ public final class StreamReducerSimple<K, I, O, A> extends AbstractStreamReducer
 	public StreamConsumer<I> newInput() {
 		return super.newInput(keyFunction, reducer);
 	}
-
 }

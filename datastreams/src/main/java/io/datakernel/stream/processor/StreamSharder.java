@@ -17,6 +17,8 @@
 package io.datakernel.stream.processor;
 
 import io.datakernel.stream.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,10 +31,11 @@ import java.util.List;
  * @param <T> type of input items
  */
 @SuppressWarnings("unchecked")
-public final class StreamSharder<T> implements HasInput<T>, HasOutputs, StreamDataReceiver<T> {
+public final class StreamSharder<T> implements HasLogging, HasInput<T>, HasOutputs, StreamDataReceiver<T> {
+	private static final Logger logger = LoggerFactory.getLogger(StreamSharder.class);
 	private final Sharder<T> sharder;
 
-	private final InputConsumer input;
+	private final Input input;
 	private final List<Output> outputs = new ArrayList<>();
 
 	private StreamDataReceiver<T>[] dataReceivers = new StreamDataReceiver[0];
@@ -40,7 +43,8 @@ public final class StreamSharder<T> implements HasInput<T>, HasOutputs, StreamDa
 
 	private StreamSharder(Sharder<T> sharder) {
 		this.sharder = sharder;
-		this.input = new InputConsumer();
+		input = new Input();
+		setLogger(StreamLogger.of(logger, this));
 	}
 
 	public static <T> StreamSharder<T> create(Sharder<T> sharder) {
@@ -53,6 +57,7 @@ public final class StreamSharder<T> implements HasInput<T>, HasOutputs, StreamDa
 		dataReceivers = Arrays.copyOf(dataReceivers, dataReceivers.length + 1);
 		suspended++;
 		outputs.add(output);
+		setLogger(StreamLogger.of(logger, this));
 		return output;
 	}
 
@@ -72,7 +77,7 @@ public final class StreamSharder<T> implements HasInput<T>, HasOutputs, StreamDa
 		dataReceivers[shard].onData(item);
 	}
 
-	protected final class InputConsumer extends AbstractStreamConsumer<T> {
+	protected final class Input extends AbstractStreamConsumer<T> {
 		@Override
 		protected void onEndOfStream() {
 			outputs.forEach(Output::sendEndOfStream);
@@ -110,5 +115,4 @@ public final class StreamSharder<T> implements HasInput<T>, HasOutputs, StreamDa
 			input.closeWithError(t);
 		}
 	}
-
 }

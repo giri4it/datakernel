@@ -20,6 +20,8 @@ import io.datakernel.async.SettableStage;
 import io.datakernel.async.Stage;
 import io.datakernel.async.Stages;
 import io.datakernel.stream.processor.StreamLateBinder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.EnumSet;
 import java.util.Iterator;
@@ -46,27 +48,21 @@ import static java.util.Collections.emptySet;
  * @param <T> type of output data
  */
 public interface StreamProducer<T> {
-	/**
-	 * Changes consumer for this producer, removes itself from previous consumer and removes
-	 * previous producer for new consumer. Begins to stream to consumer.
-	 *
-	 * @param consumer consumer for streaming
-	 */
+	Logger logger = LoggerFactory.getLogger(StreamProducer.class);
+
 	void setConsumer(StreamConsumer<T> consumer);
 
 	/**
-	 * This method is called for restore streaming of this producer
+	 * This method is called to restore streaming of this producer
 	 */
 	void produce(StreamDataReceiver<T> dataReceiver);
 
 	/**
-	 * This method is called for stop streaming of this producer
+	 * This method is called to stop streaming of this producer
 	 */
 	void suspend();
 
 	Stage<Void> getEndOfStream();
-
-	Set<StreamCapability> getCapabilities();
 
 	@SuppressWarnings("unchecked")
 	default StreamCompletion streamTo(StreamConsumer<T> consumer) {
@@ -190,37 +186,24 @@ public interface StreamProducer<T> {
 
 	/**
 	 * Creates a stream producer which produces items from a given lambda.
-	 * End of stream is marked as null, so no null values cannot be used.
+	 * End of stream is marked as null, so null values cannot be used.
 	 */
 	static <T> StreamProducer<T> ofSupplier(Supplier<T> supplier) {
-		return new StreamProducers.OfIteratorImpl<>(new Iterator<T>() {
-			private T next = supplier.get();
-
-			@Override
-			public boolean hasNext() {
-				return next != null;
-			}
-
-			@Override
-			public T next() {
-				T n = next;
-				next = supplier.get();
-				return n;
-			}
-		});
+		return new StreamProducers.OfSupplierImpl<>(supplier);
 	}
 
 	String LATE_BINDING_ERROR_MESSAGE = "" +
-			"StreamProducer %s does not have LATE_BINDING capabilities, " +
-			"it must be bound in the same tick when it is created. " +
-			"Alternatively, use .withLateBinding() modifier";
+		"StreamProducer %s does not have LATE_BINDING capabilities, " +
+		"it must be bound in the same tick when it is created. " +
+		"Alternatively, use .withLateBinding() modifier";
 
 	static <T> StreamProducer<T> ofStage(Stage<StreamProducer<T>> producerStage) {
 		StreamLateBinder<T> binder = StreamLateBinder.create();
 		producerStage.whenComplete((producer, throwable) -> {
 			if (throwable == null) {
+				assert producer != null;
 				checkArgument(producer.getCapabilities().contains(LATE_BINDING),
-						LATE_BINDING_ERROR_MESSAGE, producer);
+					LATE_BINDING_ERROR_MESSAGE, producer);
 				bind(producer, binder.getInput());
 			} else {
 				bind(StreamProducer.closingWithError(throwable), binder.getInput());
@@ -293,7 +276,12 @@ public interface StreamProducer<T> {
 			@Override
 			public Set<StreamCapability> getCapabilities() {
 				return StreamProducer.this.getCapabilities().contains(LATE_BINDING) ?
-						EnumSet.of(LATE_BINDING) : emptySet();
+					EnumSet.of(LATE_BINDING) : emptySet();
+			}
+
+			@Override
+			public String toString() { // FIXME use stream logger tags
+				return StreamProducer.this.toString() + ".withResult(...)@" + Integer.toHexString(hashCode());
 			}
 		};
 	}
@@ -330,7 +318,12 @@ public interface StreamProducer<T> {
 			@Override
 			public Set<StreamCapability> getCapabilities() {
 				return StreamProducer.this.getCapabilities().contains(LATE_BINDING) ?
-						EnumSet.of(LATE_BINDING) : emptySet();
+					EnumSet.of(LATE_BINDING) : emptySet();
+			}
+
+			@Override
+			public String toString() { // FIXME use stream logger tags
+				return StreamProducer.this.toString() + ".withEndOfStreamAsResult()@" + Integer.toHexString(hashCode());
 			}
 		};
 	}
@@ -343,4 +336,15 @@ public interface StreamProducer<T> {
 		return stream(this, StreamConsumerWithResult.toCollector(collector)).getConsumerResult();
 	}
 
+	default Set<StreamCapability> getCapabilities() {
+		return emptySet();
+	}
+
+	default StreamLogger getStreamLogger() {
+		return StreamLogger.noop(this);
+	}
+
+	default void setStreamLogger(StreamLogger streamLogger) {
+		logger.warn(this + " object does not support stream logging.");
+	}
 }

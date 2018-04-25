@@ -154,8 +154,8 @@ public final class StreamJoin<K, L, R, V> implements HasOutput<V>, HasInputs {
 
 	// region creators
 	private StreamJoin(Comparator<K> keyComparator,
-	                   Function<L, K> leftKeyFunction, Function<R, K> rightKeyFunction,
-	                   Joiner<K, L, R, V> joiner) {
+					   Function<L, K> leftKeyFunction, Function<R, K> rightKeyFunction,
+					   Joiner<K, L, R, V> joiner) {
 		this.keyComparator = checkNotNull(keyComparator);
 		this.joiner = checkNotNull(joiner);
 		this.left = new Input<>(leftDeque);
@@ -174,8 +174,8 @@ public final class StreamJoin<K, L, R, V> implements HasOutput<V>, HasInputs {
 	 * @param joiner           joiner which will join streams
 	 */
 	public static <K, L, R, V> StreamJoin<K, L, R, V> create(Comparator<K> keyComparator,
-	                                                         Function<L, K> leftKeyFunction, Function<R, K> rightKeyFunction,
-	                                                         Joiner<K, L, R, V> joiner) {
+															 Function<L, K> leftKeyFunction, Function<R, K> rightKeyFunction,
+															 Joiner<K, L, R, V> joiner) {
 		return new StreamJoin<>(keyComparator, leftKeyFunction, rightKeyFunction, joiner);
 	}
 	// endregion

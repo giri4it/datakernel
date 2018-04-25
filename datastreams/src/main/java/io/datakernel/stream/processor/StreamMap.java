@@ -41,6 +41,7 @@ public final class StreamMap<I, O> implements StreamTransformer<I, O> {
 	public static <I, O> StreamMap<I, O> create(Mapper<I, O> mapper) {
 		return new StreamMap<>(mapper);
 	}
+	// endregion
 
 	@Override
 	public StreamConsumer<I> getInput() {
@@ -51,7 +52,6 @@ public final class StreamMap<I, O> implements StreamTransformer<I, O> {
 	public StreamProducer<O> getOutput() {
 		return output;
 	}
-	// endregion
 
 	/**
 	 * Primary interface which does mapping
@@ -155,7 +155,4 @@ public final class StreamMap<I, O> implements StreamTransformer<I, O> {
 			input.getProducer().produce(item -> mapper.map(item, dataReceiver));
 		}
 	}
-
-	// jmx
-
 }

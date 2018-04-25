@@ -21,10 +21,17 @@ import io.datakernel.async.Stage;
 import java.util.Set;
 
 public abstract class ForwardingStreamConsumer<T> implements StreamConsumer<T> {
-	private StreamConsumer<T> consumer;
+	private final StreamConsumer<T> consumer;
+
+	private StreamLogger streamLogger;
+
+	public ForwardingStreamConsumer(StreamConsumer<T> consumer, String tag) {
+		this.consumer = consumer;
+		streamLogger = consumer.getStreamLogger().createChild(this, tag);
+	}
 
 	public ForwardingStreamConsumer(StreamConsumer<T> consumer) {
-		this.consumer = consumer;
+		this(consumer, "<-forwarded");
 	}
 
 	@Override
@@ -40,5 +47,20 @@ public abstract class ForwardingStreamConsumer<T> implements StreamConsumer<T> {
 	@Override
 	public Set<StreamCapability> getCapabilities() {
 		return consumer.getCapabilities();
+	}
+
+	@Override
+	public StreamLogger getStreamLogger() {
+		return streamLogger;
+	}
+
+	@Override
+	public void setStreamLogger(StreamLogger streamLogger) {
+		this.streamLogger = streamLogger;
+	}
+
+	@Override
+	public String toString() {
+		return streamLogger.getTag();
 	}
 }

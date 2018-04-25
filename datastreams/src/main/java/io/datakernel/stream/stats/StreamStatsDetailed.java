@@ -17,7 +17,7 @@ public final class StreamStatsDetailed<T> extends StreamStatsBasic<T> implements
 	private long totalSize;
 
 	@SuppressWarnings("unchecked")
-	StreamStatsDetailed(StreamStatsSizeCounter<?> sizeCounter) {
+	StreamStatsDetailed(@Nullable StreamStatsSizeCounter<?> sizeCounter) {
 		this.sizeCounter = (StreamStatsSizeCounter<Object>) sizeCounter;
 	}
 
@@ -47,11 +47,13 @@ public final class StreamStatsDetailed<T> extends StreamStatsBasic<T> implements
 		return count;
 	}
 
+	@Nullable
 	@JmxAttribute(reducer = JmxReducers.JmxReducerSum.class)
 	public Long getTotalSize() {
 		return sizeCounter != null ? totalSize : null;
 	}
 
+	@Nullable
 	@JmxAttribute(reducer = JmxReducers.JmxReducerSum.class)
 	public Long getTotalSizeAvg() {
 		return sizeCounter != null && super.getStarted().getTotalCount() != 0 ?

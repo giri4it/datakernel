@@ -25,6 +25,7 @@ import java.util.Iterator;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static io.datakernel.eventloop.Eventloop.getCurrentEventloop;
 import static io.datakernel.stream.StreamCapability.LATE_BINDING;
@@ -36,12 +37,65 @@ public final class StreamProducers {
 	}
 
 	/**
-	 * Represent producer which sends specified exception to consumer.
-	 *
-	 * @param <T>
+	 * {@link StreamProducer} which produces nothing and closes immediately after wiring.
+	 */
+	static class ClosingImpl<T> implements StreamProducer<T> {
+		private final SettableStage<Void> endOfStream = SettableStage.create();
+
+		private StreamLogger streamLogger = StreamLogger.of(this, logger);
+
+		@Override
+		public void setConsumer(StreamConsumer<T> consumer) {
+			streamLogger.logOpen();
+			getCurrentEventloop().post(() -> {
+				streamLogger.logClose();
+				endOfStream.set(null);
+			});
+		}
+
+		@Override
+		public void produce(StreamDataReceiver<T> dataReceiver) {
+			streamLogger.logProduceRequest();
+		}
+
+		@Override
+		public void suspend() {
+			streamLogger.logSuspendRequest();
+		}
+
+		@Override
+		public Stage<Void> getEndOfStream() {
+			return endOfStream;
+		}
+
+		@Override
+		public Set<StreamCapability> getCapabilities() {
+			return EnumSet.of(LATE_BINDING);
+		}
+
+		@Override
+		public StreamLogger getStreamLogger() {
+			return streamLogger;
+		}
+
+		@Override
+		public void setStreamLogger(StreamLogger streamLogger) {
+			this.streamLogger = streamLogger;
+		}
+
+		@Override
+		public String toString() {
+			return streamLogger.getTag();
+		}
+	}
+
+	/**
+	 * {@link StreamProducer} which produces nothing closes with given error immediately after wiring.
 	 */
 	static class ClosingWithErrorImpl<T> implements StreamProducer<T> {
 		private final SettableStage<Void> endOfStream = SettableStage.create();
+
+		private StreamLogger streamLogger = StreamLogger.of(this, logger);
 
 		private final Throwable exception;
 
@@ -51,17 +105,21 @@ public final class StreamProducers {
 
 		@Override
 		public void setConsumer(StreamConsumer<T> consumer) {
-			getCurrentEventloop().post(() -> endOfStream.setException(exception));
+			streamLogger.logOpen();
+			getCurrentEventloop().post(() -> {
+				streamLogger.logCloseWithError(exception);
+				endOfStream.setException(exception);
+			});
 		}
 
 		@Override
 		public void produce(StreamDataReceiver<T> dataReceiver) {
-			// do nothing
+			streamLogger.logProduceRequest();
 		}
 
 		@Override
 		public void suspend() {
-			// do nothing
+			streamLogger.logSuspendRequest();
 		}
 
 		@Override
@@ -72,58 +130,53 @@ public final class StreamProducers {
 		@Override
 		public Set<StreamCapability> getCapabilities() {
 			return EnumSet.of(LATE_BINDING);
+		}
+
+		@Override
+		public StreamLogger getStreamLogger() {
+			return streamLogger;
+		}
+
+		@Override
+		public void setStreamLogger(StreamLogger streamLogger) {
+			this.streamLogger = streamLogger;
+		}
+
+		@Override
+		public String toString() {
+			return streamLogger.getTag();
 		}
 	}
 
 	/**
-	 * Represent producer which sends specified exception to consumer.
-	 *
-	 * @param <T>
+	 * {@link StreamProducer} which produces nothing and closes when consumer is closed.
 	 */
-	static class ClosingImpl<T> implements StreamProducer<T> {
-		private final SettableStage<Void> endOfStream = SettableStage.create();
-
-		@Override
-		public void setConsumer(StreamConsumer<T> consumer) {
-			getCurrentEventloop().post(() -> endOfStream.set(null));
-		}
-
-		@Override
-		public void produce(StreamDataReceiver<T> dataReceiver) {
-			// do nothing
-		}
-
-		@Override
-		public void suspend() {
-			// do nothing
-		}
-
-		@Override
-		public Stage<Void> getEndOfStream() {
-			return endOfStream;
-		}
-
-		@Override
-		public Set<StreamCapability> getCapabilities() {
-			return EnumSet.of(LATE_BINDING);
-		}
-	}
-
 	static final class IdleImpl<T> implements StreamProducer<T> {
 		private final SettableStage<Void> endOfStream = SettableStage.create();
 
+		private StreamLogger streamLogger = StreamLogger.of(this, logger);
+
 		@Override
 		public void setConsumer(StreamConsumer<T> consumer) {
-			consumer.getEndOfStream()
-					.whenException(endOfStream::setException);
+			streamLogger.logOpen();
+			consumer.getEndOfStream().whenComplete((result, throwable) -> {
+				if (throwable != null) {
+					streamLogger.logCloseWithError(throwable);
+				} else {
+					streamLogger.logClose();
+				}
+				endOfStream.set(result, throwable);
+			});
 		}
 
 		@Override
 		public void produce(StreamDataReceiver<T> dataReceiver) {
+			streamLogger.logProduceRequest();
 		}
 
 		@Override
 		public void suspend() {
+			streamLogger.logSuspendRequest();
 		}
 
 		@Override
@@ -135,34 +188,45 @@ public final class StreamProducers {
 		public Set<StreamCapability> getCapabilities() {
 			return EnumSet.of(LATE_BINDING);
 		}
+
+		@Override
+		public StreamLogger getStreamLogger() {
+			return streamLogger;
+		}
+
+		@Override
+		public void setStreamLogger(StreamLogger streamLogger) {
+			this.streamLogger = streamLogger;
+		}
+
+		@Override
+		public String toString() {
+			return streamLogger.getTag();
+		}
 	}
 
 	/**
-	 * Represents a {@link AbstractStreamProducer} which will send all values from iterator.
-	 *
-	 * @param <T> type of output data
+	 * {@link StreamProducer} which will send all values from given supplier until it returns {@code null}.
 	 */
-	static class OfIteratorImpl<T> extends AbstractStreamProducer<T> {
-		private final Iterator<T> iterator;
+	static class OfSupplierImpl<T> extends AbstractStreamProducer<T> {
+		private final Supplier<T> supplier;
 
-		/**
-		 * Creates a new instance of  StreamProducerOfIterator
-		 *
-		 * @param iterator iterator with object which need to send
-		 */
-		public OfIteratorImpl(Iterator<T> iterator) {
-			this.iterator = checkNotNull(iterator);
+		OfSupplierImpl(Supplier<T> supplier) {
+			this.supplier = supplier;
 		}
 
 		@Override
 		protected void produce() {
-			while (iterator.hasNext()) {
-				StreamDataReceiver<T> dataReceiver = getCurrentDataReceiver();
-				if (dataReceiver == null) {
+			if (!isReceiverReady()) {
+				return;
+			}
+			T item = supplier.get();
+			while (item != null) {
+				send(item);
+				if (!isReceiverReady()) {
 					return;
 				}
-				T item = iterator.next();
-				dataReceiver.onData(item);
+				item = supplier.get();
 			}
 			sendEndOfStream();
 		}
@@ -170,15 +234,36 @@ public final class StreamProducers {
 		@Override
 		protected void onError(Throwable t) {
 		}
+	}
+
+	/**
+	 * {@link StreamProducer} which will send all values from given iterator.
+	 */
+	static class OfIteratorImpl<T> extends AbstractStreamProducer<T> {
+		private final Iterator<T> iterator;
+
+		OfIteratorImpl(Iterator<T> iterator) {
+			this.iterator = checkNotNull(iterator);
+		}
 
 		@Override
-		public Set<StreamCapability> getCapabilities() {
-			return EnumSet.of(LATE_BINDING);
+		protected void produce() {
+			while (iterator.hasNext()) {
+				if (!isReceiverReady()) {
+					return;
+				}
+				send(iterator.next());
+			}
+			sendEndOfStream();
+		}
+
+		@Override
+		protected void onError(Throwable t) {
 		}
 	}
 
 	public static <T> StreamProducerModifier<T, T> suppliedEndOfStream(Function<Stage<Void>, Stage<Void>> endOfStreamSupplier) {
-		return producer -> new ForwardingStreamProducer<T>(producer) {
+		return producer -> new ForwardingStreamProducer<T>(producer, "suppliedEndOfStream") {
 			final Stage<Void> endOfStream = endOfStreamSupplier.apply(producer.getEndOfStream());
 
 			@Override
@@ -203,7 +288,11 @@ public final class StreamProducers {
 	}
 
 	public static <T> StreamProducerModifier<T, T> decorator(Decorator<T> decorator) {
-		return producer -> new ForwardingStreamProducer<T>(producer) {
+		return decorator(decorator, "decorated");
+	}
+
+	public static <T> StreamProducerModifier<T, T> decorator(Decorator<T> decorator, String tag) {
+		return producer -> new ForwardingStreamProducer<T>(producer, tag) {
 			final SettableStage<Void> endOfStream = SettableStage.create();
 
 			{
@@ -234,18 +323,18 @@ public final class StreamProducers {
 
 	public static <T> StreamProducerModifier<T, T> errorDecorator(Function<T, Throwable> errorFunction) {
 		return decorator((context, dataReceiver) ->
-				item -> {
-					Throwable error = errorFunction.apply(item);
-					if (error == null) {
-						dataReceiver.onData(item);
-					} else {
-						context.closeWithError(error);
-					}
-				});
+			item -> {
+				Throwable error = errorFunction.apply(item);
+				if (error == null) {
+					dataReceiver.onData(item);
+				} else {
+					context.closeWithError(error);
+				}
+			}, "errorDecorated");
 	}
 
 	public static <T> StreamProducerModifier<T, T> endOfStreamOnError(Predicate<Throwable> endOfStreamPredicate) {
-		return producer -> new ForwardingStreamProducer<T>(producer) {
+		return producer -> new ForwardingStreamProducer<T>(producer, "endOfStreamOnError") {
 			final SettableStage<Void> endOfStream = SettableStage.create();
 
 			{
@@ -274,12 +363,12 @@ public final class StreamProducers {
 	}
 
 	public static <T> StreamProducerModifier<T, T> noEndOfStream() {
-		return producer -> new ForwardingStreamProducer<T>(producer) {
+		return producer -> new ForwardingStreamProducer<T>(producer, "noEndOfStream") {
 			final SettableStage<Void> endOfStream = SettableStage.create();
 
 			{
 				producer.getEndOfStream()
-						.whenException(endOfStream::setException);
+					.whenException(endOfStream::setException);
 			}
 
 			@Override

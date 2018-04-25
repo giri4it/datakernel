@@ -92,7 +92,7 @@ public final class StreamSplitter<T> implements HasInput<T>, HasOutputs, StreamD
 
 		@Override
 		protected void onStarted() {
-			checkState(input.getProducer() != null, "Splitter has no input");
+			checkState(input.getProducerOrNull() != null, "Splitter has no input");
 		}
 
 		@Override

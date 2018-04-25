@@ -62,18 +62,8 @@ public final class StreamLZ4Decompressor implements StreamTransformer<ByteBuf, B
 		this.input = new Input();
 	}
 
-	@Override
-	public StreamConsumer<ByteBuf> getInput() {
-		return input;
-	}
-
-	@Override
-	public StreamProducer<ByteBuf> getOutput() {
-		return output;
-	}
-
 	public static StreamLZ4Decompressor create(LZ4FastDecompressor decompressor,
-	                                           StreamingXXHash32 checksum) {
+											   StreamingXXHash32 checksum) {
 		return new StreamLZ4Decompressor(decompressor, checksum);
 	}
 
@@ -88,6 +78,16 @@ public final class StreamLZ4Decompressor implements StreamTransformer<ByteBuf, B
 		return this;
 	}
 	// endregion
+
+	@Override
+	public StreamConsumer<ByteBuf> getInput() {
+		return input;
+	}
+
+	@Override
+	public StreamProducer<ByteBuf> getOutput() {
+		return output;
+	}
 
 	private final class Input extends AbstractStreamConsumer<ByteBuf> {
 		@Override
@@ -199,7 +199,7 @@ public final class StreamLZ4Decompressor implements StreamTransformer<ByteBuf, B
 	}
 
 	private static ByteBuf readBody(LZ4FastDecompressor decompressor, StreamingXXHash32 checksum, Header header,
-	                                byte[] bytes, int off) throws ParseException {
+									byte[] bytes, int off) throws ParseException {
 		ByteBuf outputBuf = ByteBufPool.allocate(header.originalLen);
 		outputBuf.writePosition(header.originalLen);
 		switch (header.compressionMethod) {
@@ -264,5 +264,4 @@ public final class StreamLZ4Decompressor implements StreamTransformer<ByteBuf, B
 			header.finished = true;
 		}
 	}
-
 }

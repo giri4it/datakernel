@@ -35,17 +35,21 @@ public final class StreamConsumers {
 	private StreamConsumers() {
 	}
 
-	static final class ClosingWithErrorImpl<T> implements StreamConsumer<T> {
-		private final Throwable exception;
+	/**
+	 * {@link StreamConsumer} which closes immediately after wiring.
+	 */
+	static final class ClosingImpl<T> implements StreamConsumer<T> {
 		private final SettableStage<Void> endOfStream = SettableStage.create();
 
-		ClosingWithErrorImpl(Throwable exception) {
-			this.exception = exception;
-		}
+		private StreamLogger streamLogger = StreamLogger.of(this, logger);
 
 		@Override
 		public void setProducer(StreamProducer<T> producer) {
-			getCurrentEventloop().post(() -> endOfStream.setException(exception));
+			streamLogger.logOpen();
+			getCurrentEventloop().post(() -> {
+				streamLogger.logClose();
+				endOfStream.set(null);
+			});
 		}
 
 		@Override
@@ -57,10 +61,125 @@ public final class StreamConsumers {
 		public Set<StreamCapability> getCapabilities() {
 			return EnumSet.of(LATE_BINDING);
 		}
+
+		@Override
+		public StreamLogger getStreamLogger() {
+			return streamLogger;
+		}
+
+		@Override
+		public void setStreamLogger(StreamLogger streamLogger) {
+			this.streamLogger = streamLogger;
+		}
+
+		@Override
+		public String toString() {
+			return streamLogger.getTag();
+		}
 	}
 
-	static final class OfConsumerImpl<T> extends AbstractStreamConsumer<T> {
+	/**
+	 * {@link StreamConsumer} which closes with given error immediately after wiring.
+	 */
+	static final class ClosingWithErrorImpl<T> implements StreamConsumer<T> {
+		private final SettableStage<Void> endOfStream = SettableStage.create();
+		private final Throwable exception;
 
+		private StreamLogger streamLogger = StreamLogger.of(this, logger);
+
+		ClosingWithErrorImpl(Throwable exception) {
+			this.exception = exception;
+		}
+
+		@Override
+		public void setProducer(StreamProducer<T> producer) {
+			streamLogger.logOpen();
+			getCurrentEventloop().post(() -> {
+				streamLogger.logClose();
+				endOfStream.setException(exception);
+			});
+		}
+
+		@Override
+		public Stage<Void> getEndOfStream() {
+			return endOfStream;
+		}
+
+		@Override
+		public Set<StreamCapability> getCapabilities() {
+			return EnumSet.of(LATE_BINDING);
+		}
+
+		@Override
+		public StreamLogger getStreamLogger() {
+			return streamLogger;
+		}
+
+		@Override
+		public void setStreamLogger(StreamLogger streamLogger) {
+			this.streamLogger = streamLogger;
+		}
+
+		@Override
+		public String toString() {
+			return streamLogger.getTag();
+		}
+	}
+
+	/**
+	 * {@link StreamConsumer} which does nothing with data and completes when producer completes.
+	 * Used to trigger producer processing when its data does not matter.
+	 *
+	 * @param <T> type of received data
+	 */
+	static final class IdleImpl<T> implements StreamConsumer<T> {
+		private final SettableStage<Void> endOfStream = SettableStage.create();
+
+		private StreamLogger streamLogger = StreamLogger.of(this, logger);
+
+		@Override
+		public void setProducer(StreamProducer<T> producer) {
+			streamLogger.logOpen();
+			producer.getEndOfStream().whenComplete((result, throwable) -> {
+				streamLogger.logClose();
+				endOfStream.set(result, throwable);
+			});
+			producer.produce(StreamDataReceiver.noop());
+		}
+
+		@Override
+		public Stage<Void> getEndOfStream() {
+			return endOfStream;
+		}
+
+		@Override
+		public Set<StreamCapability> getCapabilities() {
+			return EnumSet.of(LATE_BINDING);
+		}
+
+		@Override
+		public StreamLogger getStreamLogger() {
+			return streamLogger;
+		}
+
+		@Override
+		public void setStreamLogger(StreamLogger streamLogger) {
+			this.streamLogger = streamLogger;
+		}
+
+		@Override
+		public String toString() {
+			return streamLogger.getTag();
+		}
+	}
+
+	/**
+	 * {@link StreamConsumer} which sends received items into given Java 8 {@link Consumer} object.
+	 * Used to create simple in-place consumers without suspension control.
+	 *
+	 * @param <T> type of received data
+	 */
+	static final class OfConsumerImpl<T> extends AbstractStreamConsumer<T> {
 		private final Consumer<T> consumer;
 
 		OfConsumerImpl(Consumer<T> consumer) {
@@ -88,31 +207,6 @@ public final class StreamConsumers {
 		}
 	}
 
-	/**
-	 * Represents a simple {@link AbstractStreamConsumer} which with changing producer sets its status as complete.
-	 *
-	 * @param <T> type of received data
-	 */
-	static final class IdleImpl<T> implements StreamConsumer<T> {
-		private final SettableStage<Void> endOfStream = SettableStage.create();
-
-		@Override
-		public void setProducer(StreamProducer<T> producer) {
-			producer.getEndOfStream().whenComplete(endOfStream::set);
-			producer.produce($ -> {});
-		}
-
-		@Override
-		public Stage<Void> getEndOfStream() {
-			return endOfStream;
-		}
-
-		@Override
-		public Set<StreamCapability> getCapabilities() {
-			return EnumSet.of(LATE_BINDING);
-		}
-	}
-
 	public interface Decorator<T> {
 		interface Context {
 			void suspend();
@@ -126,7 +220,11 @@ public final class StreamConsumers {
 	}
 
 	public static <T> StreamConsumerModifier<T, T> decorator(Decorator<T> decorator) {
-		return consumer -> new ForwardingStreamConsumer<T>(consumer) {
+		return decorator(decorator, "<-decorated");
+	}
+
+	public static <T> StreamConsumerModifier<T, T> decorator(Decorator<T> decorator, String tag) {
+		return consumer -> new ForwardingStreamConsumer<T>(consumer, tag) {
 			final SettableStage<Void> endOfStream = SettableStage.create();
 
 			{
@@ -135,7 +233,7 @@ public final class StreamConsumers {
 
 			@Override
 			public void setProducer(StreamProducer<T> producer) {
-				super.setProducer(new ForwardingStreamProducer<T>(producer) {
+				super.setProducer(new ForwardingStreamProducer<T>(producer, tag) {
 					@SuppressWarnings("unchecked")
 					@Override
 					public void produce(StreamDataReceiver<T> dataReceiver) {
@@ -180,10 +278,14 @@ public final class StreamConsumers {
 					} else {
 						context.closeWithError(error);
 					}
-				});
+				}, "<-errorDecorated");
 	}
 
 	public static <T> StreamConsumerModifier<T, T> suspendDecorator(Predicate<T> predicate, Consumer<Context> resumer) {
+		return suspendDecorator(predicate, resumer, "<-suspendDecorated");
+	}
+
+	public static <T> StreamConsumerModifier<T, T> suspendDecorator(Predicate<T> predicate, Consumer<Context> resumer, String tag) {
 		return decorator((context, dataReceiver) ->
 				item -> {
 					dataReceiver.onData(item);
@@ -192,19 +294,23 @@ public final class StreamConsumers {
 						context.suspend();
 						resumer.accept(context);
 					}
-				});
+				}, tag);
 	}
 
 	public static <T> StreamConsumerModifier<T, T> suspendDecorator(Predicate<T> predicate) {
-		return suspendDecorator(predicate, Context::resume);
+		return suspendDecorator(predicate, "<-predicateSuspension");
+	}
+
+	public static <T> StreamConsumerModifier<T, T> suspendDecorator(Predicate<T> predicate, String tag) {
+		return suspendDecorator(predicate, Context::resume, tag);
 	}
 
 	public static <T> StreamConsumerModifier<T, T> oneByOne() {
-		return suspendDecorator(item -> true);
+		return suspendDecorator(item -> true, "<-oneByOneSuspension");
 	}
 
 	public static <T> StreamConsumerModifier<T, T> randomlySuspending(Random random, double probability) {
-		return suspendDecorator(item -> random.nextDouble() < probability);
+		return suspendDecorator(item -> random.nextDouble() < probability, "<-randomSuspension(" + probability + ')');
 	}
 
 	public static <T> StreamConsumerModifier<T, T> randomlySuspending(double probability) {
@@ -214,5 +320,4 @@ public final class StreamConsumers {
 	public static <T> StreamConsumerModifier<T, T> randomlySuspending() {
 		return randomlySuspending(0.5);
 	}
-
 }

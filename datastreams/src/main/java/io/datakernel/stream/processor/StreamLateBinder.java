@@ -5,7 +5,7 @@ import io.datakernel.stream.*;
 
 import java.util.Set;
 
-import static io.datakernel.stream.StreamCapability.LATE_BINDING;
+import static io.datakernel.stream.StreamCapability.*;
 
 /**
  * If stream consumer is not immediately wired, on next eventloop cycle it will error out.
@@ -31,6 +31,7 @@ public final class StreamLateBinder<T> implements StreamTransformer<T, T> {
 	// endregion
 
 	private class Input extends AbstractStreamConsumer<T> {
+
 		@Override
 		protected void onStarted() {
 			if (waitingReceiver != null) {
@@ -51,14 +52,15 @@ public final class StreamLateBinder<T> implements StreamTransformer<T, T> {
 
 		@Override
 		public Set<StreamCapability> getCapabilities() {
-			return addCapabilities(output.getConsumer(), LATE_BINDING);
+			return addCapabilities(output.getConsumerOrNull(), LATE_BINDING, PRODUCE_CALL_FORWARDER, SUSPEND_CALL_FORWARDER);
 		}
 	}
 
 	private class Output extends AbstractStreamProducer<T> {
+
 		@Override
 		protected void onProduce(StreamDataReceiver<T> dataReceiver) {
-			StreamProducer<T> producer = input.getProducer();
+			StreamProducer<T> producer = input.getProducerOrNull();
 			if (producer == null) {
 				waitingReceiver = dataReceiver;
 				return;
@@ -68,7 +70,7 @@ public final class StreamLateBinder<T> implements StreamTransformer<T, T> {
 
 		@Override
 		protected void onSuspended() {
-			StreamProducer<T> producer = input.getProducer();
+			StreamProducer<T> producer = input.getProducerOrNull();
 			if (producer == null) {
 				waitingReceiver = null;
 				return;
@@ -83,7 +85,7 @@ public final class StreamLateBinder<T> implements StreamTransformer<T, T> {
 
 		@Override
 		public Set<StreamCapability> getCapabilities() {
-			return addCapabilities(input.getProducer(), LATE_BINDING);
+			return addCapabilities(input.getProducerOrNull(), LATE_BINDING, PRODUCE_CALL_FORWARDER, SUSPEND_CALL_FORWARDER);
 		}
 	}
 

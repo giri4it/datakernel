@@ -31,7 +31,6 @@ import static io.datakernel.stream.StreamCapability.LATE_BINDING;
 import static io.datakernel.stream.StreamStatus.*;
 import static io.datakernel.util.Preconditions.checkNotNull;
 import static io.datakernel.util.Preconditions.checkState;
-import static java.util.Collections.emptySet;
 
 /**
  * It is basic implementation of {@link StreamProducer}
@@ -48,6 +47,8 @@ public abstract class AbstractStreamProducer<T> implements StreamProducer<T> {
 	private StreamConsumer<T> consumer;
 
 	private StreamStatus status = OPEN;
+
+	@Nullable
 	private Throwable exception;
 
 	private final SettableStage<Void> endOfStream = SettableStage.create();
@@ -61,7 +62,7 @@ public abstract class AbstractStreamProducer<T> implements StreamProducer<T> {
 	private boolean producing;
 	private boolean posted;
 
-	private Object tag;
+	protected StreamLogger streamLogger = StreamLogger.of(this, logger);
 
 	/**
 	 * Sets consumer for this producer. At the moment of calling this method producer shouldn't have consumer,
@@ -71,16 +72,19 @@ public abstract class AbstractStreamProducer<T> implements StreamProducer<T> {
 	 */
 	@Override
 	public final void setConsumer(StreamConsumer<T> consumer) {
-		checkNotNull(consumer);
-		checkState(this.consumer == null);
+		checkNotNull(consumer, "consumer");
+		checkState(this.consumer == null, "Cannot set consumer more than once");
+
 
 		checkState(getCapabilities().contains(LATE_BINDING) || eventloop.tick() == createTick,
-			LATE_BINDING_ERROR_MESSAGE, this);
+				LATE_BINDING_ERROR_MESSAGE, this);
+
+		streamLogger.logOpen();
 		this.consumer = consumer;
 		onWired();
 		consumer.getEndOfStream()
 //				.thenRun(this::endOfStream)
-			.whenException(this::closeWithError);
+				.whenException(this::closeWithError);
 	}
 
 	protected void onWired() {
@@ -94,8 +98,12 @@ public abstract class AbstractStreamProducer<T> implements StreamProducer<T> {
 		return consumer != null;
 	}
 
-	@Nullable
 	public final StreamConsumer<T> getConsumer() {
+		return checkNotNull(consumer, "Producer not yet bound to any consumer");
+	}
+
+	@Nullable
+	public final StreamConsumer<T> getConsumerOrNull() {
 		return consumer;
 	}
 
@@ -105,6 +113,8 @@ public abstract class AbstractStreamProducer<T> implements StreamProducer<T> {
 	}
 
 	public final void send(T item) {
+		checkNotNull(lastDataReceiver, "lastDataReceiver");
+
 		lastDataReceiver.onData(item);
 	}
 
@@ -139,7 +149,7 @@ public abstract class AbstractStreamProducer<T> implements StreamProducer<T> {
 
 	@Override
 	public final void produce(StreamDataReceiver<T> dataReceiver) {
-		if (logger.isTraceEnabled()) logger.trace("Start producing: {}", this);
+		streamLogger.logProduceRequest();
 		assert dataReceiver != null;
 
 		if (currentDataReceiver == dataReceiver)
@@ -156,7 +166,7 @@ public abstract class AbstractStreamProducer<T> implements StreamProducer<T> {
 
 	@Override
 	public final void suspend() {
-		if (logger.isTraceEnabled()) logger.trace("Suspend producer: {}", this);
+		streamLogger.logSuspendRequest();
 		if (!isReceiverReady())
 			return;
 		currentDataReceiver = null;
@@ -168,7 +178,10 @@ public abstract class AbstractStreamProducer<T> implements StreamProducer<T> {
 			return;
 		status = END_OF_STREAM;
 		currentDataReceiver = null;
-		lastDataReceiver = item -> {};
+		lastDataReceiver = StreamDataReceiver.noop();
+
+		streamLogger.logClose();
+
 		eventloop.post(this::cleanup);
 		endOfStream.set(null);
 	}
@@ -178,13 +191,13 @@ public abstract class AbstractStreamProducer<T> implements StreamProducer<T> {
 			return;
 		status = CLOSED_WITH_ERROR;
 		currentDataReceiver = null;
-		lastDataReceiver = item -> {};
+		lastDataReceiver = StreamDataReceiver.noop();
 		exception = e;
+
 		if (!(e instanceof ExpectedException)) {
-			if (logger.isWarnEnabled()) {
-				logger.warn("StreamProducer {} closed with error {}", this, exception.toString());
-			}
+			streamLogger.logCloseWithError(e);
 		}
+
 		onError(e);
 		eventloop.post(this::cleanup);
 		endOfStream.setException(e);
@@ -209,9 +222,21 @@ public abstract class AbstractStreamProducer<T> implements StreamProducer<T> {
 		return endOfStream;
 	}
 
-	/** This method is useful for stream transformers that might add some capability to the stream */
+	@Override
+	public final StreamLogger getStreamLogger() {
+		return streamLogger;
+	}
+
+	@Override
+	public final void setStreamLogger(StreamLogger streamLogger) {
+		this.streamLogger = streamLogger;
+	}
+
+	/**
+	 * This method is useful for stream transformers that might add some capability to the stream
+	 */
 	protected static Set<StreamCapability> addCapabilities(@Nullable StreamProducer<?> producer,
-														   StreamCapability capability, StreamCapability... capabilities) {
+			StreamCapability capability, StreamCapability... capabilities) {
 		EnumSet<StreamCapability> result = EnumSet.of(capability, capabilities);
 		if (producer != null) {
 			result.addAll(producer.getCapabilities());
@@ -219,21 +244,17 @@ public abstract class AbstractStreamProducer<T> implements StreamProducer<T> {
 		return result;
 	}
 
+	/**
+	 * @implNote with current implementation any abstract producers can be bound at any time,
+	 * so this by default returns {@link StreamCapability#LATE_BINDING LATE_BINDING}
+	 */
 	@Override
 	public Set<StreamCapability> getCapabilities() {
-		return emptySet();
-	}
-
-	public final Object getTag() {
-		return tag;
-	}
-
-	public final void setTag(Object tag) {
-		this.tag = tag;
+		return EnumSet.of(LATE_BINDING);
 	}
 
 	@Override
 	public String toString() {
-		return tag != null ? tag.toString() : super.toString();
+		return streamLogger.getTag();
 	}
 }
