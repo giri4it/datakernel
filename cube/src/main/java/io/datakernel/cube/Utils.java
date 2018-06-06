@@ -22,16 +22,15 @@ import io.datakernel.codegen.DefiningClassLoader;
 import io.datakernel.codegen.Expression;
 import io.datakernel.codegen.ExpressionSequence;
 import io.datakernel.cube.attributes.AttributeResolver;
+import io.datakernel.cube.ot.CubeDiff;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Supplier;
 
 import static io.datakernel.codegen.Expressions.*;
+import static java.util.stream.Collectors.toSet;
 
-class Utils {
+public final class Utils {
 	private Utils() {
 	}
 
@@ -104,4 +103,13 @@ class Utils {
 		return attributeResolver.resolveAttributes((List) results, keyFunction, attributesFunction);
 	}
 
+	@SuppressWarnings("unchecked")
+	public static <D, C> Set<C> chunksInDiffs(CubeDiffScheme<D> cubeDiffsExtractor,
+	                                          List<D> diffs) {
+		return diffs.stream()
+				.flatMap(cubeDiffsExtractor::unwrapToStream)
+				.flatMap(CubeDiff::addedChunks)
+				.map(id -> (C) id)
+				.collect(toSet());
+	}
 }

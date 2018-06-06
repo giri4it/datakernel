@@ -1,5 +1,6 @@
 package io.datakernel.aggregation.ot;
 
+import io.datakernel.aggregation.ChunkIdScheme;
 import io.datakernel.aggregation.fieldtype.FieldType;
 import io.datakernel.aggregation.measure.Measure;
 import io.datakernel.util.Initializable;
@@ -10,42 +11,18 @@ import static io.datakernel.util.CollectionUtils.intersection;
 import static io.datakernel.util.Preconditions.checkArgument;
 
 public final class AggregationStructure implements Initializable<AggregationStructure> {
-
+	private final ChunkIdScheme<?> chunkIdScheme;
 	private final Map<String, FieldType> keyTypes = new LinkedHashMap<>();
 	private final Map<String, FieldType> measureTypes = new LinkedHashMap<>();
 	private final List<String> partitioningKey = new ArrayList<>();
 	private final Map<String, Measure> measures = new LinkedHashMap<>();
 
-	public List<String> getKeys() {
-		return new ArrayList<>(keyTypes.keySet());
+	private AggregationStructure(ChunkIdScheme<?> chunkIdScheme) {
+		this.chunkIdScheme = chunkIdScheme;
 	}
 
-	public List<String> getMeasures() {
-		return new ArrayList<>(measures.keySet());
-	}
-
-	public Map<String, FieldType> getKeyTypes() {
-		return keyTypes;
-	}
-
-	public Map<String, FieldType> getMeasureTypes() {
-		return measureTypes;
-	}
-
-	public Measure getMeasure(String field) {
-		return measures.get(field);
-	}
-
-	public FieldType getKeyType(String key) {
-		return keyTypes.get(key);
-	}
-
-	public FieldType getMeasureType(String field) {
-		return measureTypes.get(field);
-	}
-
-	public List<String> getPartitioningKey() {
-		return partitioningKey;
+	public static AggregationStructure create(ChunkIdScheme<?> chunkIdScheme) {
+		return new AggregationStructure(chunkIdScheme);
 	}
 
 	public AggregationStructure withKey(String keyId, FieldType type) {
@@ -90,9 +67,46 @@ public final class AggregationStructure implements Initializable<AggregationStru
 		return this;
 	}
 
+	public ChunkIdScheme<?> getChunkIdScheme() {
+		return chunkIdScheme;
+	}
+
 	public AggregationStructure withPartitioningKey(String... partitioningKey) {
 		this.partitioningKey.addAll(Arrays.asList(partitioningKey));
 		return this;
 	}
+
+	public List<String> getKeys() {
+		return new ArrayList<>(keyTypes.keySet());
+	}
+
+	public List<String> getMeasures() {
+		return new ArrayList<>(measures.keySet());
+	}
+
+	public Map<String, FieldType> getKeyTypes() {
+		return keyTypes;
+	}
+
+	public Map<String, FieldType> getMeasureTypes() {
+		return measureTypes;
+	}
+
+	public Measure getMeasure(String field) {
+		return measures.get(field);
+	}
+
+	public FieldType getKeyType(String key) {
+		return keyTypes.get(key);
+	}
+
+	public FieldType getMeasureType(String field) {
+		return measureTypes.get(field);
+	}
+
+	public List<String> getPartitioningKey() {
+		return partitioningKey;
+	}
+
 
 }

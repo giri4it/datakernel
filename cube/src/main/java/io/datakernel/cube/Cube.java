@@ -336,7 +336,7 @@ public final class Cube implements ICube, OTState<CubeDiff>, Initializable<Cube>
 		checkArgument(!aggregations.containsKey(config.id), "Aggregation '%s' is already defined", config.id);
 
 		Stream<Entry<String, FieldType>> measuresAsFields = measuresAsFields(Cube.this.measures).entrySet().stream();
-		AggregationStructure structure = new AggregationStructure()
+		AggregationStructure structure = AggregationStructure.create(ChunkIdScheme.ofLong())
 				.withKeys(streamToLinkedMap(config.dimensions.stream(), this.dimensionTypes::get))
 				.withMeasures(projectMeasures(Cube.this.measures, config.measures))
 				.withIgnoredMeasures(valuesToLinkedMap(filterKeys(measuresAsFields, s -> !config.measures.contains(s))))
@@ -712,8 +712,8 @@ public final class Cube implements ICube, OTState<CubeDiff>, Initializable<Cube>
 		return chain;
 	}
 
-	public Set<Long> getAllChunks() {
-		Set<Long> chunks = new HashSet<>();
+	public Set<Object> getAllChunks() {
+		Set<Object> chunks = new HashSet<>();
 		for (AggregationContainer container : aggregations.values()) {
 			chunks.addAll(container.aggregation.getState().getChunks().keySet());
 		}

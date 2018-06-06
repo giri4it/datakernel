@@ -2,11 +2,11 @@ package io.datakernel.aggregation.ot;
 
 import io.datakernel.aggregation.AggregationChunk;
 
-import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
 import static io.datakernel.util.CollectionUtils.union;
+import static java.util.Collections.emptySet;
 
 public final class AggregationDiff {
 	private final Set<AggregationChunk> addedChunks;
@@ -17,16 +17,16 @@ public final class AggregationDiff {
 		this.removedChunks = removedChunks;
 	}
 
-	public static AggregationDiff of(Set<AggregationChunk> addedChunks, Set<AggregationChunk> removedChunks) {
+	public static  AggregationDiff of(Set<AggregationChunk> addedChunks, Set<AggregationChunk> removedChunks) {
 		return new AggregationDiff(addedChunks, removedChunks);
 	}
 
-	public static AggregationDiff of(Set<AggregationChunk> addedChunks) {
-		return new AggregationDiff(addedChunks, Collections.<AggregationChunk>emptySet());
+	public static  AggregationDiff of(Set<AggregationChunk> addedChunks) {
+		return new AggregationDiff(addedChunks, emptySet());
 	}
 
-	public static AggregationDiff empty() {
-		return new AggregationDiff(Collections.<AggregationChunk>emptySet(), Collections.<AggregationChunk>emptySet());
+	public static  AggregationDiff empty() {
+		return new AggregationDiff(emptySet(), emptySet());
 	}
 
 	public Set<AggregationChunk> getAddedChunks() {
@@ -45,7 +45,7 @@ public final class AggregationDiff {
 		return addedChunks.isEmpty() && removedChunks.isEmpty();
 	}
 
-	public static AggregationDiff squash(AggregationDiff commit1, AggregationDiff commit2) {
+	public static  AggregationDiff squash(AggregationDiff commit1, AggregationDiff commit2) {
 		Set<AggregationChunk> addedChunks1 = new LinkedHashSet<>(commit1.addedChunks);
 		addedChunks1.removeAll(commit2.removedChunks);
 		Set<AggregationChunk> addedChunks2 = new LinkedHashSet<>(commit2.addedChunks);
@@ -58,7 +58,7 @@ public final class AggregationDiff {
 		removedChunks2.removeAll(commit1.addedChunks);
 		Set<AggregationChunk> removedChunks = union(removedChunks1, removedChunks2);
 
-		return of(addedChunks, removedChunks);
+		return AggregationDiff.of(addedChunks, removedChunks);
 	}
 
 	@Override
