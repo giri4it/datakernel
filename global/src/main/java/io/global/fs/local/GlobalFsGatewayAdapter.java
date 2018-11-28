@@ -39,12 +39,15 @@ import io.global.fs.transformers.FrameSigner;
 import io.global.fs.transformers.FrameVerifier;
 import org.spongycastle.crypto.digests.SHA256Digest;
 
+import java.io.File;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static io.datakernel.file.FileUtils.isWildcard;
 import static io.global.fs.util.BinaryDataFormats.REGISTRY;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.stream.Collectors.toList;
 
 public final class GlobalFsGatewayAdapter implements FsClient, Initializable<GlobalFsGatewayAdapter> {
@@ -77,19 +80,21 @@ public final class GlobalFsGatewayAdapter implements FsClient, Initializable<Glo
 		Promise<SimKey> simKey = metadata != null ?
 				driver.getKey(pubKey, metadata.getSimKeyHash()) :
 				Promise.of(driver.getCurrentSimKey());
-		return simKey.thenCompose(key ->
-				node.upload(pubKey, filename, offset + skip)
-						.thenApply(consumer -> consumer
-								.transformWith(FrameSigner.create(privKey, checkpointPosStrategy, filename, offset + skip, startingDigest))
-								.transformWith(ChannelFileCipher.create(key, filename, offset + skip))
-								.peek(buf -> size[0] += buf.readRemaining())
-								.transformWith(ChannelByteRanger.drop(skip))
-								.withAcknowledgement(ack -> ack
-										.thenCompose($ -> {
-											GlobalFsMetadata updatedMetadata =
-													GlobalFsMetadata.of(filename, size[0], now.currentTimeMillis(), key != null ? Hash.sha1(key.getBytes()) : null);
-											return node.pushMetadata(pubKey, SignedData.sign(METADATA_CODEC, updatedMetadata, privKey));
-										}))));
+		return simKey.thenCompose(key -> {
+			String encryptedFilename = encryptFilename(key, filename);
+			return node.upload(pubKey, filename, offset + skip)
+					.thenApply(consumer -> consumer
+							.transformWith(FrameSigner.create(privKey, checkpointPosStrategy, encryptedFilename, offset + skip, startingDigest))
+							.transformWith(ChannelFileCipher.create(key, filename, offset + skip))
+							.peek(buf -> size[0] += buf.readRemaining())
+							.transformWith(ChannelByteRanger.drop(skip))
+							.withAcknowledgement(ack -> ack
+									.thenCompose($ -> {
+										Hash hash = key != null ? Hash.sha1(key.getBytes()) : null;
+										GlobalFsMetadata updatedMetadata = GlobalFsMetadata.of(encryptedFilename, size[0], now.currentTimeMillis(), hash);
+										return node.pushMetadata(pubKey, SignedData.sign(METADATA_CODEC, updatedMetadata, privKey));
+									})));
+		});
 	}
 
 	@Override
@@ -132,6 +137,13 @@ public final class GlobalFsGatewayAdapter implements FsClient, Initializable<Glo
 
 	@Override
 	public Promise<ChannelSupplier<ByteBuf>> download(String filename, long offset, long limit) {
+		// byte[] nonce = CryptoUtils.nonceFromString(filename);
+		// String encryptedFilename = encryptFilename(key, filename);
+
+		// TODO:
+		// how to get sim key hash (and also the nonce) from files metadata
+		// when we do not know it's name because we only want to actually decrypt it?
+
 		return node.getMetadata(pubKey, filename)
 				.thenCompose(signedMetadata -> {
 					if (signedMetadata == null) {
@@ -181,5 +193,44 @@ public final class GlobalFsGatewayAdapter implements FsClient, Initializable<Glo
 	@Override
 	public Promise<Set<String>> copy(Map<String, String> changes) {
 		throw new UnsupportedOperationException("No file copying in GlobalFS yet");
+	}
+
+	private static final int FILENAME_SIZE_LIMIT = 200; // on most filesystems it is 255 bytes
+	private static final Base64.Encoder BASE64_ENCODER = Base64.getUrlEncoder();
+	private static final Base64.Decoder BASE64_DECODER = Base64.getUrlDecoder();
+
+	private static String encryptFilename(@Nullable SimKey key, String filename) {
+		if (key == null) {
+			return filename;
+		}
+		byte[] nonce = CryptoUtils.generateNonce();
+		byte[] nameBytes = filename.getBytes(UTF_8);
+		byte[] bytes = new byte[nameBytes.length + 16];
+
+		System.arraycopy(nonce, 0, bytes, 0, nonce.length);
+		System.arraycopy(nameBytes, 0, bytes, nonce.length, nameBytes.length);
+
+		CTRAESCipher.create(key.getAesKey(), nonce).apply(bytes);
+
+		String raw = BASE64_ENCODER.encodeToString(bytes);
+		StringBuilder res = new StringBuilder();
+		while (raw.length() > FILENAME_SIZE_LIMIT) {
+			res.append(raw, 0, FILENAME_SIZE_LIMIT).append(File.separatorChar);
+			raw = raw.substring(FILENAME_SIZE_LIMIT);
+		}
+		return res.append(raw).toString();
+	}
+
+	private static String decryptFilename(SimKey key, String encrypted) {
+		if (key == null) {
+			return encrypted;
+		}
+		byte[] bytes = BASE64_DECODER.decode(encrypted.replaceAll(File.separator, ""));
+		byte[] nonce = new byte[CTRAESCipher.BLOCK_SIZE];
+		byte[] nameBytes = new byte[bytes.length - nonce.length];
+		System.arraycopy(bytes, 0, nonce, 0, nonce.length);
+		System.arraycopy(bytes, nonce.length, nameBytes, 0, nameBytes.length);
+		CTRAESCipher.create(key.getAesKey(), nonce).apply(nameBytes);
+		return new String(nameBytes, UTF_8);
 	}
 }
