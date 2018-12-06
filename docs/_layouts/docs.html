@@ -1,0 +1,29 @@
+---
+layout: default
+nav-menu: docs
+---
+
+<div class="row content-indented">
+  <div class="col-xs-3 docs-menu">
+    {% include nav_docs.html %}
+  </div>
+
+  <div class="col-xs-9 markdown-content docs-content">
+    <h1>
+      {{ page.title }}
+      <!-- <a class="edit-page-link" href="https://github.com/{{ page.path }}" target="_blank">Edit on GitHub</a> -->
+    </h1>
+    <div class="subHeader">{{ page.description }}</div>
+
+    {{ content }}
+
+    <div class="docs-prevnext">
+      {% if page.prev %}
+      <a class="docs-prev pull-left" href="/docs/{{ page.prev }}">&larr; Prev</a>
+      {% endif %}
+      {% if page.next %}
+      <a class="docs-next pull-right" href="/docs/{{ page.next }}">Next &rarr;</a>
+      {% endif %}
+    </div>
+  </div>
+</div>

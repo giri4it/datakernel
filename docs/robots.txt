@@ -1,0 +1,2 @@
+User-agent: *
+Sitemap: http://datakernel.io/sitemap.xml

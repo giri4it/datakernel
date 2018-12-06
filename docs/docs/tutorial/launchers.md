@@ -1,0 +1,280 @@
+---
+id: launchers
+filename: launchers
+title: Launcher examples
+next: tutorial/http-helloworld.html
+---
+
+## Purpose
+In this guide we will learn how to build your application using launchers.
+
+## Introduction
+Datakernel provides you with opportunity to create your own application using launchers.
+
+Launchers are basically full featured applications. They use ServiceGraph to properly boot your application with all
+services and Google Guice to inject dependencies.
+
+For some standard cases (HttpServer, RpcServer, RemoteFsServer, etc...) there are number of predefined launchers for you to use.
+
+## What you will need:
+
+* JDK 1.8 or higher
+* Maven 3.0 or higher
+
+## What modules will be used:
+
+* Launchers
+* Eventloop
+* HTTP
+* Boot
+
+## To proceed with this guide you have 2 options:
+
+* Download and run [working example](#working-example)
+* Follow [step-by-step guide](#step-by-step)
+
+## 1. Working Example {#working-example}
+
+To run the complete example, enter next commands:
+{% highlight bash %}
+$ git clone https://github.com/softindex/datakernel-examples
+$ cd datakernel-examples/tutorials/launchers
+$ mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.HttpSimpleServer
+{% endhighlight %}
+Then, go to [testing](#testing) section.
+
+## 2. Step-by-step guide {#step-by-step}
+
+Firstly, create a folder for application and build an appropriate project structure:
+{% highlight xml %}
+launchers
+└── pom.xml
+└── src
+    └── main
+        └── java
+            └── io
+                └── datakernel
+                    └── examples
+                        └── HelloWorldLauncher.java
+                        └── HttpSimpleServer.java
+                        └── HttpServerScratch.java
+{% endhighlight %}
+
+Next, configure your pom.xml file. We will need the following dependencies: datakernel-http,
+datakernel-boot and some logger (Note: we don't need to specify eventloop, because it
+is already a transitive dependency of both datakernel-boot and datakernel-http modules).
+So your pom.xml should look like following:
+{% highlight xml %}
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>io.datakernel</groupId>
+    <artifactId>launchers</artifactId>
+    <version>1.0-SNAPSHOT</version>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.datakernel</groupId>
+            <artifactId>datakernel-boot</artifactId>
+            <version>{{site.datakernel_version}}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.datakernel</groupId>
+            <artifactId>datakernel-http</artifactId>
+            <version>{{site.datakernel_version}}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.datakernel</groupId>
+            <artifactId>datakernel-launchers</artifactId>
+            <version>{{site.datakernel_version}}</version>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>1.1.3</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.7.0</version>
+                <configuration>
+                    <source>1.8</source>
+                    <target>1.8</target>
+                    <encoding>UTF-8</encoding>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
+{% endhighlight %}
+
+Now let's create a simple hello world launcher.
+{% highlight java %}
+public class HelloWorldLauncher {
+	public static void main(String[] args) throws Exception {
+		Launcher launcher = new Launcher() {
+			@Override
+			protected Collection<Module> getModules() {
+				return Collections.emptyList();
+			}
+
+			@Override
+			protected void run() {
+				System.out.println("Hello World!");
+			}
+		};
+		launcher.launch(true, args);
+	}
+}
+{% endhighlight %}
+
+In the example above we see how to create a simple launcher and execute it.
+Don't mind **getModules** right now, we will come back to it later.
+ * Firstly we create our launcher. You can override these methods:
+   * **onStart** will be executed first.
+   * **run** is your application main method, all logic must be in it.
+   * finally **onStop** method is executed.
+   
+ * Next we **launch**ing our launcher, by passing *args* and *EagerSingletonMode* constant, which is passed to Guice.
+
+Now moving to something more complex, we will build an echo http server from scratch.
+
+{% highlight java %}
+public class HttpServerScratch extends Launcher {
+	private final static int PORT = 25565;
+
+	@Override
+	protected Collection<Module> getModules() {
+		return asList(
+				ServiceGraphModule.defaultInstance(),
+				ConfigModule.create(Config.ofValue(ofInetSocketAddress(), new InetSocketAddress(PORT))
+				),
+				new AbstractModule() {
+					@Singleton
+					@Provides
+					Eventloop eventloop() {
+						return Eventloop.create()
+								.withFatalErrorHandler(rethrowOnAnyError());
+					}
+
+					@Singleton
+					@Provides
+					AsyncServlet servlet() {
+						return new AsyncServlet() {
+							@Override
+							public Stage<HttpResponse> serve(HttpRequest request) {
+								logger.info("Received connection");
+								return Stage.of(HttpResponse.ok200().withBody(encodeAscii("Hello from HTTP server")));
+							}
+						};
+					}
+
+					@Singleton
+					@Provides
+					AsyncHttpServer server(Eventloop eventloop, AsyncServlet servlet, Config config) {
+						return AsyncHttpServer.create(eventloop, servlet)
+								.withListenAddress(config.get(ofInetSocketAddress(), Config.THIS));
+					}
+				}
+		);
+	}
+
+	@Override
+	protected void run() throws Exception {
+		awaitShutdown();
+	}
+
+	public static void main(String[] args) throws Exception {
+		Launcher launcher = new HttpServerScratch();
+		launcher.launch(true, args);
+	}
+}
+{% endhighlight %}
+
+In code above you can see, that **getModules** is used to provide *Module*s with dependencies.
+
+What is going on:
+ * Providing dependencies:
+   * *ServiceGraphModule* will start components of your application in the right order.
+   * *ConfigModule* will provide *Config* to your components.
+   * *SimpleModule* will provide *AsyncHttpServer* and since it needs *Eventloop* and *AsyncServlet* as dependencies we providing them too.
+ * **run** method just awaits shutdown of application(Keyboard Interruption, for example).
+ * **main** method launches our application.
+ 
+Setting up simple HTTP server is a common task, so Datakernel provides you with few predefined launchers to make your life easier.
+
+Let's take a look how simple it would be if we use *HttpServerLauncher*:
+{% highlight java %}
+public class HttpSimpleServer {
+
+	private static final int SERVICE_PORT = 25565;
+
+	public static void main(String[] args) throws Exception {
+		Launcher launcher = new HttpServerLauncher() {
+			@Override
+			protected Collection<Module> getBusinessLogicModules() {
+				return singletonList(
+						new AbstractModule() {
+							@Singleton
+							@Provides
+							AsyncServlet rootServlet() {
+								return new AsyncServlet() {
+									@Override
+									public Stage<HttpResponse> serve(HttpRequest request) {
+										logger.info("Connection received");
+										return Stage.of(HttpResponse.ok200().withBody(encodeAscii("Hello from HTTP server")));
+									}
+								};
+							}
+						}
+				);
+			}
+
+			@Override
+			protected Collection<Module> getOverrideModules() {
+				return singletonList(
+						ConfigModule.create(Config.create()
+								.with("http.listenAddresses", "" + SERVICE_PORT)
+						)
+				);
+			}
+		};
+
+		launcher.launch(parseBoolean(EAGER_SINGLETONS_MODE), args);
+	}
+}
+{% endhighlight %}
+
+When you are using predefined launchers you need to override these methods:
+ * **getBusinessLogicModules** to specify actual logic of application.
+ * **getOverrideModules** if you want to override default modules.
+ 
+In example above we are overriding default port with our own and providing servlet that will handle each connection.
+
+That's it. Lets test our code.
+
+## Testing {#testing}
+
+Firstly, *HelloWorldLauncher*:
+{% highlight bash %}
+mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.HelloWorldLauncher
+{% endhighlight %}
+
+The next will be http servers:
+{% highlight bash %}
+mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.HttpServerScratch
+{% endhighlight %}
+
+If you now try to connect to localhost port 25565 using your browser or curl you will see "Hello from HTTP server" string
+
+Exactly the same result will be in this case:
+{% highlight bash %}
+mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.HttpSimpleServer
+{% endhighlight %}

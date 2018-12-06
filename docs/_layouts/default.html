@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link rel='stylesheet' href="/static/css/bootstrap.min.css"/>
+  <link rel='stylesheet' href='/static/css/pygment_trac.css'/>
+  <link rel='stylesheet' href='/static/css/style.css'/>
+  <link href='http://fonts.googleapis.com/css?family=Lato:400,300,700,400italic' rel='stylesheet' type='text/css'/>
+  <title>{{ page.title }} | DataKernel</title>
+  <meta name="description" content="Java components for building extremely fast and scalable applications with asynchronous I/O.">
+  <meta name="keywords" content="java,netty,nodejs,akka,coralblocks,vertx,nginx,asynchronous,async,eventloop,actor,reactor pattern,java nio,reactive streams,reactive java,rx-java,java-stream,embedded http,java http server,java http client,java dns client,high load,streams,serializers,http,olap">
+  <meta http-equiv='Content-Type' content='text/html; charset=utf-8' />
+</head>
+<body>
+  <div class="page-row">
+    <nav class="navbar-inverse home-menu">
+      <div class="container-fluid container">
+        <div class="collapse navbar-collapse">
+          <ul class="nav navbar-nav">
+            <li{% if page.nav-menu == 'home' %} class="active"{% endif %}><a href="/">Home</a></li>
+            <li{% if page.nav-menu == 'docs' %} class="active"{% endif %}><a href="/docs/getting-started.html">Docs</a></li>
+          </ul>
+          <ul class="nav navbar-nav navbar-right">
+            <li><a href="http://uikernel.io">UIKernel</a></li>
+            <li><a href="http://adkernel.com">AdKernel</a></li>
+            <li><a href="{{site.github_url}}">Github</a></li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+    {% if page.nav-menu == 'home' %}
+    <div class="home-logo">
+      <center>
+        <img src="/static/images/logo.png" class="logo" />
+        <div class="actions">
+          <a href="/docs/getting-started.html" class="btn btn-lg">
+            Get Started
+          </a>
+          <a href="/docs/tutorial/" class="btn btn-lg">
+            Tutorial
+          </a>
+          <a href="{{site.github_url}}" class="btn btn-lg">
+            <img src="/static/images/github-inverse.png"/>
+            GitHub
+          </a>
+        </div>
+      </center>
+    </div>
+    <div class="home-introduction">
+      <div class="container">
+        Modern, reactive Java framework for network applications
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  <div class="page-row page-row-expanded">
+    <div class="container content {% if page.nav-menu == 'home' %} home-modules markdown-content{% endif %}">
+      {{ content }}
+    </div>
+  </div>
+  <div class="page-row footer">
+    <div class="home-join">
+      <center>
+        <h2>Join the community</h2>
+        <div class="actions">
+          <a href="{{site.twitter_url}}"><img src="/static/images/twitter.png" /></a>
+          <a href="{{site.github_url}}"><img src="/static/images/github.png" /></a>
+        </div>
+      </center>
+    </div>
+    <div class="home-copyright">
+      Copyright (C) 2015 SoftIndex LLC. All Rights Reserved
+    </div>
+  </div>
+</body>
+</html>

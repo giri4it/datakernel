@@ -1,0 +1,34 @@
+{% for section in site.data.nav_docs %}
+<ul>
+  <li><h3>{{ section.title }}</h3></li>
+  {% for item in section.items %}
+  <li{% if page.filename == item.filename %} class="active"{% endif %}>
+    {% if section.is-modules %}
+    <span>{{ item.title }}</span>
+    {% else %}
+      {% if item.subitems %}
+      <a href="/docs/{{ item.id }}/">{{ item.title }}</a>
+      {% else %}
+      <a href="/docs/{{ item.id }}.html">{{ item.title }}</a>
+      {% endif %}
+    {% endif %}
+    {% if item.subitems %}
+    <ul>
+      {% for subitem in item.subitems %}
+      {% if section.is-modules %}
+      <li{% if page.filename == subitem.filename %} class="active"{% endif %}>
+        <a href="/docs/modules/{{ subitem.id }}.html">{{ subitem.title }}</a>
+      </li>
+      {% else %}
+      <li{% if page.filename == subitem.filename %} class="active"{% endif %}>
+        <a href="/docs/{{ item.id }}/{{ subitem.id }}.html">{{ subitem.title }}</a>
+      </li>
+      {% endif %}
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </li>
+  {% endfor %}
+</ul>
+<hr />
+{% endfor %}
