@@ -8,7 +8,7 @@ redirect_from: "docs/index.html"
 ---
 
 ## Purpose
-In this guide we will create a simple “Hello World” application using Eventloop, which is the core component of Datakernel Framework.
+In this guide we will create a simple “Hello World” application using [Eventloop](/docs/modules/eventloop/), which is the core component of Datakernel Framework.
 
 ## What you will need:
 
@@ -61,7 +61,7 @@ Add a maven dependency to use DataKernel in your project, as showed below:
 
     <groupId>io.datakernel</groupId>
     <artifactId>helloworld</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>2.0</version>
     <packaging>jar</packaging>
 
     <name>HelloWorld</name>
@@ -101,16 +101,19 @@ import io.datakernel.eventloop.Eventloop;
 public class HelloWorld {
 
 	public static void main(String[] args) {
+        //creating an eventloop and setting a task for it
+
 		Eventloop eventloop = Eventloop.create();
 
 		eventloop.post(() -> System.out.println("Hello World"));
-
+        
+        //starting the created eventlloop
 		eventloop.run();
 	}
 }
 {% endhighlight %}
 
-Finally, enter the command below to compile and run this app:
+Finally, enter the command below in console to compile and run this app:
 {% highlight bash %}
 $ mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.HelloWorld
 {% endhighlight %}

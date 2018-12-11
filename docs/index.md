@@ -22,7 +22,7 @@ You can add DataKernel modules to your project by inserting dependency in pom.xm
     <version>{{site.datakernel_version}}</version>
 </dependency>
 {% endhighlight %}
-
+s
 If you want to clone DataKernel git repository and build it locally or edit it, run the following commands:
 {% highlight bash %}
 $ git clone https://github.com/softindex/datakernel
@@ -35,21 +35,37 @@ $ mvn clean install -DskipTests=true
 
 * [ByteBuf](/docs/modules/bytebuf.html) Memory-efficient, recyclable byte buffers.
 * [Eventloop](/docs/modules/eventloop.html) Efficient non-blocking network and file I/O, for building Node.js-like client/server applications with high performance requirements.
+* [Async](/docs/modules/async.html) 
+* [CSP](/docs/modules/csp.html)
 
 ## Core components
 
 * [HTTP](/docs/modules/http.html) High-performance asynchronous HTTP client and server. [Benchmark](/docs/modules/http.html#benchmark)
-* [DataStreams](/docs/modules/streams.html) Composable asynchronous/reactive streams with powerful data processing capabilities. [Benchmark](/docs/modules/streams.html#benchmark)
+* [Net](/docs/modules/eventloop.html)
+* [DataStreams](/docs/modules/net.html) Composable asynchronous/reactive streams with powerful data processing capabilities. [Benchmark](/docs/modules/streams.html#benchmark)
 * [Codegen](/docs/modules/codegen.html) Expression-based fluent API on top of ObjectWeb ASM for runtime generation of POJOs, mappers and reducers, etc.
 * [Serializer](/docs/modules/serializer.html) Extremely fast and space-efficient serializers, crafted using bytecode engineering by Codegen module. [Benchmark](/docs/modules/serializer.html#benchmark)
+* [JSON](/docs/modules/json.html) 
 
 ## Cluster components
 
 * [RPC](/docs/modules/rpc.html) High-performance and fault-tolerant remote procedure call module for building distributed applications.
 * [Aggregation](/docs/modules/aggregation.html) Unique database with the possibility to define custom aggregation functions.
 * [RemoteFS](/docs/modules/remotefs.html) Basis for building efficient, scalable remote file servers.
+* [CRDT](/docs/modules/crdt.html)
+* [Cube](/docs/modules/cube.html)
+* [OT](/docs/modules/ot.html)
+* [OT-MySQL](/docs/modules/ot-mysql.html)
+* [Datagraph](/docs/modules/datagraph.html)
+
 
 ## Integration components
  
 * [Boot](/docs/modules/boot.html) An intelligent way of booting complex applications and services according to their dependencies.
 * [UIKernel](/docs/modules/uikernel.html) Integration with UIKernel.io JS frontend library: JSON serializers, grid model, basic servlets.
+* [Launchers](/docs/modules/launchers.html)
+
+## Global Module
+
+* [Global-OT package](/docs/modules/global-ot.html)
+* [Global-FS package](/docs/modules/global-fs.html)

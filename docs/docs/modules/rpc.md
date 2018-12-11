@@ -2,7 +2,7 @@
 id: rpc
 filename: rpc/
 title: RPC Module
-prev: modules/codegen.html
+prev: modules/json.html
 next: modules/aggregation.html
 ---
 

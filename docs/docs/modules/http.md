@@ -2,7 +2,7 @@
 id: http
 filename: http/
 title: HTTP Module
-prev: modules/eventloop.html
+prev: modules/csp.html
 next: modules/streams.html
 ---
 
@@ -17,19 +17,42 @@ HTTP module enables users to build HTTP servers and clients that take full advan
 
 ## Examples
 
-1. [HTTP Server](https://github.com/softindex/datakernel-examples/blob/master/examples/http/src/main/java/io/datakernel/examples/HttpServerExample.java)
-2. [HTTP Client](https://github.com/softindex/datakernel-examples/blob/master/examples/http/src/main/java/io/datakernel/examples/HttpClientExample.java)
+1. [HTTP Server Example](https://github.com/softindex/datakernel-examples/blob/master/examples/http/src/main/java/io/datakernel/examples/HttpServerExample.java)
+2. [HTTP Multithreaded Server Example](https://github.com/softindex/datakernel-examples/blob/master/examples/http/src/main/java/io/datakernel/examples/HttpMultithreadedServerExample.java)
+3. [HTTP Client Example](https://github.com/softindex/datakernel-examples/blob/master/examples/http/src/main/java/io/datakernel/examples/HttpClientExample.java)
+4. [Middleware Servlet Example](https://github.com/softindex/datakernel-examples/blob/master/examples/http/src/main/java/io/datakernel/examples/MiddlewareServletExample.java)
+5. [Request Parametr Example](https://github.com/softindex/datakernel-examples/blob/master/examples/http/src/main/java/io/datakernel/examples/RequestParametrExample.java)
+6. [Static Servlet Example](https://github.com/softindex/datakernel-examples/blob/master/examples/http/src/main/java/io/datakernel/examples/StaticServletExample.java)
 
-To run the examples, you should execute these three lines in the console in appropriate folder:
+To run the examples, you should first execute these lines in the console in appropriate folder:
 {% highlight bash %}
 $ git clone https://github.com/softindex/datakernel-examples.git
 $ cd datakernel-examples/examples/http
 $ mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.HttpServerExample
 $ # OR
-$ mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.HttpClientExample
-$ # OR
 $ mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.HttpMultithreadedServerExample
+$ # OR
+$ mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.MiddlewareServletExample
+$ # OR
+$ mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.RequestParametrExample
+$ # OR
+$ mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.StaticServletExample
 {% endhighlight %}
+
+The difference between multithreaded HTTP server and simple HTTP server is that the first one creates several worker threades for requests processing. In the example above your server will have 4 workers.
+
+To check how HTTP Server or HTTP Multithreaded Server works, you can start your client:
+{% highlight bash %}
+$ mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.HttpClientExample
+{% endhighlight %}
+
+If you connected to the multithreaded server, you'll receive a message representing which worker processed your request:
+{% highlight bash %} 
+"Hello from worker server #..." 
+{% endhighlight %}
+Otherwise, you'll see a message: {% highlight bash %}"Hello World!"{% endhighlight %} 
+
+If you run Examples 4-6, you can connect to you server by visiting [this link](http://localhost:8080/) in your browser.
 
 ## Benchmark
 

@@ -64,7 +64,7 @@ http-helloworld
                         └── SimpleServlet.java
 {% endhighlight %}
 
-Next, configure your pom.xml file. We will need the following dependencies: datakernel-http, datakernel-boot and some logger (Note: we don't need to specify eventloop, because it is already a transitive dependency of both datakernel-boot and datakernel-http modules). So your pom.xml should look like following:
+Next, configure your pom.xml file. We will need the following dependencies: datakernel-http, datakernel-boot and some logger (Note: we don't need to specify eventloop, because it is already a transitive dependency of both datakernel-boot and datakernel-http modules). So your pom.xml should look as follows:
 {% highlight xml %}
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
@@ -105,7 +105,7 @@ Next, configure your pom.xml file. We will need the following dependencies: data
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.3</version>
+                <version>3.7.0</version>
                 <configuration>
                     <source>1.8</source>
                     <target>1.8</target>
@@ -121,7 +121,9 @@ Next, configure your pom.xml file. We will need the following dependencies: data
 Write down a SimpleServlet which will return the web-page with appropriate content
 {% highlight java %}
 public class SimpleServlet implements AsyncServlet {
+	//an identifier for worker
 	private final int workerId;
+
 	private final String responseMessage;
 
 	public SimpleServlet(int id, String responseMessage) {
@@ -130,9 +132,10 @@ public class SimpleServlet implements AsyncServlet {
 	}
 
 	@Override
-	public Stage<HttpResponse> serve(HttpRequest httpRequest) {
+	public Promise<HttpResponse> serve(HttpRequest httpRequest) {
+		//this message represents, which worker processed the request
 		byte[] message = encodeAscii("Worker #" + workerId + ". Message: " + responseMessage + "\n");
-		return Stage.of(HttpResponse.ok200().withBody(message));
+		return Promise.of(HttpResponse.ok200().withBody(message));
 	}
 }
 {% endhighlight %}
@@ -146,7 +149,7 @@ Boot module consists of three main parts:
 * Configs
 * Launcher
 
-Service Graph uses dependency tree, built by Google Guice to run services in a proper order. Service Graph considers all dependencies from Guice, determines which of them can be threated as services and then starts those services in a proper way. You just need to extend AbstractModule and write down the dependencies of your app, rest of work Service Graph will do for you.
+Service Graph uses dependency tree, built by Google Guice to run services in a proper order. Service Graph considers all dependencies from Guice, determines which of them can be threated as services and then starts those services in a proper way. You just need to extend AbstractModule and write down the dependencies of your app, Service Graph will do the rest of work for you.
 
 Configs are a useful extension for properties file. Main features:
 
@@ -154,7 +157,7 @@ Configs are a useful extension for properties file. Main features:
 * specifying default value for property
 * saving all properties that were used into file
 
-A typical usage of configs looks like following:
+A typical usage of configs looks as this:
 
 {% highlight java %}
 int port = config.get(ofInteger(), "port", 5577);
@@ -166,6 +169,7 @@ So let's extend SimpleModule and write down all the dependencies needed for mult
 public class HttpHelloWorldModule extends AbstractModule {
 	@Provides
 	@Singleton
+	//returns a pool with 4 workers
 	WorkerPool workerPool(Config config) {
 		return new WorkerPool(config.get(ofInteger(), "workers", 4));
 	}
@@ -200,7 +204,7 @@ public class HttpHelloWorldModule extends AbstractModule {
 }
 {% endhighlight %}
 
-Add configs to config.properties:
+Add configs to configs.properties:
 {% highlight properties %}
 port=5577
 workers=2
@@ -216,7 +220,7 @@ Launcher integrates all components together and manages application lifecycle, w
 * run
 * stop (stopping services, mostly done by Service Graph)
 
-We should extend Launcher, pass Stage and Guice modules as arguments to superclass constructor and override method run() to finish our HTTP-server. In run() we will call awaitShutdown() to enable application stop properly after interruption is made (similarly to Ctrl+C in unix-like systems).
+We should extend Launcher, pass Promise and Guice modules as arguments to superclass constructor and override method run() to finish our HTTP-server. In run() we will call awaitShutdown() to enable application stop properly after interruption is made (similarly to Ctrl+C in unix-like systems).
 
 {% highlight java %}
 public class HttpHelloWorldLauncher extends Launcher {
@@ -256,9 +260,9 @@ Launch your favourite browser and go to "localhost:5577" or just enter the follo
 curl localhost:5577
 {% endhighlight %}
 
-You should see content like following:
+You should see content like this:
 {% highlight bash %}
 "Worker #0. Message: Hello from config!"
 {% endhighlight %}
 
-If you make this HTTP request several times, worker id will be different, which means load-balancing works pretty well.
+If you make this HTTP request several times, worker id will be different, which means load-balancing perfectly works.

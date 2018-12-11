@@ -3,7 +3,7 @@ id: codegen
 filename: codegen/
 title: Codegen Module
 prev: modules/serializer.html
-next: modules/rpc.html
+next: modules/json.html
 ---
 
 Codegen module allows to build classes and methods in runtime without the overhead of reflection.
@@ -13,13 +13,31 @@ Codegen module allows to build classes and methods in runtime without the overhe
 * Since I/O overhead is already minimal due to [Eventloop](/docs/modules/eventloop/) module, bytecode generation ensures that business logic (such as innermost loops processing millions of items) is also as fast as possible
 * Easy to use API that encapsulates most of the complexity involved in working with bytecode
 
-## Examples
+## Example
 
-1. [Dynamic Class Creation](https://github.com/softindex/datakernel-examples/blob/master/examples/codegen/src/main/java/io/datakernel/examples/DynamicClassCreationExample.java)
+1. [Dynamic Class Creation](https://github.com/softindex/datakernel-examples/blob/master/examples/codegen/src/main/java/io/datakernel/examples/DynamicClassCreationExample.java) - dynamically creates a Class that implements a specified interface.
+2. [Expressions Example](https://github.com/softindex/datakernel-examples/blob/master/examples/codegen/src/main/java/io/datakernel/examples/ExpressionsExample.java) - dinamically creates a class with method sayHello which is described using expression.
 
 To run the example, you should execute these three lines in the console in appropriate folder:
 {% highlight bash %}
 $ git clone https://github.com/softindex/datakernel-examples.git
 $ cd datakernel-examples/examples/codegen
 $ mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.DynamicClassCreationExample
+$ # OR
+$ mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.ExpressionsExample
 {% endhighlight %}
+
+If you run Dynamic Class Creation Example, you will receive the following output:
+{% highlight java %}
+test1 = {field1: 5, field2: First}
+test2 = {field1: 10, field2: Second}
+test1.equals(test2)     = false
+TestPojo{field1=5, field2=First}
+test1.hash(testPojo)    = 67887915
+test1.hash()            = 67887915
+testPojo.hashCode()     = 67887915
+{% endhighlight %}
+
+* test1 and test2 are dynamically created instances which implement interface Test.
+* TestPojo is created conventionally.
+* The last three lines compare dynamically created hashing implementation with the conventional one.

@@ -6,7 +6,7 @@ next: tutorial/http-helloworld.html
 ---
 
 ## Purpose
-In this guide we will learn how to build your application using launchers.
+In this guide we will learn how to build applications using launchers.
 
 ## Introduction
 Datakernel provides you with opportunity to create your own application using launchers.
@@ -14,7 +14,7 @@ Datakernel provides you with opportunity to create your own application using la
 Launchers are basically full featured applications. They use ServiceGraph to properly boot your application with all
 services and Google Guice to inject dependencies.
 
-For some standard cases (HttpServer, RpcServer, RemoteFsServer, etc...) there are number of predefined launchers for you to use.
+For some standard cases (HttpServer, RpcServer, RemoteFsServer, etc...) there is a variety of predefined launchers for you to use.
 
 ## What you will need:
 
@@ -63,7 +63,7 @@ launchers
 Next, configure your pom.xml file. We will need the following dependencies: datakernel-http,
 datakernel-boot and some logger (Note: we don't need to specify eventloop, because it
 is already a transitive dependency of both datakernel-boot and datakernel-http modules).
-So your pom.xml should look like following:
+So your pom.xml should look like this:
 {% highlight xml %}
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
@@ -169,9 +169,9 @@ public class HttpServerScratch extends Launcher {
 					AsyncServlet servlet() {
 						return new AsyncServlet() {
 							@Override
-							public Stage<HttpResponse> serve(HttpRequest request) {
+							public Promise<HttpResponse> serve(HttpRequest request) {
 								logger.info("Received connection");
-								return Stage.of(HttpResponse.ok200().withBody(encodeAscii("Hello from HTTP server")));
+								return Promise.of(HttpResponse.ok200().withBody(encodeAscii("Hello from HTTP server")));
 							}
 						};
 					}
@@ -198,17 +198,14 @@ public class HttpServerScratch extends Launcher {
 }
 {% endhighlight %}
 
-In code above you can see, that **getModules** is used to provide *Module*s with dependencies.
-
-What is going on:
- * Providing dependencies:
+ * **run** method just awaits shutdown of application(Keyboard Interruption, for example).
+ * **main** method launches our application.
+ * **getModules** is used to provide *Module*s with dependencies:
    * *ServiceGraphModule* will start components of your application in the right order.
    * *ConfigModule* will provide *Config* to your components.
    * *SimpleModule* will provide *AsyncHttpServer* and since it needs *Eventloop* and *AsyncServlet* as dependencies we providing them too.
- * **run** method just awaits shutdown of application(Keyboard Interruption, for example).
- * **main** method launches our application.
- 
-Setting up simple HTTP server is a common task, so Datakernel provides you with few predefined launchers to make your life easier.
+
+Setting up simple HTTP server is a common task, so DataKernel provides you with few predefined launchers to make your life easier.
 
 Let's take a look how simple it would be if we use *HttpServerLauncher*:
 {% highlight java %}
@@ -227,9 +224,9 @@ public class HttpSimpleServer {
 							AsyncServlet rootServlet() {
 								return new AsyncServlet() {
 									@Override
-									public Stage<HttpResponse> serve(HttpRequest request) {
+									public Promise<HttpResponse> serve(HttpRequest request) {
 										logger.info("Connection received");
-										return Stage.of(HttpResponse.ok200().withBody(encodeAscii("Hello from HTTP server")));
+										return Promise.of(HttpResponse.ok200().withBody(encodeAscii("Hello from HTTP server")));
 									}
 								};
 							}
@@ -264,17 +261,25 @@ That's it. Lets test our code.
 
 Firstly, *HelloWorldLauncher*:
 {% highlight bash %}
-mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.HelloWorldLauncher
+$ mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.HelloWorldLauncher
 {% endhighlight %}
 
-The next will be http servers:
+Now start http server:
 {% highlight bash %}
-mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.HttpServerScratch
+$ mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.HttpServerScratch
 {% endhighlight %}
 
-If you now try to connect to localhost port 25565 using your browser or curl you will see "Hello from HTTP server" string
-
-Exactly the same result will be in this case:
+If you now try to connect to localhost port 25565 using your browser (localhost:25565) or enter the following command in the terminal: 
 {% highlight bash %}
-mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.HttpSimpleServer
+$ curl localhost:25565
+{% endhighlight %}
+You will see the following content:
+
+{% highlight bash %}
+"Hello from HTTP server" 
+{% endhighlight %}
+
+You will receive exactly the same result if you start Http Simple Server:
+{% highlight bash %}
+$ mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.HttpSimpleServer
 {% endhighlight %}

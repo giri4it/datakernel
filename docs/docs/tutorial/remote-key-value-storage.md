@@ -241,20 +241,19 @@ public class RpcServerModule extends AbstractModule {
 		return RpcServer.create(eventloop)
 				.withSerializerBuilder(SerializerBuilder.create(Thread.currentThread().getContextClassLoader()))
 				.withMessageTypes(PutRequest.class, PutResponse.class, GetRequest.class, GetResponse.class)
-				.withHandler(PutRequest.class, PutResponse.class, req -> Stage.of(new PutResponse(store.put(req.getKey(), req.getValue()))))
-				.withHandler(GetRequest.class, GetResponse.class, req -> Stage.of(new GetResponse(store.get(req.getKey()))))
+				.withHandler(PutRequest.class, PutResponse.class, req -> Promise.of(new PutResponse(store.put(req.getKey(), req.getValue()))))
+				.withHandler(GetRequest.class, GetResponse.class, req -> Promise.of(new GetResponse(store.get(req.getKey()))))
 				.withListenPort(RPC_SERVER_PORT);
 	}
 }
 {% endhighlight %}
 
 As you can see, in order to properly create RpcServer we should indicate all the classes which will be sent between client and server, and specify appropriate RequestHandler for each request class.
-
 <br>
-Since Java 1.8 they could be expressed as lambdas, which are seen as third arguments in those lines:
+Since Java 1.8 they can be expressed as lambdas, which are represented as third arguments in these lines:
 {% highlight java %}
-.withHandler(PutRequest.class, PutResponse.class, req -> Stages.of(new PutResponse(store.put(req.getKey(), req.getValue()))))
-.withHandler(GetRequest.class, GetResponse.class, req -> Stages.of(new GetResponse(store.get(req.getKey()))))
+.withHandler(PutRequest.class, PutResponse.class, req -> Promise.of(new PutResponse(store.put(req.getKey(), req.getValue()))))
+.withHandler(GetRequest.class, GetResponse.class, req -> Promise.of(new GetResponse(store.get(req.getKey()))))
 {% endhighlight %}
 
 <br>
@@ -386,21 +385,21 @@ As you can see, sendRequest method returns a CompletionStage, at which we could 
 <br>
 Contratulation! We've finished writing code for this app. Let's now complile it. In order to do it go to project root directory and enter the following command:
 {% highlight bash %}
-mvn clean package
+$ mvn clean package
 {% endhighlight %}
 
 ## Testing {#testing}
 
 Firstly, launch server:
 {% highlight bash %}
-mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.RpcServerLauncher
+$ mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.RpcServerLauncher
 {% endhighlight %}
 
 
 <br>
 Then make a "put" request:
 {% highlight bash %}
-mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.RpcClientLauncher -Dexec.args="--put key1 value1"
+$ mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.RpcClientLauncher -Dexec.args="--put key1 value1"
 {% endhighlight %}
 You should see the following output:
 {% highlight bash %}
@@ -411,7 +410,7 @@ previous value: null
 <br>
 Finally, make a "get" request:
 {% highlight bash %}
-mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.RpcClientLauncher -Dexec.args="--get key1"
+$ mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.RpcClientLauncher -Dexec.args="--get key1"
 {% endhighlight %}
 You should see the following output:
 {% highlight bash %}

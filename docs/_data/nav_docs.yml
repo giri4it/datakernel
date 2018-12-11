@@ -6,7 +6,7 @@
     title: Getting Started
   - id: tutorial
     filename: tutorial/
-    title: Tutorial
+    title: Tutorials
     subitems:
     - id: launchers
       filename: tutorial/launchers
@@ -30,13 +30,22 @@
     - id: eventloop
       filename: eventloop/
       title: Eventloop
+    - id: async
+      filename: async/
+      title: Async
+    - id: csp
+      filename: csp/
+      title: CSP
   - id: core
     filename: core/
     title: Core Modules
     subitems:
     - title: HTTP
       id: http
-      filename: http/
+      filename: http/    
+    - title: Net
+      id: net
+      filename: net/
     - title: DataStreams
       id: streams
       filename: streams/
@@ -46,6 +55,10 @@
     - title: Codegen
       id: codegen
       filename: codegen/
+    - title: JSON
+      id: json
+      filename: json/
+
   - id: cluster
     filename: cluster/
     title: Cluster Modules
@@ -59,6 +72,21 @@
     - title: RemoteFS
       id: remotefs
       filename: remotefs/
+    - title: CRDT
+      id: crdt
+      filename: crdt/
+    - title: Cube
+      id: cube
+      filename: cube/
+    - title: OT
+      id: ot
+      filename: ot/
+    - title: OT-MySQL
+      id: ot-mysql
+      filename: ot-mysql/
+    - title: Datagraph
+      id: datagraph
+      filename: datagraph/
   - id: integration
     filename: integration/
     title: Integration Modules
@@ -69,3 +97,16 @@
     - title: UIKernel
       id: uikernel
       filename: uikernel/
+    - title: Launchers
+      id: launchers
+      filename: launchers/
+  - id: global-module
+    filename: global/
+    title: Global Module
+    subitems:
+    - title: Global-OT package
+      id: global-ot
+      filename: gloabal-ot/
+    - title: Global-FS package
+      id: global-fs
+      filename: global-fs/
