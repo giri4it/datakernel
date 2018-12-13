@@ -3,7 +3,7 @@ id: rpc
 filename: rpc/
 title: RPC Module
 prev: modules/json.html
-next: modules/aggregation.html
+next: modules/fs.html
 ---
 
 RPC module is the framework to build distributed applications requiring efficient client-server interconnections between servers.
@@ -16,11 +16,11 @@ RPC module is the framework to build distributed applications requiring efficien
 
 ## Examples
 
-1. ["Hello World" Client and Server](https://github.com/softindex/datakernel-examples/blob/master/examples/rpc/src/main/java/io/datakernel/examples/RpcExample.java)
+1. ["Hello World" Client and Server](https://github.com/softindex/datakernel/blob/master/examples/rpc/src/main/java/io/datakernel/examples/RpcExample.java)
 
 To run the example, you should execute these three lines in the console in appropriate folder:
 {% highlight bash %}
-$ git clone https://github.com/softindex/datakernel-examples.git
-$ cd datakernel-examples/examples/rpc
-$ mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.RpcExample
+$ git clone https://github.com/softindex/datakernel.git
+$ cd datakernel/examples/rpc
+$ mvn clean compile exec:java@RpcExample
 {% endhighlight %}

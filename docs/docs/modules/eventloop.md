@@ -1,9 +1,9 @@
 ---
 id: eventloop
 filename: eventloop/
-title: Eventloop Module
+title: Eventloop
 prev: modules/bytebuf.html
-next: modules/async.html
+next: modules/net.html
 ---
 
 Eventloop module is the foundation of other modules that run their code inside event loops and threads. Useful for building client-server applications with high performance requirements.
@@ -19,9 +19,9 @@ Eventloop module is the foundation of other modules that run their code inside e
 
 To run the examples, you should execute these three lines in the console in appropriate folder:
 {% highlight bash %}
-$ git clone https://github.com/softindex/datakernel-examples.git
-$ cd datakernel-examples/examples/eventloop
-$ mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.BusyWaitEventloopEchoServer
+$ git clone https://github.com/softindex/datakernel.git
+$ cd datakernel/examples/eventloop
+$ mvn clean compile exec:java@BusyWaitEventloopEchoServer
 $ # OR
-$ mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.SelectorEventloopEchoServer
+$ mvn clean compile exec:java@SelectorEventloopEchoServer
 {% endhighlight %}

@@ -1,9 +1,9 @@
 ---
-id: aggregation
-filename: aggregation/
-title: Aggregation Module
-prev: modules/rpc.html
-next: modules/remotefs.html
+id: lsmt-table
+filename: lsmt-table/
+title: LSMT Table
+prev: modules/ot-mysql.html
+next: modules/lsmt-database.html
 ---
 
 The Aggregation Module provides the foundation for building almost any type of database by providing the possibility to define custom aggregate functions.

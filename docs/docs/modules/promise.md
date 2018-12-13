@@ -1,9 +1,9 @@
 ---
-id: async
-filename: /async
-title: Async Module
-prev: modules/eventloop.html
-next: modules/csp.html
+id: promise
+filename: /promise
+title: Promise
+prev: modules/csp.html
+next: modules/codegen.html
 ---
 
 Async Module includes Promise - an efficient replacement of default Java CompletionStage interface. 
@@ -14,9 +14,9 @@ Async Module includes Promise - an efficient replacement of default Java Complet
 
 To run the examples, you should execute these lines in the console in appropriate folder:
 {% highlight bash %}
-$ git clone https://github.com/softindex/datakernel-examples.git
-$ cd datakernel-examples/examples/async
-$ mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.PromiseExample
+$ git clone https://github.com/softindex/datakernel.git
+$ cd datakernel/examples/async
+$ mvn clean compile exec:java@PromisesExample
 $ #or
-$ mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.AsyncFileExample
+$ mvn mvn clean compile exec:java@AsyncFileExample
 {% endhighlight %}

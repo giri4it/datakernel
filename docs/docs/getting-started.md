@@ -24,9 +24,9 @@ In this guide we will create a simple “Hello World” application using [Event
 
 To run the complete example, enter next commands:
 {% highlight bash %}
-$ git clone https://github.com/softindex/datakernel-examples
-$ cd datakernel-examples/getting-started
-$ mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.HelloWorld
+$ git clone https://github.com/softindex/datakernel
+$ cd datakernel/examples/getting-started
+$ mvn clean compile exec:java@HelloWorld
 {% endhighlight %}
 
 ## 2. Step-by-step guide {#step-by-step}

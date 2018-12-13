@@ -1,9 +1,9 @@
 ---
 id: boot
 filename: boot/
-title: Boot Module
-prev: modules/datagraph.html
-next: modules/uikernel.html
+title: Boot
+prev: modules/global-ot.html
+next: modules/launchers.html
 ---
 
 Boot module enables booting complex applications and services according to their dependencies in intelligent way.
@@ -16,17 +16,17 @@ Boot module enables booting complex applications and services according to their
 
 
 ## Examples
-1. [Config Module Example](https://github.com/softindex/datakernel-examples/tree/master/examples/boot/src/main/java/io/datakernel/examples/ConfigModuleExample) - supplies config to your application and controls it.
-2. [Service Graph Module Example](https://github.com/softindex/datakernel-examples/tree/master/examples/boot/src/main/java/io/datakernel/examples/ConfigModuleExample) - manages a service which displays "Hello World!" message.
-3. [Worker Pool Module Example](https://github.com/softindex/datakernel-examples/tree/master/examples/boot/src/main/java/io/datakernel/examples/ConfigModuleExample) - creating a Worker Pool with 4 workers.
+1. [Config Module Example](https://github.com/softindex/datakernel/tree/master/examples/boot/src/main/java/io/datakernel/examples/ConfigModuleExample) - supplies config to your application and controls it.
+2. [Service Graph Module Example](https://github.com/softindex/datakernel/tree/master/examples/boot/src/main/java/io/datakernel/examples/ConfigModuleExample) - manages a service which displays "Hello World!" message.
+3. [Worker Pool Module Example](https://github.com/softindex/datakernel/tree/master/examples/boot/src/main/java/io/datakernel/examples/ConfigModuleExample) - creating a Worker Pool with 4 workers.
 
 To run the examples, you should execute these lines in the console in appropriate folder:
 {% highlight bash %}
-$ git clone https://github.com/softindex/datakernel-examples.git
-$ cd datakernel-examples/examples/boot
-$ mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.ConfigModuleExample
+$ git clone https://github.com/softindex/datakernel.git
+$ cd datakernel/examples/boot
+$ mvn clean compile exec:java@ConfigModuleExample
 $ #or
-$ mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.ServiceGraphModuleExample
+$ mvn clean compile exec:java@ServiceGraphModuleExample
 $ #or
-$ mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.WorkerPoolModuleExample
+$ mvn clean compile exec:java@WorkerPoolModuleExample
 {% endhighlight %}

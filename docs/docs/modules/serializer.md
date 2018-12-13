@@ -1,9 +1,9 @@
 ---
 id: serializer
 filename: serializer
-title: Serializer Module
-prev: modules/streams.html
-next: modules/codegen.html
+title: Serializer
+prev: modules/codegen.html
+next: modules/datastream.html
 ---
 
 Serializers module is a bytecode generator of extremely fast and space efficient serializers, which are used for transferring data over wire or persisting it into a file system or database.
@@ -13,22 +13,22 @@ Serializers module is a bytecode generator of extremely fast and space efficient
 
 ## Examples
 
-1. [Simple Object Serialization Example](https://github.com/softindex/datakernel-examples/blob/master/examples/serializer/src/main/java/io/datakernel/examples/SimpleObjectSerializationExample.java) - serialization and deserialization of a simple object.
-2. [Complex Object Serialization Example](https://github.com/softindex/datakernel-examples/blob/master/examples/serializer/src/main/java/io/datakernel/examples/ComplexObjectSerializationExample.java) - serialization and deserialization of a more complex object, which contains nullable fields, map, list and a two-dimensional array.
-3. [Fixed Size Fields Serialization Example](https://github.com/softindex/datakernel-examples/blob/master/examples/serializer/src/main/java/io/datakernel/examples/FixedSizeFieldsSerializationExample.java) -
-4. [Generics & Interfaces Serialization Example](https://github.com/softindex/datakernel-examples/blob/master/examples/serializer/src/main/java/io/datakernel/examples/GenericsAndInterfacesSerializationExample.java) -
+1. [Simple Object Serialization Example](https://github.com/softindex/datakernel/blob/master/examples/serializer/src/main/java/io/datakernel/examples/SimpleObjectSerializationExample.java) - serialization and deserialization of a simple object.
+2. [Complex Object Serialization Example](https://github.com/softindex/datakernel/blob/master/examples/serializer/src/main/java/io/datakernel/examples/ComplexObjectSerializationExample.java) - serialization and deserialization of a more complex object, which contains nullable fields, map, list and a two-dimensional array.
+3. [Fixed Size Fields Serialization Example](https://github.com/softindex/datakernel/blob/master/examples/serializer/src/main/java/io/datakernel/examples/FixedSizeFieldsSerializationExample.java) -
+4. [Generics & Interfaces Serialization Example](https://github.com/softindex/datakernel/blob/master/examples/serializer/src/main/java/io/datakernel/examples/GenericsAndInterfacesSerializationExample.java) -
 
 To run the example, you should execute these lines in the console in appropriate folder:
 {% highlight bash %}
-$ git clone https://github.com/softindex/datakernel-examples.git
-$ cd datakernel-examples/examples/serializer
-$ mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.SimpleObjectSerializationExample
+$ git clone https://github.com/softindex/datakernel.git
+$ cd datakernel/examples/serializer
+$ mvn clean compile exec:java@SimpleObjectSerializationExample
 $ # OR
-$ mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.ComplexObjectSerializationExample
+$ mvn clean compile exec:java@ComplexObjectSerializationExample
 $ # OR
-$ mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.FixedSizeFieldsSerializationExample
+$ mvn clean compile exec:java@FixedSizeFieldsSerializationExample
 $ # OR
-$ mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.GenericsAndInterfacesSerializationExample
+$ mvn clean compile exec:java@GenericsAndInterfacesSerializationExample
 {% endhighlight %}
 
 If you run the first example, you'll get the following output:

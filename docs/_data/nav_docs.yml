@@ -20,9 +20,10 @@
 - title: MODULES
   is-modules: true
   items:
-  - id: foundation
-    filename: foundation/
-    title: Foundation Modules
+
+  - id: core
+    filename: core/
+    title: Core Modules
     subitems:
     - id: bytebuf
       filename: bytebuf/
@@ -30,63 +31,80 @@
     - id: eventloop
       filename: eventloop/
       title: Eventloop
-    - id: async
-      filename: async/
-      title: Async
-    - id: csp
-      filename: csp/
-      title: CSP
-  - id: core
-    filename: core/
-    title: Core Modules
-    subitems:
-    - title: HTTP
-      id: http
-      filename: http/    
     - title: Net
       id: net
       filename: net/
-    - title: DataStreams
-      id: streams
-      filename: streams/
-    - title: Serializer
-      id: serializer
-      filename: serializer/
+    - id: csp
+      filename: csp/
+      title: CSP
+    - id: promise
+      filename: promise/
+      title: Promise
     - title: Codegen
       id: codegen
       filename: codegen/
+    - title: Serializer
+      id: serializer
+      filename: serializer/
+    - title: Datastream
+      id: datastream
+      filename: datastream/
+    - title: HTTP
+      id: http
+      filename: http/
     - title: JSON
       id: json
       filename: json/
 
-  - id: cluster
-    filename: cluster/
-    title: Cluster Modules
+  - id: cloud
+    filename: cloud/
+    title: Cloud Modules
     subitems:
     - title: RPC
       id: rpc
       filename: rpc/
-    - title: Aggregation
-      id: aggregation
-      filename: aggregation/
-    - title: RemoteFS
-      id: remotefs
-      filename: remotefs/
-    - title: CRDT
-      id: crdt
-      filename: crdt/
-    - title: Cube
-      id: cube
-      filename: cube/
+    - title: FS
+      id: fs
+      filename: fs/
     - title: OT
       id: ot
       filename: ot/
     - title: OT-MySQL
       id: ot-mysql
       filename: ot-mysql/
-    - title: Datagraph
-      id: datagraph
-      filename: datagraph/
+    - title: LSMT Table
+      id: lsmt-table
+      filename: lsmt-table/
+    - title: LSMT Database
+      id: lsmt-database
+      filename: lsmt-database/
+    - title: Dataflow
+      id: dataflow
+      filename: dataflow/
+    - title: CRDT
+      id: crdt
+      filename: crdt/
+    - title: Multilog
+      id: multilog
+      filename: multilog/
+    - title: ETL
+      id: etl
+      filename: etl/
+
+  - id: global-module
+    filename: global/
+    title: Global Module
+    subitems:
+    - title: Global Common
+      id: global-common
+      filename: global-common
+    - title: Global-FS
+      id: global-fs
+      filename: global-fs/
+    - title: Global-OT
+      id: global-ot
+      filename: gloabal-ot/
+
   - id: integration
     filename: integration/
     title: Integration Modules
@@ -94,19 +112,9 @@
     - title: Boot
       id: boot
       filename: boot/
-    - title: UIKernel
-      id: uikernel
-      filename: uikernel/
     - title: Launchers
       id: launchers
       filename: launchers/
-  - id: global-module
-    filename: global/
-    title: Global Module
-    subitems:
-    - title: Global-OT package
-      id: global-ot
-      filename: gloabal-ot/
-    - title: Global-FS package
-      id: global-fs
-      filename: global-fs/
+    - title: UIKernel
+      id: uikernel
+      filename: uikernel/

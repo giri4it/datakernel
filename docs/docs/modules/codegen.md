@@ -1,9 +1,9 @@
 ---
 id: codegen
 filename: codegen/
-title: Codegen Module
-prev: modules/serializer.html
-next: modules/json.html
+title: Codegen
+prev: modules/promise.html
+next: modules/serializer.html
 ---
 
 Codegen module allows to build classes and methods in runtime without the overhead of reflection.
@@ -15,16 +15,16 @@ Codegen module allows to build classes and methods in runtime without the overhe
 
 ## Example
 
-1. [Dynamic Class Creation](https://github.com/softindex/datakernel-examples/blob/master/examples/codegen/src/main/java/io/datakernel/examples/DynamicClassCreationExample.java) - dynamically creates a Class that implements a specified interface.
-2. [Expressions Example](https://github.com/softindex/datakernel-examples/blob/master/examples/codegen/src/main/java/io/datakernel/examples/ExpressionsExample.java) - dinamically creates a class with method sayHello which is described using expression.
+1. [Dynamic Class Creation](https://github.com/softindex/datakernel/blob/master/examples/codegen/src/main/java/io/datakernel/examples/DynamicClassCreationExample.java) - dynamically creates a Class that implements a specified interface.
+2. [Expressions Example](https://github.com/softindex/datakernel/blob/master/examples/codegen/src/main/java/io/datakernel/examples/ExpressionsExample.java) - dinamically creates a class with method sayHello which is described using expression.
 
 To run the example, you should execute these three lines in the console in appropriate folder:
 {% highlight bash %}
-$ git clone https://github.com/softindex/datakernel-examples.git
+$ git clone https://github.com/softindex/datakernel.git
 $ cd datakernel-examples/examples/codegen
-$ mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.DynamicClassCreationExample
+$ mvn clean compile exec:java@DynamicClassCreationExample
 $ # OR
-$ mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.ExpressionsExample
+$ mvn clean compile exec:java@ExpressionsExample
 {% endhighlight %}
 
 If you run Dynamic Class Creation Example, you will receive the following output:

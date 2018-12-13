@@ -1,7 +1,7 @@
 ---
 id: bytebuf
 filename: bytebuf/
-title: ByteBuf Module
+title: ByteBuf
 next: modules/eventloop.html
 ---
 
@@ -12,22 +12,22 @@ ByteBuf module provides memory-efficient, recyclable byte buffers.
 * handy utilities
 
 ## Examples
-1. [ByteBuf Example](https://github.com/softindex/datakernel-examples/tree/master/examples/bytebuf/src/main/java/io/datakernel/examples/ByteBufExample) - represents some basics of ByteBuf possiblities, such as: 
+1. [ByteBuf Example](https://github.com/softindex/datakernel/tree/master/examples/bytebuf/src/main/java/io/datakernel/examples/ByteBufExample) - represents some basics of ByteBuf possiblities, such as: 
     * wrapping data in ByteBuf for writing/reading, 
     * slicing particular parts out of data,
     * conversions.
-2. [ByteBuf Pool Example](https://github.com/softindex/datakernel-examples/tree/master/examples/bytebuf/src/main/java/io/datakernel/examples/ByteBufPoolExample) - pools in ByteBuf and their behaviour.
-3. [ByteBuf Queue Example](https://github.com/softindex/datakernel-examples/tree/master/examples/bytebuf/src/main/java/io/datakernel/examples/ByteBufQueueExample) - shows how queues of ByteBufs are created and processed.
+2. [ByteBuf Pool Example](https://github.com/softindex/datakernel/tree/master/examples/bytebuf/src/main/java/io/datakernel/examples/ByteBufPoolExample) - pools in ByteBuf and their behaviour.
+3. [ByteBuf Queue Example](https://github.com/softindex/datakernel/tree/master/examples/bytebuf/src/main/java/io/datakernel/examples/ByteBufQueueExample) - shows how queues of ByteBufs are created and processed.
 
 To run the examples, you should execute these three lines in the console in appropriate folder:
 {% highlight bash %}
-$ git clone https://github.com/softindex/datakernel-examples.git
-$ cd datakernel-examples/examples/bytebuf
-$ mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.ByteBufExample
+$ git clone https://github.com/softindex/datakernel.git
+$ cd datakernel/examples/bytebuf
+$ mvn clean compile exec:java@ByteBufExample
 $ #or
-$ mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.ByteBufPoolExample
+$ mvn clean compile exec:java@ByteBufPoolExample
 $ #or
-$ mvn clean package exec:java -Dexec.mainClass=io.datakernel.examples.ByteBufQueueExample
+$ mvn clean compile exec:java@ByteBufQueueExample
 {% endhighlight %}
 
 If you run the ByteBuf example, you'll receive the following output:

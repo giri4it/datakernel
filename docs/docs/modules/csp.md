@@ -1,8 +1,7 @@
 ---
 id: csp
 filename: csp/
-title: CSP Module
-prev: modules/async.html
-next: modules/http.html
+title: CSP
+prev: modules/net.html
+next: modules/promise.html
 ---
-CSP is cool
