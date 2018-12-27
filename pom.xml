@@ -50,6 +50,7 @@
 		<module>boot</module>
 		<module>uikernel</module>
 		<module>launchers</module>
+		<module>serializer-annotations</module>
 		<module>test</module>
 	</modules>
 

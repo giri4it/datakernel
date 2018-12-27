@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 SoftIndex LLC.
+ * Copyright (C) 2015-2018 SoftIndex LLC.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 
 package io.datakernel.serializer.annotations;
 
-import io.datakernel.serializer.asm.SerializerGen;
+import io.datakernel.serializer.SerializerGenBase;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -30,5 +30,5 @@ import java.lang.annotation.Target;
 public @interface SerializerClass {
 	int[] path() default {};
 
-	Class<? extends SerializerGen> value();
+	Class<? extends SerializerGenBase> value();
 }

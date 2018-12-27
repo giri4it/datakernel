@@ -28,7 +28,7 @@ public final class SerializerClassHandler implements AnnotationHandler<Serialize
 	@Override
 	public SerializerGenBuilder createBuilder(Helper serializerBuilder, SerializerClass annotation, CompatibilityLevel compatibilityLevel) {
 		try {
-			SerializerGen serializer = annotation.value().newInstance();
+			SerializerGen serializer = (SerializerGen) annotation.value().newInstance();
 			return new SerializerGenBuilderConst(serializer);
 		} catch (InstantiationException | IllegalAccessException e) {
 			try {

@@ -20,12 +20,13 @@ import io.datakernel.codegen.Expression;
 import io.datakernel.codegen.Variable;
 import io.datakernel.serializer.CompatibilityLevel;
 import io.datakernel.serializer.SerializerBuilder.StaticMethods;
+import io.datakernel.serializer.SerializerGenBase;
 
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 
-public interface SerializerGen {
+public interface SerializerGen extends SerializerGenBase {
 
 	final class VersionsCollector {
 		private final Set<Integer> versions = new HashSet<>();
