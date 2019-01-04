@@ -28,6 +28,7 @@ import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLEngineResult;
 import javax.net.ssl.SSLEngineResult.HandshakeStatus;
 import javax.net.ssl.SSLException;
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.concurrent.Executor;
 
@@ -344,6 +345,11 @@ public final class AsyncSslSocket implements AsyncTcpSocket {
 		tryRecycle(engine2app);
 		tryRecycle(app2engine);
 		net2engine = engine2app = app2engine = null;
+	}
+
+	@Override
+	public InetSocketAddress getRemoteSocketAddress() {
+		return upstream.getRemoteSocketAddress();
 	}
 
 	@Override

@@ -22,6 +22,7 @@ import io.datakernel.async.Promise;
 import io.datakernel.bytebuf.ByteBuf;
 import io.datakernel.net.SocketSettings;
 
+import java.net.InetSocketAddress;
 import java.nio.channels.SocketChannel;
 
 import static io.datakernel.eventloop.Eventloop.getCurrentEventloop;
@@ -70,5 +71,7 @@ public interface AsyncTcpSocket extends Cancellable {
 	static AsyncTcpSocket ofSocketChannel(SocketChannel socketChannel, SocketSettings socketSettings) {
 		return AsyncTcpSocketImpl.wrapChannel(getCurrentEventloop(), socketChannel, socketSettings);
 	}
+
+	InetSocketAddress getRemoteSocketAddress();
 
 }

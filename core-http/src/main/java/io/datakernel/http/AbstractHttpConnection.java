@@ -35,6 +35,8 @@ import io.datakernel.exception.ParseException;
 import io.datakernel.http.stream.*;
 import io.datakernel.util.ApplicationSettings;
 import io.datakernel.util.MemSize;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.function.BiConsumer;
 
@@ -47,6 +49,8 @@ import static io.datakernel.http.HttpUtils.trimAndDecodePositiveInt;
 import static java.lang.Math.max;
 
 public abstract class AbstractHttpConnection {
+	private static final Logger logger = LoggerFactory.getLogger(AbstractHttpConnection.class);
+
 	public static final AsyncTimeoutException READ_TIMEOUT_ERROR = new AsyncTimeoutException(AbstractHttpConnection.class, "Read timeout");
 	public static final AsyncTimeoutException WRITE_TIMEOUT_ERROR = new AsyncTimeoutException(AbstractHttpConnection.class, "Write timeout");
 	public static final ParseException HEADER_NAME_ABSENT = new ParseException(AbstractHttpConnection.class, "Header name is absent");
@@ -187,6 +191,7 @@ public abstract class AbstractHttpConnection {
 	}
 
 	protected final void writeHttpMessage(HttpMessage httpMessage) {
+		logger.trace(socket.getRemoteSocketAddress() + ": Writing http message");
 		writeHttpMessageImpl(bodySupplier(httpMessage));
 		httpMessage.recycle();
 	}
@@ -327,11 +332,13 @@ public abstract class AbstractHttpConnection {
 	}
 
 	private void readFirstLine() {
+		logger.trace(socket.getRemoteSocketAddress() + ": Reading first line");
 		assert !isClosed();
 		ByteBuf buf = null;
 		try {
 			buf = takeFirstLine();
 			if (buf == null) { // states that more bytes are being required
+				logger.trace(socket.getRemoteSocketAddress() + ": More bytes required");
 				if (readQueue.hasRemainingBytes(MAX_HEADER_LINE_SIZE_BYTES)) throw TOO_LONG_HEADER;
 				socket.read().whenComplete(firstLineConsumer);
 				return;
@@ -351,6 +358,7 @@ public abstract class AbstractHttpConnection {
 	}
 
 	private void readHeaders() {
+		logger.trace(socket.getRemoteSocketAddress() + ": Reading headers");
 		assert !isClosed();
 		try {
 			while (true) {
@@ -377,6 +385,7 @@ public abstract class AbstractHttpConnection {
 	}
 
 	private void readBody() {
+		logger.trace(socket.getRemoteSocketAddress() + ": Reading body");
 		if ((flags & (CHUNKED | GZIPPED)) == 0 && readQueue.hasRemainingBytes(contentLength)) {
 			ByteBuf body = readQueue.takeExactSize(contentLength);
 			onHeadersReceived(new ChannelSuppliers.ChannelSupplierOfValue<>(body));

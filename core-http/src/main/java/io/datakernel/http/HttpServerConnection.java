@@ -25,6 +25,8 @@ import io.datakernel.exception.ParseException;
 import io.datakernel.exception.UncheckedException;
 import io.datakernel.exception.UnknownFormatException;
 import io.datakernel.http.AsyncHttpServer.Inspector;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.net.InetAddress;
 import java.util.Arrays;
@@ -39,7 +41,9 @@ import static io.datakernel.http.HttpMethod.*;
  * {@link AsyncServlet async servlet}.
  */
 final class HttpServerConnection extends AbstractHttpConnection {
-	public static final ParseException FIRST_LINE_IS_TOO_BIG = new ParseException(HttpServerConnection.class, "First line is too big");
+	private final Logger logger = LoggerFactory.getLogger(AbstractHttpConnection.class);
+
+	public static final ParseException FIRST_LINE_IS_TOO_BIG = new ParseException(AbstractHttpConnection.class, "First line is too big");
 
 	private static final int HEADERS_SLOTS = 256;
 	private static final int MAX_PROBINGS = 2;
@@ -89,6 +93,7 @@ final class HttpServerConnection extends AbstractHttpConnection {
 	}
 
 	public void serve() {
+		logger.trace(socket.getRemoteSocketAddress() + ": Start serving connecton");
 		switchPool(server.poolReadWrite);
 		socket.read().whenComplete(firstLineConsumer);
 	}
@@ -216,6 +221,7 @@ final class HttpServerConnection extends AbstractHttpConnection {
 
 	@Override
 	protected void onHeadersReceived(ChannelSupplier<ByteBuf> bodySupplier) {
+		logger.trace(socket.getRemoteSocketAddress() + ": On headers received");
 		request.bodySupplier = bodySupplier;
 		request.setRemoteAddress(remoteAddress);
 
@@ -255,6 +261,7 @@ final class HttpServerConnection extends AbstractHttpConnection {
 
 	@Override
 	protected void onBodyReceived() {
+		logger.trace(socket.getRemoteSocketAddress() + ": On body received");
 		if ((flags & (BODY_SENT | BODY_RECEIVED)) == (BODY_SENT | BODY_RECEIVED) && pool != server.poolServing) {
 			onHttpMessageComplete();
 		}
@@ -262,12 +269,14 @@ final class HttpServerConnection extends AbstractHttpConnection {
 
 	@Override
 	protected void onBodySent() {
+		logger.trace(socket.getRemoteSocketAddress() + ": On body sent");
 		if ((flags & (BODY_SENT | BODY_RECEIVED)) == (BODY_SENT | BODY_RECEIVED) && pool != server.poolServing) {
 			onHttpMessageComplete();
 		}
 	}
 
 	private void onHttpMessageComplete() {
+		logger.trace(socket.getRemoteSocketAddress() + ": On Http message complete");
 		assert !isClosed();
 
 		if (request != null) {
