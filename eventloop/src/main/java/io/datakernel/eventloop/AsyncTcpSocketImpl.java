@@ -19,12 +19,16 @@ package io.datakernel.eventloop;
 import io.datakernel.annotation.Nullable;
 import io.datakernel.bytebuf.ByteBuf;
 import io.datakernel.bytebuf.ByteBufPool;
+import io.datakernel.bytebuf.ByteBufStrings;
 import io.datakernel.exception.AsyncTimeoutException;
+import io.datakernel.exception.ParseException;
 import io.datakernel.jmx.EventStats;
 import io.datakernel.jmx.JmxAttribute;
 import io.datakernel.jmx.ValueStats;
 import io.datakernel.net.SocketSettings;
 import io.datakernel.util.MemSize;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -39,6 +43,8 @@ import static io.datakernel.util.Preconditions.checkNotNull;
 
 @SuppressWarnings({"WeakerAccess", "AssertWithSideEffects"})
 public final class AsyncTcpSocketImpl implements AsyncTcpSocket, NioChannelEventHandler {
+	private final Logger logger = LoggerFactory.getLogger(AsyncTcpSocketImpl.class);
+
 	public static final MemSize DEFAULT_READ_BUF_SIZE = MemSize.kilobytes(16);
 	public static final int OP_POSTPONED = 1 << 7;  // SelectionKey constant
 
@@ -214,6 +220,7 @@ public final class AsyncTcpSocketImpl implements AsyncTcpSocket, NioChannelEvent
 	private AsyncTcpSocketImpl(Eventloop eventloop, SocketChannel socketChannel) {
 		this.eventloop = checkNotNull(eventloop);
 		this.channel = checkNotNull(socketChannel);
+		logger.trace(getRemoteSocketAddress() + ": Creating new socket");
 	}
 	// endregion
 
@@ -229,6 +236,20 @@ public final class AsyncTcpSocketImpl implements AsyncTcpSocket, NioChannelEvent
 	public final void register() {
 		socketEventHandler.onRegistered();
 		try {
+			String operations = "";
+			if ((ops & SelectionKey.OP_READ) != 0) {
+				operations += "READ ";
+			}
+			if ((ops & SelectionKey.OP_WRITE) != 0) {
+				operations += "WRITE ";
+			}
+			if ((ops & SelectionKey.OP_ACCEPT) != 0) {
+				operations += "ACCEPT ";
+			}
+			if ((ops & SelectionKey.OP_CONNECT) != 0) {
+				operations += "CONNECt ";
+			}
+			logger.trace(getRemoteSocketAddress() + ": Registering operations: " + operations);
 			key = channel.register(eventloop.ensureSelector(), ops, this);
 			connectionCount.incrementAndGet();
 		} catch (IOException e) {
@@ -317,12 +338,19 @@ public final class AsyncTcpSocketImpl implements AsyncTcpSocket, NioChannelEvent
 
 		int numRead;
 		try {
+			logger.trace(getRemoteSocketAddress() + ": Reading data... ");
 			numRead = channel.read(buffer);
+			logger.trace(getRemoteSocketAddress() + ": " + numRead + " bytes has been read");
 			buf.ofWriteByteBuffer(buffer);
+			logger.trace(getRemoteSocketAddress() + ": Received data:\n" + ByteBufStrings.decodeUtf8(buf));
 		} catch (IOException e) {
+			logger.warn(getRemoteSocketAddress() + ": Failed to read data", e);
 			buf.recycle();
 			if (inspector != null) inspector.onReadError(e);
 			closeWithError(e, false);
+			return -1;
+		} catch (ParseException e) {
+			logger.warn(getRemoteSocketAddress() + ": Failed to read data", e);
 			return -1;
 		}
 
@@ -406,11 +434,15 @@ public final class AsyncTcpSocketImpl implements AsyncTcpSocket, NioChannelEvent
 			ByteBuffer bufferToSend = bufToSend.toReadByteBuffer();
 
 			try {
+				logger.trace(getRemoteSocketAddress() + ": Writing data:\n " + ByteBufStrings.decodeUtf8(bufToSend));
 				channel.write(bufferToSend);
 			} catch (IOException e) {
+				logger.trace(getRemoteSocketAddress() + ": Failed to write", e);
 				if (inspector != null) inspector.onWriteError(e);
 				bufToSend.recycle();
 				throw e;
+			} catch (ParseException e) {
+				logger.trace(getRemoteSocketAddress() + ": Failed to write", e);
 			}
 
 			if (inspector != null)

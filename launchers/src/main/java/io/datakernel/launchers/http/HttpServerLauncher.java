@@ -1,5 +1,7 @@
 package io.datakernel.launchers.http;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
 import com.google.inject.AbstractModule;
 import com.google.inject.Inject;
 import com.google.inject.Provides;
@@ -7,14 +9,17 @@ import com.google.inject.Singleton;
 import io.datakernel.bytebuf.ByteBuf;
 import io.datakernel.config.Config;
 import io.datakernel.config.ConfigModule;
+import io.datakernel.eventloop.AsyncTcpSocketImpl;
 import io.datakernel.eventloop.Eventloop;
 import io.datakernel.eventloop.ThrottlingController;
+import io.datakernel.http.AbstractHttpConnection;
 import io.datakernel.http.AsyncHttpServer;
 import io.datakernel.http.AsyncServlet;
 import io.datakernel.jmx.JmxModule;
 import io.datakernel.launcher.Launcher;
 import io.datakernel.service.ServiceGraphModule;
 import io.datakernel.util.guice.OptionalDependency;
+import org.slf4j.LoggerFactory;
 
 import java.net.InetSocketAddress;
 import java.util.Collection;
@@ -100,6 +105,10 @@ public abstract class HttpServerLauncher extends Launcher {
 	}
 
 	public static void main(String[] args) throws Exception {
+		((Logger) LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME)).setLevel(Level.WARN);
+		((Logger) LoggerFactory.getLogger(AsyncTcpSocketImpl.class)).setLevel(Level.TRACE);
+		((Logger) LoggerFactory.getLogger(AbstractHttpConnection.class)).setLevel(Level.TRACE);
+
 		String businessLogicModuleName = System.getProperty(BUSINESS_MODULE_PROP);
 		com.google.inject.Module businessLogicModule = businessLogicModuleName != null ?
 				(com.google.inject.Module) Class.forName(businessLogicModuleName).newInstance() :

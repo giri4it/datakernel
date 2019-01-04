@@ -24,6 +24,8 @@ import io.datakernel.eventloop.Eventloop;
 import io.datakernel.exception.AsyncTimeoutException;
 import io.datakernel.exception.ParseException;
 import io.datakernel.util.MemSize;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static io.datakernel.bytebuf.ByteBufStrings.*;
 import static io.datakernel.http.GzipProcessorUtils.fromGzip;
@@ -32,6 +34,8 @@ import static io.datakernel.http.HttpUtils.decodeUnsignedInt;
 
 @SuppressWarnings("ThrowableInstanceNeverThrown")
 public abstract class AbstractHttpConnection implements AsyncTcpSocket.EventHandler {
+	private static final Logger logger = LoggerFactory.getLogger(AbstractHttpConnection.class);
+
 	public static final AsyncTimeoutException READ_TIMEOUT_ERROR = new AsyncTimeoutException("HTTP connection read timeout");
 	public static final AsyncTimeoutException WRITE_TIMEOUT_ERROR = new AsyncTimeoutException("HTTP connection write timeout");
 	public static final ParseException CLOSED_CONNECTION = new ParseException("HTTP connection unexpectedly closed");
@@ -335,6 +339,7 @@ public abstract class AbstractHttpConnection implements AsyncTcpSocket.EventHand
 	}
 
 	private void onCompleteMessage(ByteBuf raw) throws ParseException {
+		logger.trace(asyncTcpSocket.getRemoteSocketAddress() + ": On complete message");
 		if (isGzipped) {
 			if (raw.readRemaining() > 0) {
 				raw = fromGzip(raw, maxHttpMessageSize);
@@ -346,6 +351,7 @@ public abstract class AbstractHttpConnection implements AsyncTcpSocket.EventHand
 
 	@Override
 	public final void onRead(ByteBuf buf) {
+		logger.trace(asyncTcpSocket.getRemoteSocketAddress() + ": On read");
 		assert eventloop.inEventloopThread();
 		assert !isClosed();
 		if (buf != null) readQueue.add(buf);

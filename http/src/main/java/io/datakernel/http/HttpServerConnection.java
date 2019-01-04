@@ -21,6 +21,8 @@ import io.datakernel.bytebuf.ByteBuf;
 import io.datakernel.eventloop.AsyncTcpSocket;
 import io.datakernel.eventloop.Eventloop;
 import io.datakernel.exception.ParseException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.net.InetAddress;
 import java.util.Arrays;
@@ -37,6 +39,8 @@ import static io.datakernel.http.HttpMethod.*;
  * {@link AsyncServlet async servlet}.
  */
 final class HttpServerConnection extends AbstractHttpConnection {
+	private static final Logger logger = LoggerFactory.getLogger(AbstractHttpConnection.class);
+
 	private static final int HEADERS_SLOTS = 256;
 	private static final int MAX_PROBINGS = 2;
 	private static final HttpMethod[] METHODS = new HttpMethod[HEADERS_SLOTS];
@@ -95,6 +99,7 @@ final class HttpServerConnection extends AbstractHttpConnection {
 
 	@Override
 	public void onReadEndOfStream() {
+		logger.trace(asyncTcpSocket.getRemoteSocketAddress() + ": On read end of stream");
 		if (reading == NOTHING)
 			close();
 		else
@@ -151,6 +156,7 @@ final class HttpServerConnection extends AbstractHttpConnection {
 	 */
 	@Override
 	protected void onFirstLine(ByteBuf line) throws ParseException {
+		logger.trace(asyncTcpSocket.getRemoteSocketAddress() + ": On first line");
 		pool.removeNode(this);
 		(pool = server.poolReading).addLastNode(this);
 		poolTimestamp = eventloop.currentTimeMillis();
@@ -219,6 +225,7 @@ final class HttpServerConnection extends AbstractHttpConnection {
 	}
 
 	private void writeHttpResult(HttpResponse httpResponse) {
+		logger.trace(asyncTcpSocket.getRemoteSocketAddress() + ": Write http result");
 		httpResponse.addHeader(keepAlive ? CONNECTION_KEEP_ALIVE_HEADER : CONNECTION_CLOSE_HEADER);
 		ByteBuf buf = httpResponse.toByteBuf();
 		httpResponse.recycleBufs();
@@ -237,6 +244,7 @@ final class HttpServerConnection extends AbstractHttpConnection {
 	 */
 	@Override
 	protected void onHttpMessage(ByteBuf bodyBuf) {
+		logger.trace(asyncTcpSocket.getRemoteSocketAddress() + ": On Http message");
 		if (keepAlive && server.maxKeepAliveRequests != -1){
 			if(++numberOfKeepAliveRequests >= server.maxKeepAliveRequests){
 				keepAlive = false;
@@ -302,6 +310,8 @@ final class HttpServerConnection extends AbstractHttpConnection {
 
 	@Override
 	public void onWrite() {
+		logger.trace(asyncTcpSocket.getRemoteSocketAddress() + ": On write");
+
 		assert !isClosed();
 		if (reading != NOTHING) return;
 
