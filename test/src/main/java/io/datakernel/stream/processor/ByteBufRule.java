@@ -34,17 +34,6 @@ import static org.junit.Assert.assertEquals;
  * Annotation {@link IgnoreLeaks} can be put on a test that wants this rule disabled.
  */
 public final class ByteBufRule implements TestRule {
-	static {
-		initByteBufPool();
-	}
-
-	public static void initByteBufPool() {
-		System.setProperty("ByteBufPool.stats", "true");
-		System.setProperty("ByteBufPool.registry", "true");
-		System.setProperty("ByteBufPool.minSize", "0");
-		System.setProperty("ByteBufPool.maxSize", "0");
-	}
-
 	@Override
 	public Statement apply(Statement base, Description description) {
 		if (description.getTestClass().getAnnotation(IgnoreLeaks.class) != null

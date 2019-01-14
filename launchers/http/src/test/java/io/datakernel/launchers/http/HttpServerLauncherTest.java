@@ -8,13 +8,9 @@ import org.junit.Test;
 
 import java.util.Collection;
 
-import static io.datakernel.stream.processor.ByteBufRule.initByteBufPool;
 import static java.util.Collections.singletonList;
 
 public class HttpServerLauncherTest {
-	static {
-		initByteBufPool();
-	}
 
 	@Test
 	public void testsInjector() {

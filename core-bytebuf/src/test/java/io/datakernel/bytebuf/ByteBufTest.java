@@ -27,17 +27,6 @@ import java.util.List;
 import static org.junit.Assert.*;
 
 public class ByteBufTest {
-	static {
-		initByteBufPool();
-	}
-
-	public static void initByteBufPool() {
-		System.setProperty("ByteBufPool.stats", "true");
-		System.setProperty("ByteBufPool.registry", "true");
-		System.setProperty("ByteBufPool.minSize", "0");
-		System.setProperty("ByteBufPool.maxSize", "0");
-	}
-
 	private static final byte[] BYTES = {'T', 'e', 's', 't', ' ', 'm', 'e', 's', 's', 'a', 'g', 'e'};
 
 	@Before

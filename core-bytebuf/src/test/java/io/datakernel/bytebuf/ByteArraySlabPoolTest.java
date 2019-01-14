@@ -18,15 +18,10 @@ package io.datakernel.bytebuf;
 
 import org.junit.Test;
 
-import static io.datakernel.bytebuf.ByteBufTest.initByteBufPool;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class ByteArraySlabPoolTest {
-	static {
-		initByteBufPool();
-	}
-
 	private void checkAllocate(int size, int expectedSize, int[] poolSizes) {
 		ByteBufPool.clear();
 
