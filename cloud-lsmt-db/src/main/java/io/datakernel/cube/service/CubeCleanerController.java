@@ -14,6 +14,7 @@ import io.datakernel.ot.DiffsReducer;
 import io.datakernel.ot.OTAlgorithms;
 import io.datakernel.ot.OTCommit;
 import io.datakernel.ot.OTRepositoryEx;
+import io.datakernel.ot.exceptions.OTException;
 import io.datakernel.util.CollectionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -106,10 +107,16 @@ public final class CubeCleanerController<K, D, C> implements EventloopJmxMBeanEx
 
 	Promise<Void> doCleanup() {
 		return repository.getHeads()
-				.thenCompose(algorithms::excludeParents)
-				.thenCompose(heads -> findFrozenCut(heads, eventloop.currentInstant().minus(freezeTimeout)))
-				.thenCompose(this::cleanupFrozenCut)
-				.whenComplete(promiseCleanup.recordStats())
+				.thenCompose(heads -> {
+					if (heads.isEmpty()) {
+						logger.info("No heads found, skip cleanup");
+						return Promise.complete();
+					}
+					return algorithms.excludeParents(heads)
+							.thenCompose(filteredHeads -> findFrozenCut(filteredHeads, eventloop.currentInstant().minus(freezeTimeout)))
+							.thenCompose(this::cleanupFrozenCut)
+							.whenComplete(promiseCleanup.recordStats());
+				})
 				.whenComplete(toLogger(logger, thisMethod()));
 	}
 
@@ -139,21 +146,30 @@ public final class CubeCleanerController<K, D, C> implements EventloopJmxMBeanEx
 
 	Promise<Void> trySaveSnapshotAndCleanupChunks(K checkpointNode) {
 		return Promise.of(checkpointNode)
-				.thenCompose(algorithms::checkout)
-				.thenCompose(checkpointDiffs -> repository.saveSnapshot(checkpointNode, checkpointDiffs)
-						.thenCompose($ -> findSnapshot(singleton(checkpointNode), extraSnapshotsCount))
-						.thenCompose(lastSnapshot -> {
-							if (lastSnapshot.isPresent())
-								return Promises.toTuple(Tuple::new,
-										collectRequiredChunks(checkpointNode),
-										repository.loadCommit(lastSnapshot.get()))
-										.thenCompose(tuple ->
-												cleanup(lastSnapshot.get(),
-														union(chunksInDiffs(cubeDiffScheme, checkpointDiffs), tuple.collectedChunks),
-														tuple.lastSnapshot.getInstant().minus(chunksCleanupDelay)));
-							else {
-								logger.info("Not enough snapshots, skip cleanup");
+				.thenCompose(commitId -> algorithms.checkout(commitId)
+						.thenComposeEx((checkpointDiffs, e) -> {
+							if (e == null) {
+								return repository.saveSnapshot(checkpointNode, checkpointDiffs)
+										.thenCompose($ -> findSnapshot(singleton(checkpointNode), extraSnapshotsCount))
+										.thenCompose(lastSnapshot -> {
+											if (lastSnapshot.isPresent())
+												return Promises.toTuple(Tuple::new,
+														collectRequiredChunks(checkpointNode),
+														repository.loadCommit(lastSnapshot.get()))
+														.thenCompose(tuple ->
+																cleanup(lastSnapshot.get(),
+																		union(chunksInDiffs(cubeDiffScheme, checkpointDiffs), tuple.collectedChunks),
+																		tuple.lastSnapshot.getInstant().minus(chunksCleanupDelay)));
+											else {
+												logger.info("Not enough snapshots, skip cleanup");
+												return Promise.complete();
+											}
+										});
+							} else if (e instanceof OTException) {
+								logger.info("Failed to checkout, maybe snapshot is not currently present, skip cleanup");
 								return Promise.complete();
+							} else {
+								return Promise.ofException(e);
 							}
 						}))
 				.whenComplete(toLogger(logger, thisMethod(), checkpointNode));
@@ -170,6 +186,7 @@ public final class CubeCleanerController<K, D, C> implements EventloopJmxMBeanEx
 				.thenCompose(findResult -> {
 					if (!findResult.isFound()) return Promise.of(Optional.empty());
 					else if (skipSnapshots <= 0) return Promise.of(Optional.of(findResult.getCommit()));
+					else if (findResult.getCommitParents().isEmpty()) return Promise.of(Optional.empty());
 					else return findSnapshot(findResult.getCommitParents(), skipSnapshots - 1);
 				});
 	}

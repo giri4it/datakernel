@@ -25,25 +25,27 @@ import io.datakernel.cube.bean.TestPubRequest.TestAdvRequest;
 import io.datakernel.cube.ot.CubeDiff;
 import io.datakernel.cube.ot.CubeDiffCodec;
 import io.datakernel.cube.ot.CubeOT;
+import io.datakernel.cube.service.CubeCleanerController;
 import io.datakernel.etl.*;
 import io.datakernel.eventloop.Eventloop;
 import io.datakernel.multilog.Multilog;
 import io.datakernel.multilog.MultilogImpl;
-import io.datakernel.ot.OTAlgorithms;
-import io.datakernel.ot.OTRepositoryMySql;
-import io.datakernel.ot.OTStateManager;
-import io.datakernel.ot.OTSystem;
+import io.datakernel.ot.*;
 import io.datakernel.remotefs.LocalFsClient;
 import io.datakernel.serializer.SerializerBuilder;
 import io.datakernel.stream.StreamSupplier;
 import io.datakernel.stream.processor.DatakernelRunner;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 
 import javax.sql.DataSource;
+import java.io.IOException;
 import java.nio.file.Path;
+import java.sql.SQLException;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -68,18 +70,24 @@ import static org.junit.Assert.assertEquals;
 public final class LogToCubeTest {
 	@Rule
 	public TemporaryFolder temporaryFolder = new TemporaryFolder();
+	private Eventloop eventloop;
+	private OTAlgorithms<Long, LogDiff<CubeDiff>> algorithms;
+	private OTRepositoryMySql<LogDiff<CubeDiff>> repository;
+	private Cube cube;
+	private AggregationChunkStorage<Long> aggregationChunkStorage;
+	private DefiningClassLoader classLoader;
 
-	@Test
-	public void testStubStorage() throws Exception {
+	@Before
+	public void setUp() throws Exception {
+		DataSource dataSource = dataSource("test.properties");
 		Path aggregationsDir = temporaryFolder.newFolder().toPath();
-		Path logsDir = temporaryFolder.newFolder().toPath();
-
-		Eventloop eventloop = Eventloop.getCurrentEventloop();
 		ExecutorService executor = Executors.newCachedThreadPool();
-		DefiningClassLoader classLoader = DefiningClassLoader.create();
 
-		AggregationChunkStorage<Long> aggregationChunkStorage = RemoteFsChunkStorage.create(eventloop, ChunkIdCodec.ofLong(), new IdGeneratorStub(), LocalFsClient.create(eventloop, executor, aggregationsDir));
-		Cube cube = Cube.create(eventloop, executor, classLoader, aggregationChunkStorage)
+		eventloop = Eventloop.getCurrentEventloop();
+
+		classLoader = DefiningClassLoader.create();
+		aggregationChunkStorage = RemoteFsChunkStorage.create(eventloop, ChunkIdCodec.ofLong(), new IdGeneratorStub(), LocalFsClient.create(eventloop, executor, aggregationsDir));
+		cube = Cube.create(eventloop, executor, classLoader, aggregationChunkStorage)
 				.withDimension("pub", ofInt())
 				.withDimension("adv", ofInt())
 				.withMeasure("pubRequests", sum(ofLong()))
@@ -87,15 +95,18 @@ public final class LogToCubeTest {
 				.withAggregation(id("pub").withDimensions("pub").withMeasures("pubRequests"))
 				.withAggregation(id("adv").withDimensions("adv").withMeasures("advRequests"));
 
-		DataSource dataSource = dataSource("test.properties");
 		OTSystem<LogDiff<CubeDiff>> otSystem = LogOT.createLogOT(CubeOT.createCubeOT());
-		OTRepositoryMySql<LogDiff<CubeDiff>> repository = OTRepositoryMySql.create(eventloop, executor, dataSource, otSystem, LogDiffCodec.create(CubeDiffCodec.create(cube)));
+		repository = OTRepositoryMySql.create(eventloop, executor, dataSource, otSystem, LogDiffCodec.create(CubeDiffCodec.create(cube)));
+		algorithms = OTAlgorithms.create(eventloop, otSystem, repository);
 		initializeRepository(repository);
+	}
 
+	@Test
+	public void testStubStorage() throws Exception {
+		Path logsDir = temporaryFolder.newFolder().toPath();
 		List<TestAdvResult> expected = asList(new TestAdvResult(10, 2), new TestAdvResult(20, 1), new TestAdvResult(30, 1));
 
 		LogOTState<CubeDiff> cubeDiffLogOTState = LogOTState.create(cube);
-		OTAlgorithms<Long, LogDiff<CubeDiff>> algorithms = OTAlgorithms.create(eventloop, otSystem, repository);
 		OTStateManager<Long, LogDiff<CubeDiff>> logCubeStateManager = OTStateManager.create(eventloop, algorithms, cubeDiffLogOTState);
 
 		Multilog<TestPubRequest> multilog = MultilogImpl.create(eventloop,
@@ -128,6 +139,32 @@ public final class LogToCubeTest {
 				.toList());
 
 		assertEquals(expected, list);
+	}
+
+	@Test
+	public void testCleanupWithEmptyGraph() throws SQLException, IOException {
+		repository.initialize();
+		repository.truncateTables();
+
+		CubeCleanerController<Long, LogDiff<CubeDiff>, Long> cleanerController = CubeCleanerController.create(eventloop,
+				CubeDiffScheme.ofLogDiffs(), algorithms, (RemoteFsChunkStorage<Long>) aggregationChunkStorage)
+				.withFreezeTimeout(Duration.ofMillis(100));
+		await(cleanerController.cleanup());
+	}
+
+	@Test
+	public void testCleanupWithNoSnapshot() throws SQLException, IOException {
+		repository.initialize();
+		repository.truncateTables();
+
+		// Add one commit, but no snapshot
+		Long id = await(repository.createCommitId());
+		await(repository.push(OTCommit.ofRoot(id)));
+
+		CubeCleanerController<Long, LogDiff<CubeDiff>, Long> cleanerController = CubeCleanerController.create(eventloop,
+				CubeDiffScheme.ofLogDiffs(), algorithms, (RemoteFsChunkStorage<Long>) aggregationChunkStorage)
+				.withFreezeTimeout(Duration.ofMillis(100));
+		await(cleanerController.cleanup());
 	}
 
 	public static final class TestAdvResult {
