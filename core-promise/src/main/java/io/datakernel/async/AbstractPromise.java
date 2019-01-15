@@ -1,7 +1,24 @@
+/*
+ * Copyright (C) 2015-2019 SoftIndex LLC.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package io.datakernel.async;
 
 import io.datakernel.exception.UncheckedException;
 import io.datakernel.functional.Try;
+import org.jetbrains.annotations.Async;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.concurrent.CompletableFuture;
@@ -35,6 +52,7 @@ abstract class AbstractPromise<T> implements Promise<T> {
 		return next == COMPLETED_EXCEPTIONALLY_PROMISE;
 	}
 
+	@Async.Execute
 	protected void complete(@Nullable T value, @Nullable Throwable e) {
 		assert next != COMPLETED_PROMISE && next != COMPLETED_EXCEPTIONALLY_PROMISE;
 		if (e == null) {
@@ -44,6 +62,7 @@ abstract class AbstractPromise<T> implements Promise<T> {
 		}
 	}
 
+	@Async.Execute
 	protected void complete(@Nullable T value) {
 		assert next != COMPLETED_PROMISE && next != COMPLETED_EXCEPTIONALLY_PROMISE;
 		if (next != null) {
@@ -52,6 +71,7 @@ abstract class AbstractPromise<T> implements Promise<T> {
 		}
 	}
 
+	@Async.Execute
 	protected void completeExceptionally(@Nullable Throwable e) {
 		assert next != COMPLETED_PROMISE && next != COMPLETED_EXCEPTIONALLY_PROMISE;
 		if (next != null) {
@@ -79,12 +99,12 @@ abstract class AbstractPromise<T> implements Promise<T> {
 	}
 
 	@Override
-	public <U, S extends BiConsumer<? super T, Throwable> & Promise<U>> Promise<U> then(S promise) {
+	public <U, S extends BiConsumer<? super T, Throwable> & Promise<U>> Promise<U> then(@Async.Schedule S promise) {
 		subscribe(promise);
 		return promise;
 	}
 
-	protected void subscribe(BiConsumer<? super T, Throwable> consumer) {
+	protected void subscribe(@Async.Schedule BiConsumer<? super T, Throwable> consumer) {
 		if (next == null) {
 			next = consumer;
 		} else {
@@ -98,10 +118,9 @@ abstract class AbstractPromise<T> implements Promise<T> {
 	}
 
 	@Override
-	public <U> Promise<U> thenApply(Function<? super T, ? extends U> fn) {
+	public <U> Promise<U> thenApply(@Async.Schedule Function<? super T, ? extends U> fn) {
 		return then(new NextPromise<T, U>() {
-			@Override
-			public void accept(T result, Throwable e) {
+			private void accept(@Async.Execute Function<? super T, ? extends U> fn, T result, Throwable e) {
 				if (e == null) {
 					U newResult;
 					try {
@@ -115,14 +134,18 @@ abstract class AbstractPromise<T> implements Promise<T> {
 					completeExceptionally(e);
 				}
 			}
+
+			@Override
+			public void accept(T result, Throwable e) {
+				accept(fn, result, e);
+			}
 		});
 	}
 
 	@Override
-	public <U> Promise<U> thenApplyEx(BiFunction<? super T, Throwable, ? extends U> fn) {
+	public <U> Promise<U> thenApplyEx(@Async.Schedule BiFunction<? super T, Throwable, ? extends U> fn) {
 		return then(new NextPromise<T, U>() {
-			@Override
-			public void accept(T result, Throwable e) {
+			private void accept(@Async.Execute BiFunction<? super T, Throwable, ? extends U> fn, T result, Throwable e) {
 				if (e == null) {
 					U newResult;
 					try {
@@ -143,14 +166,18 @@ abstract class AbstractPromise<T> implements Promise<T> {
 					complete(newResult);
 				}
 			}
+
+			@Override
+			public void accept(T result, Throwable e) {
+				accept(fn, result, e);
+			}
 		});
 	}
 
 	@Override
-	public <U> Promise<U> thenCompose(Function<? super T, ? extends Promise<U>> fn) {
+	public <U> Promise<U> thenCompose(@Async.Schedule Function<? super T, ? extends Promise<U>> fn) {
 		return then(new NextPromise<T, U>() {
-			@Override
-			public void accept(T result, Throwable e) {
+			private void accept(@Async.Execute Function<? super T, ? extends Promise<U>> fn, T result, Throwable e) {
 				if (e == null) {
 					Promise<U> promise;
 					try {
@@ -164,14 +191,18 @@ abstract class AbstractPromise<T> implements Promise<T> {
 					completeExceptionally(e);
 				}
 			}
+
+			@Override
+			public void accept(T result, Throwable e) {
+				accept(fn, result, e);
+			}
 		});
 	}
 
 	@Override
-	public <U> Promise<U> thenComposeEx(BiFunction<? super T, Throwable, ? extends Promise<U>> fn) {
+	public <U> Promise<U> thenComposeEx(@Async.Schedule BiFunction<? super T, Throwable, ? extends Promise<U>> fn) {
 		return then(new NextPromise<T, U>() {
-			@Override
-			public void accept(T result, Throwable e) {
+			private void accept(@Async.Execute BiFunction<? super T, Throwable, ? extends Promise<U>> fn, T result, Throwable e) {
 				if (e == null) {
 					Promise<U> promise;
 					try {
@@ -192,6 +223,11 @@ abstract class AbstractPromise<T> implements Promise<T> {
 					promise.whenComplete(this::complete);
 				}
 			}
+
+			@Override
+			public void accept(T result, Throwable e) {
+				accept(fn, result, e);
+			}
 		});
 	}
 
@@ -202,19 +238,33 @@ abstract class AbstractPromise<T> implements Promise<T> {
 	}
 
 	@Override
-	public Promise<T> whenResult(Consumer<? super T> action) {
-		return whenComplete((result, e) -> {
-			if (e == null) {
+	public Promise<T> whenResult(@Async.Schedule Consumer<? super T> action) {
+		return whenComplete(new BiConsumer<T, Throwable>() {
+			private void accept(@Async.Execute Consumer<? super T> action, T result) {
 				action.accept(result);
+			}
+
+			@Override
+			public void accept(T result, Throwable e) {
+				if (e == null) {
+					accept(action, result);
+				}
 			}
 		});
 	}
 
 	@Override
-	public Promise<T> whenException(Consumer<Throwable> action) {
-		return whenComplete((result, e) -> {
-			if (e != null) {
+	public Promise<T> whenException(@Async.Schedule Consumer<Throwable> action) {
+		return whenComplete(new BiConsumer<T, Throwable>() {
+			private void accept(@Async.Execute Consumer<Throwable> action, Throwable e) {
 				action.accept(e);
+			}
+
+			@Override
+			public void accept(T result, Throwable e) {
+				if (e != null) {
+					accept(action, e);
+				}
 			}
 		});
 	}

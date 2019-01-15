@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2018 SoftIndex LLC.
+ * Copyright (C) 2015-2019 SoftIndex LLC.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ package io.datakernel.async;
 import io.datakernel.eventloop.Eventloop;
 import io.datakernel.exception.UncheckedException;
 import io.datakernel.functional.Try;
+import org.jetbrains.annotations.Async;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.NoSuchElementException;
@@ -110,13 +111,20 @@ public interface Promise<T> {
 	 * @param completionStage completion stage itself
 	 * @return result of the given completionStage wrapped in a {@code Promise}
 	 */
-	static <T> Promise<T> ofCompletionStage(CompletionStage<? extends T> completionStage) {
+	static <T> Promise<T> ofCompletionStage(@Async.Schedule CompletionStage<? extends T> completionStage) {
 		Eventloop eventloop = Eventloop.getCurrentEventloop();
 		eventloop.startExternalTask();
 		SettablePromise<T> promise = new SettablePromise<>();
-		completionStage.whenCompleteAsync((result, e) -> {
-			promise.set(result, e);
-			eventloop.completeExternalTask();
+		completionStage.whenCompleteAsync(new BiConsumer<T, Throwable>() {
+			private void complete(@SuppressWarnings("unused") @Async.Execute CompletionStage<? extends T> $, T result, Throwable e) {
+				promise.set(result, e);
+				eventloop.completeExternalTask();
+			}
+
+			@Override
+			public void accept(T result, Throwable e) {
+				complete(completionStage, result, e);
+			}
 		}, eventloop);
 		return promise;
 	}
@@ -128,23 +136,30 @@ public interface Promise<T> {
 	 * @param future   the future itself
 	 * @return result of the future wrapped in a {@code Promise}
 	 */
-	static <T> Promise<T> ofFuture(Executor executor, Future<? extends T> future) {
+	static <T> Promise<T> ofFuture(Executor executor, @Async.Schedule Future<? extends T> future) {
 		Eventloop eventloop = Eventloop.getCurrentEventloop();
 		eventloop.startExternalTask();
 		SettablePromise<T> promise = new SettablePromise<>();
 		try {
-			executor.execute(() -> {
-				try {
-					T value = future.get();
-					eventloop.execute(() -> promise.set(value));
-				} catch (ExecutionException e) {
-					eventloop.execute(() -> promise.setException(e.getCause()));
-				} catch (InterruptedException e) {
-					eventloop.execute(() -> promise.setException(e));
-				} catch (Throwable e) {
-					eventloop.execute(() -> eventloop.recordFatalError(e, future));
-				} finally {
-					eventloop.completeExternalTask();
+			executor.execute(new Runnable() {
+				private void run(@Async.Execute Future<? extends T> future) {
+					try {
+						T value = future.get();
+						eventloop.execute(() -> promise.set(value));
+					} catch (ExecutionException e) {
+						eventloop.execute(() -> promise.setException(e.getCause()));
+					} catch (InterruptedException e) {
+						eventloop.execute(() -> promise.setException(e));
+					} catch (Throwable e) {
+						eventloop.execute(() -> eventloop.recordFatalError(e, future));
+					} finally {
+						eventloop.completeExternalTask();
+					}
+				}
+
+				@Override
+				public void run() {
+					run(future);
 				}
 			});
 		} catch (RejectedExecutionException e) {
@@ -162,25 +177,32 @@ public interface Promise<T> {
 	 * @param callable the task itself
 	 * @return {@code Promise} for the given task
 	 */
-	static <T> Promise<T> ofCallable(Executor executor, Callable<? extends T> callable) {
+	static <T> Promise<T> ofCallable(Executor executor, @Async.Schedule Callable<? extends T> callable) {
 		Eventloop eventloop = Eventloop.getCurrentEventloop();
 		eventloop.startExternalTask();
 		SettablePromise<T> promise = new SettablePromise<>();
 		try {
-			executor.execute(() -> {
-				try {
-					T result = callable.call();
-					eventloop.execute(() -> promise.set(result));
-				} catch (UncheckedException u) {
-					eventloop.execute(() -> promise.setException(u.getCause()));
-				} catch (RuntimeException e) {
-					eventloop.execute(() -> eventloop.recordFatalError(e, callable));
-				} catch (Exception e) {
-					eventloop.execute(() -> promise.setException(e));
-				} catch (Throwable e) {
-					eventloop.execute(() -> eventloop.recordFatalError(e, callable));
-				} finally {
-					eventloop.completeExternalTask();
+			executor.execute(new Runnable() {
+				private void run(@Async.Execute Callable<? extends T> callable) {
+					try {
+						T result = callable.call();
+						eventloop.execute(() -> promise.set(result));
+					} catch (UncheckedException u) {
+						eventloop.execute(() -> promise.setException(u.getCause()));
+					} catch (RuntimeException e) {
+						eventloop.execute(() -> eventloop.recordFatalError(e, callable));
+					} catch (Exception e) {
+						eventloop.execute(() -> promise.setException(e));
+					} catch (Throwable e) {
+						eventloop.execute(() -> eventloop.recordFatalError(e, callable));
+					} finally {
+						eventloop.completeExternalTask();
+					}
+				}
+
+				@Override
+				public void run() {
+					run(callable);
 				}
 			});
 		} catch (RejectedExecutionException e) {
@@ -193,21 +215,28 @@ public interface Promise<T> {
 	/**
 	 * Same as {@link #ofCallable(Executor, Callable)}, but without a result (returned promise is only a marker of completion).
 	 */
-	static Promise<Void> ofRunnable(Executor executor, Runnable runnable) {
+	static Promise<Void> ofRunnable(Executor executor, @Async.Schedule Runnable runnable) {
 		Eventloop eventloop = Eventloop.getCurrentEventloop();
 		eventloop.startExternalTask();
 		SettablePromise<Void> promise = new SettablePromise<>();
 		try {
-			executor.execute(() -> {
-				try {
-					runnable.run();
-					eventloop.execute(() -> promise.set(null));
-				} catch (UncheckedException u) {
-					eventloop.execute(() -> promise.setException(u.getCause()));
-				} catch (Throwable e) {
-					eventloop.execute(() -> eventloop.recordFatalError(e, runnable));
-				} finally {
-					eventloop.completeExternalTask();
+			executor.execute(new Runnable() {
+				private void run(@Async.Execute Runnable runnable) {
+					try {
+						runnable.run();
+						eventloop.execute(() -> promise.set(null));
+					} catch (UncheckedException u) {
+						eventloop.execute(() -> promise.setException(u.getCause()));
+					} catch (Throwable e) {
+						eventloop.execute(() -> eventloop.recordFatalError(e, runnable));
+					} finally {
+						eventloop.completeExternalTask();
+					}
+				}
+
+				@Override
+				public void run() {
+					run(runnable);
 				}
 			});
 		} catch (RejectedExecutionException e) {
